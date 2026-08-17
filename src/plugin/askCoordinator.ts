@@ -201,13 +201,7 @@ export class AskCoordinator {
     base: string,
   ): Promise<import("../platform/plusBaseVerify").PlusBaseVerdict> {
     const p = this.plugin;
-    return p.runPlusBaseGate({
-      session,
-      resolvedBase: base,
-      // The raw field, not the resolved base: an empty one means the plugin has
-      // no address it can trust, not the hosted default (KTD1 carve-out).
-      configuredBase: p.settings.plusBaseUrl,
-    });
+    return p.runPlusBaseGate({ session, resolvedBase: base });
   }
 
   /** Vault + Plus wiring for the outbox loop; null when there is no session. */

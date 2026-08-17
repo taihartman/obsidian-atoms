@@ -36,7 +36,6 @@ import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusClient";
 import {
   LS_PLUS_BASE_REFUSAL,
   PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
-  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
   PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
 } from "../src/platform/plusBaseVerify";
@@ -1284,13 +1283,21 @@ describe("account screen holds the same rows through the restyle (U8, KTD14)", (
 });
 
 /**
- * #508 D1. Everyone who was already signed in when the issuer gate shipped holds an unstamped
- * session, and a hosted user leaves `plusBaseUrl` empty, so their first Process refuses. The
- * refusal says to open Settings. Before this row, Settings had nowhere to open *to* except
- * Advanced, which asks them to type the address that is already the implicit default.
+ * #508 A5/A6, as narrowed by #540. The Account screen names an address that has actually
+ * *refused* this session and offers the way back from it.
+ *
+ * It used to double as the upgrade cohort's exit, keyed on an unstamped session with an empty
+ * field — which is every hosted subscriber, so everyone met it once and was asked to confirm an
+ * address they never chose. That state is no longer reported at all: the next content call probes
+ * the hosted default and either stamps or records a refusal, and the refusal is what earns a row.
  */
-describe("#508 - the Account screen offers the upgrade cohort a way out", () => {
-  const ROW = "Confirm the Plus address";
+describe("#508/#540 - the Account screen offers the way back from a refused address", () => {
+  const ROW = "Check the Plus address";
+  /** What `writePlusBaseRefusal` leaves on disk: a base a live probe said no to. */
+  const refusedAt = (base: string) => ({
+    "atoms-plus-base-refusal": JSON.stringify({ base, at: 1 }),
+  });
+  const WRONG = "https://wrong.host";
 
   const upgrading: PlusSession = {
     sessionToken: "sess_upgrade",
@@ -1325,34 +1332,65 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     open(tab, "Atoms Plus");
   }
 
-  it("offers the row when there is no stamp and no address", () => {
+  /**
+   * The #540 regression guard, and the reason this whole PR exists. This is the state every
+   * hosted subscriber upgrades in — no stamp, empty field — and it must produce nothing at all.
+   */
+  it("says nothing to the upgrade cohort: no stamp, no address, nothing refused", () => {
     const { tab } = settingTab(signedIn(upgrading));
+    openAccount(tab);
+
+    expect(rowNames(tab)).not.toContain(ROW);
+    expect(tab.containerEl.textContent).not.toContain(PLUS_BASE_ADDRESS_REFUSED_MESSAGE);
+  });
+
+  it("offers the row once a probe has refused the address in use", () => {
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: WRONG },
+      local: refusedAt(WRONG),
+    });
     openAccount(tab);
 
     expect(rowNames(tab)).toContain(ROW);
     expect(row(tab, ROW).textContent).toContain("plus.tryatoms.app");
   });
 
-  it("writes the standard address and stops asking", async () => {
-    const { tab, plugin } = settingTab(signedIn(upgrading));
+  /**
+   * Clears the override rather than writing the default into it. Writing it was the old exit's
+   * mechanism, and it pinned a literal into `data.json` that Sync then carried to every device —
+   * so a hosted user who took the offered way out ended up permanently overriding an address they
+   * would otherwise have inherited. Empty is what "use the hosted service" means everywhere else.
+   */
+  it("clears the override rather than pinning the default, and stops asking", async () => {
+    const { tab, plugin } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: WRONG },
+      local: refusedAt(WRONG),
+    });
     openAccount(tab);
 
     press(tab, ROW, "Use plus.tryatoms.app");
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-    expect(plugin.settings.plusBaseUrl).toBe(DEFAULT_PLUS_BASE_URL);
-    // The screen re-renders, and the question it was asking is answered.
+    expect(plugin.settings.plusBaseUrl).toBe("");
+    expect(plugin.settings.plusBaseUrl).not.toBe(DEFAULT_PLUS_BASE_URL);
+    // The refusal was recorded against the address that just went away.
     expect(rowNames(tab)).not.toContain(ROW);
   });
 
   /**
-   * Found by the cross-model review. Writing the address is not a stamp: the
-   * next content call still probes this host and can still refuse it. A Notice
-   * promising a filing is a promise this row has no way to keep.
+   * Found by the cross-model review on #508 and still true: dropping the override is not a stamp.
+   * The next content call still probes and can still refuse, so a Notice promising a filing is a
+   * promise this row has no way to keep.
    */
   it("says what it did, not what the next Process will manage", () => {
     Notice.messages.length = 0;
-    const { tab } = settingTab(signedIn(upgrading));
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: WRONG },
+      local: refusedAt(WRONG),
+    });
     openAccount(tab);
 
     press(tab, ROW, "Use plus.tryatoms.app");
@@ -1362,14 +1400,12 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     expect(said.toLowerCase()).not.toContain("files as usual");
   });
 
-  /**
-   * The button writes an *address*, never a stamp. A stamp minted here would be a verdict
-   * nothing verified, and the only thing it could be minted from is the ungated resolution
-   * this issue exists to stop trusting. The next content call probes with the address now in
-   * the field and stamps for real.
-   */
   it("mints no issuer stamp of its own", async () => {
-    const { tab, local } = settingTab(signedIn(upgrading));
+    const { tab, local } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: WRONG },
+      local: refusedAt(WRONG),
+    });
     openAccount(tab);
 
     press(tab, ROW, "Use plus.tryatoms.app");
@@ -1383,10 +1419,29 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     expect(stored?.verifiedBase).toBeUndefined();
   });
 
-  it("says nothing to a session that carries a stamp", () => {
-    const { tab } = settingTab(
-      signedIn({ ...upgrading, issuedBase: DEFAULT_PLUS_BASE_URL as IssuedBase }),
-    );
+  /**
+   * A refusal recorded at the *hosted* address, with no override to drop. The button would leave
+   * the field exactly as it found it, so there is no button — the statement stands on its own and
+   * points at the screen that can act.
+   */
+  it("states the refusal without a dead button when there is no override to drop", () => {
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      local: refusedAt(DEFAULT_PLUS_BASE_URL),
+    });
+    openAccount(tab);
+
+    expect(rowNames(tab)).not.toContain(ROW);
+    expect(tab.containerEl.textContent).toContain(PLUS_BASE_ADDRESS_REFUSED_MESSAGE);
+    expect(tab.containerEl.textContent).toContain("Advanced");
+  });
+
+  it("says nothing about a refusal recorded at some other address", () => {
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: WRONG },
+      local: refusedAt("https://somewhere.else"),
+    });
     openAccount(tab);
 
     expect(rowNames(tab)).not.toContain(ROW);
@@ -1394,8 +1449,7 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
 
   /**
    * A stamp that disagrees with the configured base is the mismatch case, and it is deliberately
-   * not this row's business: it is unsettled, the next Process or mirror push may re-stamp, and
-   * "confirm the address" is the wrong instruction for someone who already has one.
+   * not this row's business: it is unsettled, and the next Process or mirror push may re-stamp.
    */
   it("says nothing about a stamp that disagrees with the address in use", () => {
     const { tab } = settingTab({
@@ -2903,17 +2957,18 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     expect(tab.containerEl.textContent).toContain(PLUS_BASE_REFUSED_MESSAGE);
   });
 
-  it("tells the upgrade cohort to supply an address, not that we distrust one", () => {
-    // No stamp and an empty field. "Can't confirm your sign-in at this address"
-    // names an address this user never chose; they need to supply one.
+  it("publishes it to the upgrade cohort, whose missing stamp is not a refusal (#540)", () => {
+    // No stamp and an empty field: every hosted subscriber, on upgrade. Nothing
+    // has refused anything — the session simply has not been probed yet — so
+    // withholding the screen behind copy about an address they never chose was
+    // reporting a problem that did not exist.
     const { tab } = settingTab({
       session: { ...PLUS_SESSION, issuedBase: undefined, verifiedBase: undefined },
     });
     tab.display();
     open(tab, "Connect Claude or ChatGPT");
 
-    expect(rowNames(tab)).not.toContain("MCP connector URL");
-    expect(tab.containerEl.textContent).toContain(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+    expect(rowNames(tab)).toContain("MCP connector URL");
     expect(tab.containerEl.textContent).not.toContain(PLUS_BASE_REFUSED_MESSAGE);
   });
 

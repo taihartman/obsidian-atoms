@@ -29,7 +29,6 @@ import {
 } from "../src/platform/plusRefresh";
 import {
   plusAddressAdvisory,
-  plusAddressStateMessage,
   plusSessionStamp,
   verifyPlusBase,
   PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
@@ -323,7 +322,7 @@ describe("A13 — the email predicate is defeated by a host that echoes the addr
     }));
     const verdict = await verifyPlusBase(
       { storage: app, request: echo },
-      { session: session(), resolvedBase: BASE_Y, configuredBase: BASE_Y },
+      { session: session(), resolvedBase: BASE_Y },
     );
     expect(verdict.kind).toBe("verified");
     expect(readPlusSession(app)?.verifiedBase).toBe(normalizePlusBase(BASE_Y));
@@ -338,7 +337,7 @@ describe("A13 — the email predicate is defeated by a host that echoes the addr
     }));
     const verdict = await verifyPlusBase(
       { storage: app, request: wrong },
-      { session: session(), resolvedBase: BASE_Y, configuredBase: BASE_Y },
+      { session: session(), resolvedBase: BASE_Y },
     );
     expect(verdict.kind).toBe("refused");
     expect(readPlusSession(app)?.verifiedBase).toBe(BASE_X);
@@ -355,28 +354,28 @@ describe("A16 — one stamp present, the other absent", () => {
     const s = session({ issuedBase: undefined, verifiedBase: BASE_Y });
     expect(plusSessionStamp(s)).toBe(BASE_Y);
   });
-  it("neither: unknown, and with an empty field it is needs-address", () => {
+  it("neither: unknown, and an empty field says nothing about it (#540)", () => {
     const s = session({ issuedBase: undefined, verifiedBase: undefined });
     expect(plusSessionStamp(s)).toBe("");
-    expect(plusAddressStateMessage(s, "")).not.toBe("");
+    expect(plusAddressAdvisory(s, "", null)).toBeNull();
   });
 });
 
 /* ------------------------------------------------------------- A6 / A11 --- */
 
-describe("A6 — the recovery row follows a recorded refusal, not an empty field", () => {
+describe("A6 — the recovery row follows a recorded refusal, and nothing else", () => {
   // FIXED. This used to pin the gap: the row keyed only on an empty field, so a
   // user who typed a wrong-but-valid address lost it and the only way back was
   // to guess that CLEARING the field re-summons it. `plusAddressAdvisory` now
-  // widens it to a base that has actually refused. The predicate deliberately
-  // stops there — see the second test, which is what keeps the fix from
-  // becoming a nag.
-  it("an unstamped session with a WRONG but valid base gets the row back once that base refuses", () => {
+  // keys on a base that has actually refused. Since #540 that is *all* it keys
+  // on — see the second test, which is what keeps the fix from becoming a nag.
+  it("an unstamped session with a WRONG but valid base gets the row once that base refuses", () => {
     const upgrade = session({ issuedBase: undefined, verifiedBase: undefined });
-    // The upgrade cohort's rescue row.
-    expect(plusAddressAdvisory(upgrade, "", null)).toMatchObject({ kind: "needs-address" });
-    // They type a wrong-but-valid address under Advanced instead of pressing it.
-    // Every Process now refuses at BASE_Y and records it.
+    // No row on the way in: an unstamped session with an empty field is the
+    // ordinary pre-first-probe state, not a condition to report (#540).
+    expect(plusAddressAdvisory(upgrade, "", null)).toBeNull();
+    // They type a wrong-but-valid address under Advanced. Every Process now
+    // refuses at BASE_Y and records it, and *that* is what earns the row.
     expect(plusAddressAdvisory(upgrade, BASE_Y, { base: BASE_Y, at: 1 })).toEqual({
       kind: "refused",
       message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
@@ -404,13 +403,13 @@ describe("A11 — re-probe ping-pong after a re-stamp", () => {
     // Move to Y.
     const v1 = await verifyPlusBase(
       { storage: app, request: ok },
-      { session: readPlusSession(app)!, resolvedBase: BASE_Y, configuredBase: BASE_Y },
+      { session: readPlusSession(app)!, resolvedBase: BASE_Y },
     );
     expect(v1).toMatchObject({ kind: "verified", restamped: true, previousBase: BASE_X });
     // Now back to X — the base that actually issued this session.
     const v2 = await verifyPlusBase(
       { storage: app, request: ok },
-      { session: readPlusSession(app)!, resolvedBase: BASE_X, configuredBase: BASE_X },
+      { session: readPlusSession(app)!, resolvedBase: BASE_X },
     );
     // A second network probe and a second "issuer moved" Notice, for the
     // session's own original issuer. Recorded, not asserted as correct.
@@ -448,7 +447,7 @@ describe("A9/A10 — concurrent probe and refresh must not lose the other's writ
     );
     const verifyP = verifyPlusBase(
       { storage: app, request: fastOk },
-      { session: readPlusSession(app)!, resolvedBase: BASE_Y, configuredBase: BASE_Y },
+      { session: readPlusSession(app)!, resolvedBase: BASE_Y },
     );
     await verifyP;
     release!();

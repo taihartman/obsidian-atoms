@@ -14,7 +14,6 @@ import {
   type PlusSession,
 } from "../src/platform/filingAuth";
 import {
-  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
   PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
 } from "../src/platform/plusBaseVerify";
@@ -163,15 +162,16 @@ describe("resolveClassifyAuth — the issuer gate", () => {
     verifiedBase: "https://my.host",
   };
 
-  it("asks about the resolved base and hands the gate the raw field", async () => {
+  it("asks about the base the request will actually post to", async () => {
     const verify = verifies();
     await resolveClassifyAuth(plus, { verifyBase: verify, plusBaseUrl: "  " });
-    // Resolved for the request, raw for the KTD1 carve-out. Collapsing the two
-    // is what would make an empty field indistinguishable from a chosen host.
+    // Resolved, and only resolved. The gate also took the raw field until #540,
+    // for the KTD1 carve-out that turned on it being empty; nothing reads it now,
+    // so passing it would be a parameter waiting to be trusted again.
     expect(verify.calls[0]).toMatchObject({
       resolvedBase: "https://plus.tryatoms.app",
-      configuredBase: "  ",
     });
+    expect(verify.calls[0]).not.toHaveProperty("configuredBase");
   });
 
   it("passes the session stamps through, or the gate has nothing to compare", async () => {
@@ -204,17 +204,21 @@ describe("resolveClassifyAuth — the issuer gate", () => {
     }
   });
 
-  it("the needs-address state blocks too, with copy that is not an accusation", async () => {
+  it("relays whatever the gate refused with, rather than re-deriving copy (#540)", async () => {
+    // The gate used to hand back a second reason, `needs-address`, for an
+    // unstamped session with an empty field; it now probes that case instead.
+    // What this pins is the seam: this resolver states the gate's message and
+    // does not decide which refusals exist.
     const r = await resolveClassifyAuth(plus, {
       verifyBase: async () => ({
         kind: "refused",
-        reason: "needs-address",
-        message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+        reason: "unverified",
+        message: PLUS_BASE_REFUSED_MESSAGE,
       }),
       plusBaseUrl: "",
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.message).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+    if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
   });
 
   it("fails closed when the gate could not check (KTD3)", async () => {

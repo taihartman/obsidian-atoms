@@ -92,14 +92,41 @@ issued the token cannot know which account it belongs to. The repo already holds
 
 ## KTD1 — what an absent `issuedBase` means
 
-**DECIDED 2026-08-15, user-directed: row 1, with the carve-out below.** An absent issuer means
-*unknown*, never *production*. The plugin does not guess where a session came from.
+**DECIDED 2026-08-15, user-directed: row 1, with the carve-out below.**
+**AMENDED 2026-08-17, user-directed (#540): row 1, and the carve-out is REMOVED.** An absent
+issuer still means *unknown*, never *production* — that half stands. What is gone is the refusal
+that stood in front of the probe when the field was also empty.
+
+> **Why it was reversed, by the owner, after using 0.8.3-beta.1.** The carve-out's condition is
+> `no stamp && empty field`, and the analysis below treats that as "the upgrade cohort" — a
+> bounded, one-time, self-clearing population. It is bounded and one-time, and it is also
+> **every hosted subscriber there is**: sessions minted before U2 carry no stamp, and a hosted
+> user's field is empty because empty is what hosted *means*. So the whole install base upgraded
+> into a stop, and D1's exit asked them to confirm an address they never chose, writing a literal
+> into `plusBaseUrl` that Sync then carried to every device — permanently overriding the value
+> they would otherwise have inherited.
+>
+> The trade was also mis-weighed, and the row below has the numbers to see it. The carve-out
+> converts the self-hoster's leak from *token + capture bodies, on every call* (0.8.2, and
+> `plusClient.ts` #500 says it was proven live) to *nothing*. **Probing** converts it to *one
+> content-free `/v1/me` carrying the token, then a recorded refusal and no bodies at all* —
+> because `plus.tryatoms.app` cannot name their account, so nothing stamps. Almost all of the
+> protection, at none of the cost to everyone else.
+>
+> **Not row 2.** Row 2 reads an absent stamp *as* production and never probes, which grandfathers
+> the leak in permanently. What shipped is row 1 with nothing in front of the probe.
+>
+> The learning is compounded in
+> `docs/solutions/ui-patterns/a-one-time-migration-state-is-a-first-run-experience.md`: a state
+> every existing user passes through is not an edge case, and "one-time and self-clearing" is not
+> a reason to weigh it lightly.
 
 Sessions already on disk carry no issuer. Three readings:
 
 | Option | Upgrade cost | Residual hole |
 |---|---|---|
-| **Unknown = unverified** (recommended, with the carve-out below) | one content-free `/v1/me` before the first content call, for every existing session | none, once carved out |
+| **Unknown = unverified** — **SHIPPED, without the carve-out (#540)** | one content-free `/v1/me` before the first content call, for every existing session | one token, once, for a self-hoster with a cleared field; refused on arrival, so no bodies |
+| ~~Unknown = unverified, plus the carve-out~~ — shipped 0.8.3-beta.1, reversed | **every hosted subscriber stops filing until they confirm an address they never chose** | none |
 | Unknown = production | none | self-hosters with a cleared field keep leaking until they re-sign-in; fix protects new sessions only |
 | Unknown = mismatch | same as row 1 in practice | none |
 
@@ -107,7 +134,12 @@ Rows 1 and 3 collapse together: the settled design treats a mismatch as *pause a
 as sign-out, so "mismatch" does not cost a sign-out here. Row 2 is the only one that materially
 differs, and it grandfathers in exactly the state #508 exists to catch.
 
-### The carve-out row 1 needs, or it reproduces the bug on the first run
+### ~~The carve-out row 1 needs, or it reproduces the bug on the first run~~ — REMOVED (#540)
+
+*Kept below as the record of what was decided and why, because the reasoning is sound about the
+population it looks at and wrong about the one it does not. Everything from here to the end of this
+subsection describes behaviour that no longer ships.*
+
 
 The safety argument for the probe is that the token only ever reaches "a host the user configured."
 **That condition does not hold in the absent case.** For the exact user #508 exists to protect — a
@@ -275,8 +307,9 @@ four callers: `settings.ts:2567` (trial), `:2602` (subscribe), `:2708` (paste, f
 KTD4). Each supplies the base it actually talked to, not the one currently configured. Tests: each
 path stamps; the two direct `writePlusSession` callers preserve an existing stamp.
 
-**U3 — verification.** Implements KTD1 row 1 plus the carve-out: an absent stamp is *unknown*, and
-unknown with an empty field does not probe at all.
+**U3 — verification.** Implements KTD1 row 1: an absent stamp is *unknown*, so it is probed rather
+than trusted, at whatever base the caller resolved. (Shipped with a carve-out that made unknown +
+an empty field refuse without probing; **#540 removed it** — see the amendment on KTD1.)
 New `src/platform/plusBaseVerify.ts`: given a session and a resolved base, return `verified`,
 `refused`, or `unreachable`. Match on normalized bases; on mismatch or `undefined`, verify by
 calling the **existing** `getEntitlement` (`plusClient.ts:696`) with
@@ -361,10 +394,16 @@ template and regex literals. Drafts, subject to `atoms-voice`:
 It must not say "your token was not sent", which invites the question of when it is. It should point
 at the field, because the field is what the user changed.
 
-**Needs confirming.** The KTD1 carve-out state: no stamp and an empty field, so the plugin has no
-address it can trust. One-time, self-clearing, and it must not read as an error the user caused:
+**~~Needs confirming.~~ RETIRED (#540)** — the KTD1 carve-out state it spoke for no longer exists,
+so this string is deleted rather than reworded. It read:
 
-> `Atoms Plus needs its address before your notes are sent. Open Settings to confirm it.`
+> ~~`Atoms Plus needs its address before your notes are sent. Open Settings to confirm it.`~~
+
+The owner's verdict on meeting it in 0.8.3-beta.1: *"That was pretty stupid. If the user has Plus,
+they wanna use Plus. And if they wanna override it, then they could just override it. There's no
+need to confirm."* Nothing replaces it: the state it described is now the ordinary condition of a
+session waiting for its first probe, and the probe's own outcome — verified, refused, or
+unreachable — already has copy.
 
 **Couldn't check.** Distinct from the refusal, because under KTD1 row 1 the first content call after
 upgrade depends on a live probe for *every* existing session, including hosted users who changed

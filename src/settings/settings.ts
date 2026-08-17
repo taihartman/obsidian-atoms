@@ -141,7 +141,6 @@ import {
 } from "../platform/plusClient";
 import {
   plusAddressAdvisory,
-  plusAddressStateMessage,
   plusBaseHost,
   plusSessionStamp,
   readPlusBaseRefusal,
@@ -1445,18 +1444,17 @@ export class AtomsSettingTab extends PluginSettingTab {
     // sending the token to the host it is trying to decide about. Sync means a
     // stale stamp reads as "not yet confirmed", which is the safe direction --
     // a Process or a mirror push re-verifies and this row then resolves.
-    if (!plusBaseMatches(plusSessionStamp(session), base)) {
-      // Two states block this row, and they ask the reader for different
-      // things. The upgrade cohort has no stamp and an empty field, so telling
-      // them we cannot confirm a sign-in "at this address" names an address
-      // they never chose; they need to supply one. Everyone else has a stamp
-      // that disagrees with the configured base, which is the refusal proper.
-      const needsAddress = plusAddressStateMessage(
-        session,
-        this.plugin.settings.plusBaseUrl,
-      );
+    // #540. Only a stamp that *disagrees* blocks this row. An absent stamp used
+    // to block it too, which meant the whole upgrade cohort opened this screen
+    // to a refusal naming an address they never chose — and unlike a real
+    // mismatch it was not a refusal at all, just the ordinary state of a session
+    // no content call has probed yet. It resolves on its own at the first
+    // Process or mirror push, so the honest thing to show meanwhile is the
+    // screen.
+    const stamp = plusSessionStamp(session);
+    if (stamp && !plusBaseMatches(stamp, base)) {
       containerEl.createEl("p", {
-        text: needsAddress || PLUS_BASE_REFUSED_MESSAGE,
+        text: PLUS_BASE_REFUSED_MESSAGE,
         cls: "setting-item-description atoms-ask-mirror-error",
       });
       return;
@@ -1743,10 +1741,9 @@ export class AtomsSettingTab extends PluginSettingTab {
           const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
           // #508 A6. A *valid* address can still be the wrong one, and before
           // this line that case rendered an empty div: `isAllowedPlusBaseUrl`
-          // passes, so there is no #500 message, and the needs-address state
-          // only speaks for an empty field. The recorded refusal is what closes
-          // it. The #500 message keeps priority — a value the request layer will
-          // not even send to is the more basic problem.
+          // passes, so there is no #500 message to show. The recorded refusal is
+          // what closes it. The #500 message keeps priority — a value the request
+          // layer will not even send to is the more basic problem.
           plusBaseUrlErrorEl.setText(
             rejected
               ? PLUS_BASE_URL_INVALID_MESSAGE
@@ -2650,7 +2647,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.kind === "signedOut") {
       this.renderSignedOutAccount(containerEl);
     } else {
-      this.renderConfirmPlusAddressRow(containerEl);
+      this.renderPlusAddressRefusedRow(containerEl);
       this.renderSignedInAccount(containerEl, state);
     }
 
@@ -2667,56 +2664,63 @@ export class AtomsSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The KTD1 carve-out's way out, on the screen the refusal points at (#508).
+   * The way back from an address that has actually refused this session (#508 adversarial A5/A6).
    *
-   * Every session minted before #508 is unstamped, and a hosted user leaves `plusBaseUrl` empty,
-   * so the first Process, Preview, Update, auto-run, mirror push and outbox ack after upgrading
-   * all refuse. The Notice says to open Settings, and until this row the only place that could
-   * resolve it was Advanced: the screen labelled for the settings almost nobody needs, asking
-   * them to type the address that is already the implicit default. That is a dead end wearing a
-   * signpost.
-   *
-   * The button writes the address rather than minting a stamp. A stamp from here would be a
-   * verdict nothing verified, and the ungated path it would have to trust is precisely the leak
-   * this issue closed. With a non-empty field the next content call probes, matches the account,
-   * and stamps for real.
+   * Without it, Settings kept reporting `Plus · 50 filings left` beside an address every Process
+   * was silently failing against, and a user who had typed a wrong-but-valid address had no way
+   * back short of guessing which field to clear.
    *
    * Above the account facts, because it blocks all of them: nothing this screen reports is
    * actionable while note text has nowhere it is allowed to go.
    *
-   * Two states share the row (adversarial A5/A6), because the way out is the same one. The
-   * second is a base that has actually *refused* this session: before it, Settings kept
-   * reporting `Plus · 50 filings left` beside an address every Process was silently failing
-   * against, and a user who had typed a wrong-but-valid address lost this row entirely — the
-   * only way back was guessing that clearing the field re-summons it. Gated on a recorded
-   * refusal rather than a stamp mismatch so the upgrading hosted cohort is not nagged through
-   * the transient state they pass through on the way to their first filing.
+   * **It no longer renders for an unstamped session (#540).** It used to double as KTD1's
+   * needs-address exit, which meant every hosted subscriber met it once on upgrade and had to
+   * confirm an address they never chose. `plusAddressAdvisory` now speaks only for a *recorded*
+   * refusal, so the row appears when something actually went wrong and not when a session is
+   * merely waiting for its first probe.
+   *
+   * The button **clears** the override rather than writing the default into it. Writing it was
+   * the old exit's mechanism and it pinned a literal into `data.json`, which Sync then carried to
+   * every device — so a hosted user who took the offered way out ended up permanently overriding
+   * an address they would otherwise have inherited. Empty is what "use the hosted service" means
+   * everywhere else in this plugin (`PLUS_BASE_URL_INVALID_MESSAGE` says exactly that), and it is
+   * still not a stamp: the next content call probes and can still refuse.
    */
-  private renderConfirmPlusAddressRow(containerEl: HTMLElement): void {
+  private renderPlusAddressRefusedRow(containerEl: HTMLElement): void {
     const advisory = plusAddressAdvisory(
       readPlusSession(this.app),
       this.plugin.settings.plusBaseUrl,
       readPlusBaseRefusal(this.app),
     );
     if (!advisory) return;
-    const refused = advisory.kind === "refused";
+    const host = plusBaseHost(DEFAULT_PLUS_BASE_URL);
+    // No button when there is no override to drop. The refusal is then *at* the
+    // hosted address, so "use the hosted address" would leave the field exactly
+    // as it found it and the row would re-render unchanged — a control that
+    // visibly does nothing. The old row wrote the default in rather than
+    // clearing, which changed the field without changing the address it resolves
+    // to, so it was the same dead tap wearing a diff. Say it and point at the
+    // screen that can act instead.
+    if (!this.plugin.settings.plusBaseUrl.trim()) {
+      containerEl.createEl("p", {
+        text: `${advisory.message} If you run Atoms Plus yourself, set your address under Advanced.`,
+        cls: "setting-item-description atoms-ask-mirror-error",
+      });
+      return;
+    }
     this.actionRow(containerEl, {
       action: "plus:confirm-address",
-      name: refused ? "Check the Plus address" : "Confirm the Plus address",
-      desc: refused
-        ? `${advisory.message} You can correct the address under Advanced, or use the standard one, ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}.`
-        : `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
-      label: `Use ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}`,
+      name: "Check the Plus address",
+      desc: `${advisory.message} You can correct the address under Advanced, or go back to the standard one, ${host}.`,
+      label: `Use ${host}`,
       onClick: () => {
-        this.plugin.settings.plusBaseUrl = DEFAULT_PLUS_BASE_URL;
+        this.plugin.settings.plusBaseUrl = "";
         void this.plugin.saveSettings();
-        // Says what happened, not what will happen. Writing the address is not
+        // Says what happened, not what will happen. Clearing the override is not
         // a stamp: the next content call still probes this host and can still
         // refuse it, so promising a filing here would be a promise this row has
         // no way to keep.
-        new Notice(
-          `Atoms Plus: saved ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. Your next Process checks it.`,
-        );
+        new Notice(`Atoms Plus: using ${host}. Your next Process checks it.`);
         this.redisplay();
       },
     });

@@ -16,7 +16,7 @@ A second brain with three legs:
 | **File + link** | This plugin: triage, title, link, mark | Consolidation maps; supersession stays |
 | **Resurface** | Stream on home (on-this-day, connected, quiet; belief rehearsal) | Richer cues; still **not** a guilt queue |
 
-World-class here means: **trust the body**, **intelligence in the graph**, **zero guilt UI**, **mobile-primary** (desktop + iOS + Android consumers), **never lossy**.
+World-class here means: **trust the body**, **intelligence in the graph**, **zero guilt UI**, **mobile-primary** (desktop + iOS + Android consumers), **never lossy**, **Plus absorbs complexity**.
 
 **Constitution changes** (this north star + `CLAUDE.md` non-negotiables) land only via PR — see `docs/collab.md`.
 
@@ -29,6 +29,7 @@ World-class here means: **trust the body**, **intelligence in the graph**, **zer
 5. **Device-local control plane** — API key, auto-run flag, and Ask mirror evidence map/stamps do not sync; vocabulary and atoms do.
 6. **Seams over premature scale** — `ContextProvider` is one function so BM25/shortlist is a swap, not a rewrite.
 7. **Ask mirror is a copy, not a second vault** — vault `Atoms/` is SSOT; cloud mirror is vault→cloud only; never reverse-sync body; never full-vault/dailies.
+8. **Plus absorbs complexity** — the Plus product *is* the removal of setup, not a hosted version of it. Every value Plus is responsible for knowing (its own address, the issuer of its own session, what a capture costs, who is billed) it must know without asking. A Plus surface that asks the user to supply or confirm one of those has moved the complexity back onto the person who paid to be rid of it, and a migration state that does so is worse than a settings row, because everyone walks through it exactly once at the same moment. Escape hatches stay for the people who want them (`Plus service URL`, `Paste a session`, BYOK); the test is whether an ordinary subscriber ever *has* to find one. See `docs/solutions/ui-patterns/a-one-time-migration-state-is-a-first-run-experience.md` (#540).
 
 ## Runtime pipeline
 

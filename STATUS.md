@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | [#540](https://github.com/taihartman/obsidian-atoms/issues/540) | Claude / Grok | `claude/filing-clarity-promo-redemption-ih1220` | [#508 plan](docs/plans/2026-08-15-001-fix-plus-session-issuer-plan.md) KTD1, amended | `src/platform/plusBaseVerify.ts`, `src/settings/settings.ts` | Rebased onto master after 0.8.4. Ships as **0.8.5**. Hosted users are not asked to confirm the Plus address. Keeps #536's `upstream` reason. |
 
 ## How to claim (copy)
 

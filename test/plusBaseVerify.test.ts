@@ -28,7 +28,6 @@ import {
   clearPlusBaseRefusal,
   createPlusBaseVerifyCache,
   plusAddressAdvisory,
-  plusAddressStateMessage,
   plusBaseHost,
   plusIssuerMovedMessage,
   readPlusBaseRefusal,
@@ -36,7 +35,6 @@ import {
   writePlusBaseRefusal,
   LS_PLUS_BASE_REFUSAL,
   PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
-  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
   PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
   PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
@@ -147,7 +145,6 @@ describe("verifyPlusBase — the stamp matches", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({ kind: "verified", base: SELF_HOST, restamped: false });
     expect(request).not.toHaveBeenCalled();
@@ -159,7 +156,6 @@ describe("verifyPlusBase — the stamp matches", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: `${SELF_HOST}/`,
-      configuredBase: `${SELF_HOST}/`,
     });
     expect(verdict.kind).toBe("verified");
     expect(request).not.toHaveBeenCalled();
@@ -171,7 +167,6 @@ describe("verifyPlusBase — the stamp matches", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("verified");
     expect(request).not.toHaveBeenCalled();
@@ -183,65 +178,90 @@ describe("verifyPlusBase — the stamp matches", () => {
     await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: `${SELF_HOST}:8443`,
-      configuredBase: `${SELF_HOST}:8443`,
     });
     expect(request).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("verifyPlusBase — KTD1 carve-out: unknown issuer, empty field", () => {
-  it("refuses without probing, so an upgrading self-hoster's token stays home", async () => {
+describe("verifyPlusBase — unknown issuer, empty field (#540, KTD1 without the carve-out)", () => {
+  it("probes the hosted default instead of refusing, so the upgrade cohort files", async () => {
+    // The state every hosted subscriber upgrades in: no stamp, empty field. It
+    // used to refuse here without probing (KTD1's carve-out), which stopped
+    // Process, Preview, Update, auto-run, mirror push and outbox ack for the
+    // whole install base until they confirmed an address they never chose.
     const s = session();
     const request = namesAccount(EMAIL);
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
-      // What an empty field resolves to at every call site. That is the leak.
       resolvedBase: PRODUCTION,
-      configuredBase: "",
+    });
+    expect(verdict).toMatchObject({ kind: "verified", base: PRODUCTION, restamped: true });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("whitespace is an empty field, and probes the same way", async () => {
+    const s = session();
+    const request = namesAccount(EMAIL);
+    const verdict = await verifyPlusBase(deps(appWith(s), request), {
+      session: s,
+      resolvedBase: PRODUCTION,
+    });
+    expect(verdict.kind).toBe("verified");
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("stamps silently: a first stamp names no previous base, so nobody is told it moved", async () => {
+    // `main.ts` announces `plusIssuerMovedMessage` on `restamped && previousBase`.
+    // Since #540 the upgrade cohort is the dominant path through that branch, so
+    // a `previousBase` here would fire "Atoms Plus is now using plus.tryatoms.app"
+    // at the entire install base, about a move that never happened.
+    const s = session();
+    const verdict = await verifyPlusBase(deps(appWith(s), namesAccount(EMAIL)), {
+      session: s,
+      resolvedBase: PRODUCTION,
+    });
+    expect(verdict).toMatchObject({ kind: "verified", restamped: true });
+    if (verdict.kind === "verified") expect(verdict.previousBase).toBeUndefined();
+  });
+
+  it("the probe is still the proof: a host that cannot name the account is refused", async () => {
+    // This is the accepted cost, pinned rather than merely argued. A pre-#508
+    // self-hoster who cleared their field hands one content-free /v1/me to
+    // plus.tryatoms.app, which does not hold their session, so nothing is
+    // stamped and no note text is ever sent there.
+    const s = session();
+    const request = namesAccount("someone.else@example.com");
+    const verdict = await verifyPlusBase(deps(appWith(s), request), {
+      session: s,
+      resolvedBase: PRODUCTION,
     });
     expect(verdict).toEqual({
       kind: "refused",
-      reason: "needs-address",
-      message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+      reason: "unverified",
+      message: PLUS_BASE_REFUSED_MESSAGE,
     });
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("whitespace is an empty field", async () => {
-    const s = session();
-    const request = namesAccount(EMAIL);
-    const verdict = await verifyPlusBase(deps(appWith(s), request), {
-      session: s,
-      resolvedBase: PRODUCTION,
-      configuredBase: "   ",
-    });
-    expect(verdict.kind).toBe("refused");
-    expect(request).not.toHaveBeenCalled();
   });
 
   it("does not strand the hosted majority: a stamped session with an empty field matches", async () => {
     // `plusBaseUrl` ships as "", so empty is the normal state. From U2 onward a
     // hosted session is stamped at sign-in and the field never has to mean
-    // anything. This is the test that proves the carve-out is bounded to the
-    // one-time upgrade cohort rather than a new meaning for empty.
+    // anything — no probe, no prompt, nothing.
     const s = session({ issuedBase: PRODUCTION as IssuedBase });
     const request = namesAccount(EMAIL);
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: PRODUCTION,
-      configuredBase: "",
     });
     expect(verdict.kind).toBe("verified");
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("unknown issuer with a configured base does probe: the user chose that host", async () => {
+  it("unknown issuer with a configured base probes it: the user chose that host", async () => {
     const s = session();
     const request = namesAccount(EMAIL);
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("verified");
     expect(request).toHaveBeenCalledTimes(1);
@@ -255,7 +275,6 @@ describe("verifyPlusBase — the probe", () => {
     await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(sent).toHaveLength(1);
     expect(sent[0]?.url).toBe(`${SELF_HOST}/v1/me`);
@@ -269,7 +288,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(app, request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "verified",
@@ -286,7 +304,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("verified");
   });
@@ -299,7 +316,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(app, request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -316,7 +332,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(app, request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("refused");
     expect(readPlusSession(app)?.verifiedBase).toBe(PRODUCTION);
@@ -331,7 +346,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -346,7 +360,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -364,7 +377,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -379,7 +391,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({
       kind: "refused",
@@ -395,7 +406,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(app, request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("unreachable");
     expect(readPlusSession(app)?.verifiedBase).toBe(PRODUCTION);
@@ -409,7 +419,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("unreachable");
   });
@@ -420,7 +429,6 @@ describe("verifyPlusBase — the probe", () => {
     const verdict = await verifyPlusBase(deps(appWith(session()), request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("refused");
     expect(request).not.toHaveBeenCalled();
@@ -434,7 +442,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(readPlusSession(app)).toEqual({
       ...s,
@@ -456,7 +463,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: projection,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     const after = readPlusSession(app);
     expect(after?.verifiedBase).toBe(SELF_HOST);
@@ -474,7 +480,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     const verdict = await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("refused");
   });
@@ -488,7 +493,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     const verdict = await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict.kind).toBe("refused");
   });
@@ -499,7 +503,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     const after = readPlusSession(app);
     expect(after?.sessionToken).toBe("sess_new");
@@ -512,7 +515,6 @@ describe("verifyPlusBase — re-stamp persistence", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(readPlusSession(app)).toBeNull();
   });
@@ -524,7 +526,7 @@ describe("verifyPlusBase — the per-run cache", () => {
     const request = mockRequest(() => ({ status: 503, json: { error: "down" } }));
     const cache = createPlusBaseVerifyCache();
     const d: PlusBaseVerifyDeps = { storage: appWith(s), request, cache };
-    const input = { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST };
+    const input = { session: s, resolvedBase: SELF_HOST };
     const first = await verifyPlusBase(d, input);
     const second = await verifyPlusBase(d, input);
     expect(first.kind).toBe("unreachable");
@@ -536,7 +538,7 @@ describe("verifyPlusBase — the per-run cache", () => {
     const s = session({ verifiedBase: PRODUCTION });
     const request = mockRequest(() => ({ status: 503, json: { error: "down" } }));
     const d = deps(appWith(s), request);
-    const input = { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST };
+    const input = { session: s, resolvedBase: SELF_HOST };
     await verifyPlusBase(d, input);
     await verifyPlusBase(d, input);
     expect(request).toHaveBeenCalledTimes(2);
@@ -550,7 +552,7 @@ describe("verifyPlusBase — the per-run cache", () => {
       request: namesAccount(EMAIL),
       cache,
     };
-    const input = { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST };
+    const input = { session: s, resolvedBase: SELF_HOST };
     const first = await verifyPlusBase(d, input);
     const second = await verifyPlusBase(d, input);
     expect(first).toMatchObject({ restamped: true, previousBase: PRODUCTION });
@@ -569,12 +571,10 @@ describe("verifyPlusBase — the per-run cache", () => {
     await verifyPlusBase(d, {
       session: first,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     await verifyPlusBase(d, {
       session: second,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(request).toHaveBeenCalledTimes(2);
   });
@@ -584,45 +584,12 @@ describe("verifyPlusBase — the per-run cache", () => {
     const request = mockRequest(() => ({ status: 503, json: { error: "down" } }));
     const cache = createPlusBaseVerifyCache();
     const d: PlusBaseVerifyDeps = { storage: appWith(s), request, cache };
-    await verifyPlusBase(d, { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST });
+    await verifyPlusBase(d, { session: s, resolvedBase: SELF_HOST });
     await verifyPlusBase(d, {
       session: s,
       resolvedBase: "https://other.host.example",
-      configuredBase: "https://other.host.example",
     });
     expect(request).toHaveBeenCalledTimes(2);
-  });
-});
-
-/**
- * KTD1 says surface the carve-out as a Settings *state*, not a dialog. This is
- * that state's predicate, kept next to the gate whose rule it repeats so the two
- * cannot drift into disagreeing about what an unstamped session means.
- */
-describe("the needs-address Settings state", () => {
-  it("names the one state that cannot resolve on its own", () => {
-    expect(plusAddressStateMessage({}, "")).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
-    expect(plusAddressStateMessage({}, "   ")).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
-  });
-
-  it("says nothing to the hosted majority, whose empty field is normal", () => {
-    expect(
-      plusAddressStateMessage({ issuedBase: PRODUCTION as IssuedBase }, ""),
-    ).toBe("");
-  });
-
-  it("says nothing when the user has chosen a host, stamped or not", () => {
-    expect(plusAddressStateMessage({}, SELF_HOST)).toBe("");
-  });
-
-  it("says nothing about a mismatch, which the next push may still settle", () => {
-    // Announcing a refusal before anything has tried would alarm a self-hoster
-    // who simply rotated their tunnel.
-    expect(plusAddressStateMessage({ verifiedBase: SELF_HOST }, PRODUCTION)).toBe("");
-  });
-
-  it("says nothing when there is no session at all", () => {
-    expect(plusAddressStateMessage(null, "")).toBe("");
   });
 });
 
@@ -676,7 +643,7 @@ describe("the refusal record", () => {
     const request = namesAccount("someone.else@b.co");
     const verdict = await verifyPlusBase(
       { storage: app, request, now: () => 4242 },
-      { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST },
+      { session: s, resolvedBase: SELF_HOST },
     );
     expect(verdict.kind).toBe("refused");
     expect(readPlusBaseRefusal(app)).toEqual({
@@ -692,7 +659,7 @@ describe("the refusal record", () => {
     const request = mockRequest(() => ({ status: 401, json: undefined, text: "" }));
     const verdict = await verifyPlusBase(
       { storage: app, request, now: () => 77 },
-      { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST },
+      { session: s, resolvedBase: SELF_HOST },
     );
     expect(verdict.kind).toBe("refused");
     if (verdict.kind === "refused") expect(verdict.reason).toBe("upstream");
@@ -709,7 +676,6 @@ describe("the refusal record", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: PRODUCTION,
-      configuredBase: "",
     });
     expect(readPlusBaseRefusal(app)).toBeNull();
   });
@@ -721,7 +687,6 @@ describe("the refusal record", () => {
     const verdict = await verifyPlusBase(deps(app, request), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(verdict).toEqual({ kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE });
     expect(readPlusBaseRefusal(app)).toBeNull();
@@ -734,7 +699,6 @@ describe("the refusal record", () => {
     await verifyPlusBase(deps(app, namesAccount(EMAIL)), {
       session: s,
       resolvedBase: SELF_HOST,
-      configuredBase: SELF_HOST,
     });
     expect(readPlusBaseRefusal(app)).toBeNull();
   });
@@ -785,12 +749,12 @@ describe("plusAddressAdvisory", () => {
     expect(plusAddressAdvisory(null, "", refusal(PRODUCTION))).toBeNull();
   });
 
-  it("needs-address survives unchanged: no stamp, empty field", () => {
-    expect(plusAddressAdvisory(stamp(), "", null)).toEqual({
-      kind: "needs-address",
-      message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
-    });
-    expect(plusAddressAdvisory(stamp(), "   ", null)).toMatchObject({ kind: "needs-address" });
+  it("says nothing to an unstamped session with an empty field (#540)", () => {
+    // The needs-address state. It was the upgrade cohort's, which is to say
+    // everyone's, and nothing was stuck: the next content call probes the hosted
+    // default and reports whatever it finds.
+    expect(plusAddressAdvisory(stamp(), "", null)).toBeNull();
+    expect(plusAddressAdvisory(stamp(), "   ", null)).toBeNull();
   });
 
   it("a refusal at the resolved base is the A5/A6 fix", () => {
