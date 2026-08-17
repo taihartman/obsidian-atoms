@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="Asked to bring up my pancake atom. Answer: Breakfast protein pancake, cottage cheese version.">
+  <!--
+    Same house rules as the Dom set: flat plate, no glow, no accent bar,
+    words only. The title is long, so scale contrast is ask vs title, not
+    a 132px word that will not fit.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif">
+    <text x="96" y="148" font-size="32" fill="rgba(235,235,245,0.5)">bring up my pancake atom</text>
+
+    <text x="92" y="268" font-size="56" font-weight="600" letter-spacing="-1.4" fill="#ffffff">Breakfast protein pancake</text>
+    <text x="96" y="328" font-size="30" fill="rgba(235,235,245,0.45)">cottage cheese version</text>
+  </g>
+</svg>
