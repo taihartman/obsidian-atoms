@@ -33,7 +33,13 @@ import {
 } from "../src/platform/filingAuth";
 import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
 import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusClient";
-import { PLUS_BASE_NEEDS_ADDRESS_MESSAGE } from "../src/platform/plusBaseVerify";
+import {
+  LS_PLUS_BASE_REFUSAL,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+  PLUS_BASE_UNREACHABLE_MESSAGE,
+  PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
+} from "../src/platform/plusBaseVerify";
 import {
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_SERVER_COUNT,
@@ -1408,6 +1414,29 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     open(tab, "Atoms Plus");
 
     expect(rowNames(tab)).not.toContain(ROW);
+  });
+
+  it("a recorded upstream refusal offers Check, and does not call it offline or a dead session", () => {
+    const host = "https://self.host.example";
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: host },
+      local: {
+        [LS_PLUS_BASE_REFUSAL]: JSON.stringify({
+          base: host,
+          at: 1,
+          reason: "upstream",
+        }),
+      },
+    });
+    openAccount(tab);
+
+    const check = "Check the Plus address";
+    expect(rowNames(tab)).toContain(check);
+    const text = row(tab, check).textContent ?? "";
+    expect(text).toContain(PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE);
+    expect(text).not.toContain(PLUS_BASE_ADDRESS_REFUSED_MESSAGE);
+    expect(text).not.toContain(PLUS_BASE_UNREACHABLE_MESSAGE);
   });
 });
 

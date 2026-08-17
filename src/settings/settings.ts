@@ -145,7 +145,6 @@ import {
   plusBaseHost,
   plusSessionStamp,
   readPlusBaseRefusal,
-  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
 } from "../platform/plusBaseVerify";
 import {
   type AskMirrorOffReason,
@@ -2705,7 +2704,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       action: "plus:confirm-address",
       name: refused ? "Check the Plus address" : "Confirm the Plus address",
       desc: refused
-        ? `${PLUS_BASE_ADDRESS_REFUSED_MESSAGE} You can correct the address under Advanced, or use the standard one, ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}.`
+        ? `${advisory.message} You can correct the address under Advanced, or use the standard one, ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}.`
         : `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
       label: `Use ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}`,
       onClick: () => {
