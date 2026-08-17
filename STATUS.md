@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In review | #544 | taihartman | `docs/field-notes-spoken-voice` | n/a (amend) | `docs/voice.md`, `.agents/skills/atoms-voice/SKILL.md` | PR #545. Field notes spoken test / no refrain / no lesson. |
 
 ## How to claim (copy)
 
