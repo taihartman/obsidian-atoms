@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #536 | Tai | `fix/536-proxy-401-not-offline` | (debug: #508 residual) | `src/platform/plusBaseVerify.ts`, `src/settings/settings.ts`, `test/plusBaseVerify.test.ts` | Proxy/WAF 401 maps to `unreachable` + offline copy; no refusal record, so the recovery row never appears. Third refused reason: host answered no, not about the session. |
 
 ## How to claim (copy)
 
