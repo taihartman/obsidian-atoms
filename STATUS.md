@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #566 | Tai | `feat/hub-association-invite` | `docs/plans/2026-08-17-1540-feat-hub-association-invite-plan.md` | `src/pipeline/hubInvite.ts`, `src/home/atomsHomeView.ts`, `src/pipeline/enrich/listHubs.ts` | One Home invite for every hub association. Draft. Silent-landing re-Process still open. |
 | In progress | #561 | Tai | `feat/561-android-capture-live` | (light: Play live + API 36) | `companion/android/app/build.gradle.kts`, `mobile-install.json`, `src/shared/mobileInstall.ts`, `src/settings/settings.ts`, `www/src/setup.html.tmpl` | Atoms Capture is on Play. Target API 36. Plugin + /setup point Android readers at the app, not "no equivalent yet." |
 
 ## How to claim (copy)

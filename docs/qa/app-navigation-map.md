@@ -114,6 +114,14 @@ The only prose left on the main screen is the version line under the heading and
 - **Source:** `src/autorun.ts`, `src/main.ts` `maybeAutoRun`.
 - **QA:** Same-day retry after offline; stamp only when past drained.
 
+### Hub association invite (Home)
+
+- **When:** Home calm (`runPhase === idle`, no wait card, no land peak). After Process/Update when a high-confidence atom↔hub pairing is not established.
+- **UI:** One card. Existing list note: **Add to Show list?** · Create: **Make {label}?** · Person: **Add {Name}?** / **Link to {Name}?** Actions: add/create, **Choose different note…**, **Not now**.
+- **Source:** `src/pipeline/hubInvite.ts`, `renderHubInviteCard` in `src/home/atomsHomeView.ts`.
+- **QA:** Handwritten list note (no `##`) + generated watch/show atom without a hard link. Wait card (`unprocessedCount > 0`) hides this card even when `hubInvite` is collected.
+- **Do not:** Plant pre-linked atoms to force the card.
+
 ### Resurface (cue card)
 
 - **When:** Home calm (`runPhase === idle`, no past wait card), not first-day setup; not under land peak.
