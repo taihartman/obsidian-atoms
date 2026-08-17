@@ -4,10 +4,16 @@
 
 export type LandSource = "process" | "update" | "autorun";
 
+export type LandedLink = {
+  note: string;
+  reason: string;
+};
+
 export type LandedAtom = {
   title: string;
   path: string;
   meta?: string;
+  links?: LandedLink[];
 };
 
 export type LandPeak = {
@@ -15,6 +21,8 @@ export type LandPeak = {
   /** Full list of landed atoms (display may slice). */
   atoms: LandedAtom[];
   atomCount: number;
+  /** Process: task + noise captures in this run. */
+  skippedCount?: number;
   markersAppended?: number;
   /** Update notes: classify/write failures (do not treat as "nothing to update"). */
   failedCount?: number;
@@ -31,9 +39,42 @@ export type LandDisplay = {
   body: string;
   rows: LandedAtom[];
   moreCount: number;
+  sentence: string | null;
+  featured: LandedAtom | null;
+  tally: string;
   /** True when update run had failures (error-toned Done card). */
   isFailure?: boolean;
 };
+
+export function namedLinksOf(atom: LandedAtom): LandedLink[] {
+  return (atom.links ?? []).filter((l) => l.note.trim().length > 0);
+}
+
+export function pickSpokenLandAtom(atoms: LandedAtom[]): LandedAtom | null {
+  const withNamed = atoms.filter((a) => namedLinksOf(a).length > 0);
+  if (!withNamed.length) return null;
+  const withReason = withNamed.find((a) =>
+    namedLinksOf(a).some((l) => l.reason.trim().length > 0),
+  );
+  return withReason ?? withNamed[0] ?? null;
+}
+
+export function pickSpokenLink(atom: LandedAtom): LandedLink | null {
+  const named = namedLinksOf(atom);
+  if (!named.length) return null;
+  return named.find((l) => l.reason.trim().length > 0) ?? named[0] ?? null;
+}
+
+export function formatLandSentence(link: LandedLink): string {
+  const reason = link.reason.trim();
+  return reason || link.note.trim();
+}
+
+export function formatLandTally(filed: number, skipped: number): string {
+  if (filed <= 0) return "";
+  if (skipped <= 0) return `${filed} filed`;
+  return `${filed} filed · ${skipped} noise`;
+}
 
 export function formatLandHeadline(
   source: LandSource,
@@ -108,26 +149,48 @@ export function formatLandBody(
 }
 
 export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
-  const rows = peak.atoms.slice(0, LAND_TITLE_CAP);
-  const moreCount = Math.max(0, peak.atomCount - rows.length);
   const failed = peak.failedCount ?? 0;
   const polished = peak.polishedCount ?? 0;
+  const skipped = peak.skippedCount ?? 0;
+  const processLike = peak.source === "process" || peak.source === "autorun";
+  const featured = processLike ? pickSpokenLandAtom(peak.atoms) : null;
+  const spoken = featured ? pickSpokenLink(featured) : null;
+  const sentence =
+    processLike && spoken ? formatLandSentence(spoken) : null;
+  const tally = processLike ? formatLandTally(peak.atomCount, skipped) : "";
+  const rows = processLike
+    ? featured
+      ? [featured]
+      : []
+    : peak.atoms.slice(0, LAND_TITLE_CAP);
+  const moreCount = processLike
+    ? 0
+    : Math.max(0, peak.atomCount - rows.length);
+  let headline = formatLandHeadline(
+    peak.source,
+    peak.atomCount,
+    failed,
+    polished,
+  );
+  let body = formatLandBody(
+    peak.source,
+    peak.atomCount,
+    peak.markersAppended,
+    failed,
+    polished,
+  );
+  if (processLike && peak.atomCount > 0) {
+    headline = sentence ? "Filed, and linked" : "Filed";
+    body = tally;
+  }
   return {
-    headline: formatLandHeadline(
-      peak.source,
-      peak.atomCount,
-      failed,
-      polished,
-    ),
-    body: formatLandBody(
-      peak.source,
-      peak.atomCount,
-      peak.markersAppended,
-      failed,
-      polished,
-    ),
+    headline,
+    body,
     rows,
     moreCount,
+    sentence,
+    featured,
+    tally,
     isFailure:
       peak.source === "update" &&
       failed > 0 &&
@@ -139,6 +202,7 @@ export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
 export function buildLandPeak(opts: {
   source: LandSource;
   atoms: LandedAtom[];
+  skippedCount?: number;
   markersAppended?: number;
   failedCount?: number;
   polishedCount?: number;
@@ -151,6 +215,7 @@ export function buildLandPeak(opts: {
   const atoms = opts.atoms.filter((a) => (a.title ?? "").trim().length > 0);
   const failedCount = Math.max(0, opts.failedCount ?? 0);
   const polishedCount = Math.max(0, opts.polishedCount ?? 0);
+  const skippedCount = Math.max(0, opts.skippedCount ?? 0);
   const atomCount =
     opts.source === "update" && opts.updatedCount !== undefined
       ? Math.max(0, opts.updatedCount)
@@ -165,6 +230,7 @@ export function buildLandPeak(opts: {
     source: opts.source,
     atoms,
     atomCount,
+    skippedCount: skippedCount > 0 ? skippedCount : undefined,
     markersAppended: opts.markersAppended,
     failedCount: failedCount > 0 ? failedCount : undefined,
     polishedCount: polishedCount > 0 ? polishedCount : undefined,
@@ -184,7 +250,7 @@ export function landAtomsFromWriteEntries(
         path?: string;
         title?: string;
       };
-      result?: { links?: Array<{ note?: string }> };
+      result?: { links?: Array<{ note?: string; reason?: string }> };
     };
   }>,
 ): LandedAtom[] {
@@ -203,9 +269,17 @@ export function landAtomsFromWriteEntries(
       e.title ||
       "";
     if (!path || !title.trim()) continue;
-    const linkNote = e.planned.result?.links?.[0]?.note?.trim();
-    const meta = linkNote ? `Linked · ${linkNote}` : undefined;
-    out.push({ title: title.trim(), path, meta });
+    const links = (e.planned.result?.links ?? [])
+      .map((l) => ({
+        note: (l.note ?? "").trim(),
+        reason: (l.reason ?? "").trim(),
+      }))
+      .filter((l) => l.note.length > 0);
+    out.push({
+      title: title.trim(),
+      path,
+      links: links.length ? links : undefined,
+    });
   }
   return out;
 }

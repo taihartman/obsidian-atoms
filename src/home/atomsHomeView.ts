@@ -343,6 +343,8 @@ export class AtomsHomeView extends ItemView {
   private progressMount: HTMLElement | null = null;
   /** Post-write land peak — survives library refresh until dismiss. */
   private landPeak: LandPeak | null = null;
+  /** See what filed — expand full list on the same card. */
+  private landListOpen = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: AtomsPlugin) {
     super(leaf);
@@ -406,6 +408,7 @@ export class AtomsHomeView extends ItemView {
     this.runSnippet = "";
     this.runSummaryText = "";
     this.landPeak = null;
+    this.landListOpen = false;
     this.render();
   }
 
@@ -434,6 +437,7 @@ export class AtomsHomeView extends ItemView {
     this.runSnippet = "";
     if (landPeak !== undefined) {
       this.landPeak = landPeak;
+      this.landListOpen = false;
     }
     void this.refresh();
   }
@@ -454,6 +458,7 @@ export class AtomsHomeView extends ItemView {
     this.runSummaryText = "";
     this.progressMount = null;
     this.landPeak = null;
+    this.landListOpen = false;
   }
 
   dismissLandPeak(): void {
@@ -486,6 +491,8 @@ export class AtomsHomeView extends ItemView {
       return;
     }
     const d = landDisplayFromPeak(this.landPeak);
+    const processLike =
+      this.landPeak.source === "process" || this.landPeak.source === "autorun";
     if (d.isFailure) {
       el.classList.add("is-error");
     }
@@ -494,10 +501,62 @@ export class AtomsHomeView extends ItemView {
       text: d.isFailure ? "Couldn't finish" : "Done",
     });
     el.createEl("h2", { text: d.headline });
-    el.createEl("p", { text: d.body });
-    if (d.rows.length) {
+    if (processLike && d.sentence && d.featured) {
+      const featured = d.featured;
+      textControl(el, {
+        className: "atoms-home-land-sentence",
+        build: (btn) => {
+          btn.createEl("p", {
+            cls: "atoms-home-land-sentence-why",
+            text: d.sentence ?? "",
+          });
+          btn.createSpan({
+            cls: "atoms-home-landed-title",
+            text: featured.title,
+          });
+        },
+        onClick: () => {
+          void this.openLandedAtom(featured.path);
+        },
+      });
+      if (d.tally) {
+        el.createEl("p", { cls: "atoms-home-land-tally", text: d.tally });
+      }
+    } else {
+      if (d.body) el.createEl("p", { text: d.body });
+      if (!processLike && d.rows.length) {
+        const list = el.createDiv({ cls: "atoms-home-landed" });
+        for (const row of d.rows) {
+          textControl(list, {
+            className: "atoms-home-landed-row",
+            build: (btn) => {
+              btn.createSpan({
+                cls: "atoms-home-landed-title",
+                text: row.title,
+              });
+              if (row.meta) {
+                btn.createSpan({
+                  cls: "atoms-home-landed-meta",
+                  text: row.meta,
+                });
+              }
+            },
+            onClick: () => {
+              void this.openLandedAtom(row.path);
+            },
+          });
+        }
+        if (d.moreCount > 0) {
+          list.createDiv({
+            cls: "atoms-home-landed-more",
+            text: `and ${d.moreCount} more in Recent`,
+          });
+        }
+      }
+    }
+    if (processLike && this.landListOpen) {
       const list = el.createDiv({ cls: "atoms-home-landed" });
-      for (const row of d.rows) {
+      for (const row of this.landPeak.atoms) {
         textControl(list, {
           className: "atoms-home-landed-row",
           build: (btn) => {
@@ -505,26 +564,25 @@ export class AtomsHomeView extends ItemView {
               cls: "atoms-home-landed-title",
               text: row.title,
             });
-            if (row.meta) {
-              btn.createSpan({
-                cls: "atoms-home-landed-meta",
-                text: row.meta,
-              });
-            }
           },
           onClick: () => {
             void this.openLandedAtom(row.path);
           },
         });
       }
-      if (d.moreCount > 0) {
-        list.createDiv({
-          cls: "atoms-home-landed-more",
-          text: `and ${d.moreCount} more in Recent`,
-        });
-      }
     }
     const actions = actionRow(el, { className: "atoms-home-land-actions" });
+    if (processLike && this.landPeak.atoms.length > 0 && !this.landListOpen) {
+      button(actions, {
+        grade: "secondary",
+        label: "See what filed",
+        className: "atoms-home-land-see-filed",
+        onClick: () => {
+          this.landListOpen = true;
+          this.patchProgressMount();
+        },
+      });
+    }
     button(actions, {
       grade: "secondary",
       label: "Done",

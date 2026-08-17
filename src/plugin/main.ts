@@ -574,9 +574,11 @@ export default class AtomsPlugin extends Plugin {
     source: "process" | "autorun",
   ): LandPeak {
     const atoms = landAtomsFromWriteEntries(report.entries);
+    const summary = summaryFromWrite(report);
     return buildLandPeak({
       source,
       atoms,
+      skippedCount: summary.tasks + summary.noise,
       markersAppended: report.markersAppended,
     });
   }
