@@ -20,6 +20,7 @@ import {
   plusRefreshRowRecord,
   readPlusRefreshRecord,
   refreshPlusEntitlementRecord,
+  PLUS_REFRESH_OK_MESSAGE,
   PLUS_REFRESH_REJECTED_MESSAGE,
   PLUS_REFRESH_SAVE_FAILED_MESSAGE,
   PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
@@ -533,6 +534,25 @@ describe("#508 - a refresh writes the session on disk, not the one it was handed
     expect(record.kind).toBe("failed");
     expect(record.message).toBe(PLUS_REFRESH_SAVE_FAILED_MESSAGE);
     expect(plusRefreshPresentation(record).recovery).toBeNull();
+  });
+
+  // Every refresh message is rendered as `Atoms Plus: ${record.message}` — nine
+  // Notice sites in settings.ts plus main.ts:1624. A message that opens by
+  // naming the product stutters on screen. Pins the class, not the one string,
+  // so the next message added here cannot reintroduce it.
+  it("no refresh message stutters behind the Atoms Plus notice prefix", () => {
+    const messages = {
+      PLUS_REFRESH_OK_MESSAGE,
+      PLUS_REFRESH_REJECTED_MESSAGE,
+      PLUS_REFRESH_SAVE_FAILED_MESSAGE,
+      PLUS_REFRESH_SESSION_CHANGED_MESSAGE,
+      PLUS_REFRESH_UNREACHABLE_MESSAGE,
+    };
+    for (const [name, message] of Object.entries(messages)) {
+      expect(
+        `${name}: ${`Atoms Plus: ${message}`}`,
+      ).not.toMatch(/Atoms Plus: Atoms Plus/i);
+    }
   });
 
   it("writes nothing when the session was signed out mid-flight", async () => {

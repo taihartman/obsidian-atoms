@@ -15,6 +15,7 @@ import {
   readAskMirrorEmail,
   type AskMirrorDisarmHost,
 } from "./askMirror";
+import { clearPlusRefreshRecord } from "./plusRefresh";
 
 export type PlusSessionInstallHost = AskMirrorDisarmHost & LocalStorageLike;
 
@@ -42,5 +43,13 @@ export async function installPlusSession(
     outcome = "disarmed";
   }
   writePlusSession(host, { ...session, issuedBase, verifiedBase: issuedBase });
+  // The refresh record describes a session this device no longer holds, so it
+  // cannot survive the one that replaces it. Left behind, a stale "rejected"
+  // record keeps rendering **Sign-in needed** and its magic-link CTA over a
+  // session that just signed in successfully -- and after an account change the
+  // record still carries the *departed* address, so that CTA mails a link to
+  // the account the user just left. Cleared here rather than at the four call
+  // sites so a fifth acquisition path cannot forget it.
+  clearPlusRefreshRecord(host);
   return outcome;
 }

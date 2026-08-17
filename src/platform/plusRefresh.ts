@@ -15,9 +15,11 @@ import {
 } from "./filingAuth";
 import {
   getEntitlement,
+  plusBaseMatches,
   PLUS_BASE_REFUSED_MESSAGE,
   type PlusClientConfig,
 } from "./plusClient";
+import { plusSessionStamp } from "./plusBaseVerify";
 
 /** Same account, by the rule the service itself normalizes with. */
 function sameAccount(a: string | undefined, b: string | undefined): boolean {
@@ -48,8 +50,13 @@ export const PLUS_REFRESH_OK_MESSAGE = "Your plan is up to date.";
 export const PLUS_REFRESH_REJECTED_MESSAGE =
   "Your Atoms Plus session expired, so this device needs re-linking. Send yourself a sign-in link and open it on this device.";
 
+// Opens with "Your plan", not "Atoms Plus", because every one of these renders
+// behind an `Atoms Plus: ` prefix at the Notice sites (settings.ts:1958 and the
+// eight beside it). Naming the product here reads back as "Atoms Plus: Atoms
+// Plus couldn't save your plan". The siblings above and below already avoid it;
+// this one did not, and QA caught it on screen.
 export const PLUS_REFRESH_SAVE_FAILED_MESSAGE =
-  "Atoms Plus couldn’t save your plan on this device, so nothing changed. Try again.";
+  "Your plan couldn’t be saved on this device, so nothing changed. Try again.";
 
 export const PLUS_REFRESH_SESSION_CHANGED_MESSAGE =
   "Your Atoms Plus session on this device changed while we were checking, so nothing was updated. Try again.";
@@ -145,15 +152,30 @@ export async function refreshPlusEntitlementRecord(
   if (!r.ok) {
     // Only code "auth" (our service, service-shaped body) means the session is
     // the problem — a gateway 403 or a 5xx must not offer a sign-in link.
-    const rejected = r.code === "auth";
+    //
+    // #508. And only from the base that issued the session. A 401 from anywhere
+    // else means "this host does not know this token", which is a base problem
+    // wearing an auth code. Calling it "rejected" renders **Send me a sign-in
+    // link** and aims that link at the host that just refused; redeeming it runs
+    // `installPlusSession`, which stamps that host as the issuer with the gate
+    // never running. That is the same door, with the same consequence, that the
+    // renamed-account branch below already refuses to open -- this branch just
+    // had not been told. An unstamped session keeps the old behaviour: there is
+    // no issuer to disagree with, so sign-in is still the right remedy.
+    const stamp = plusSessionStamp(session);
+    const askedTheIssuer = !stamp || plusBaseMatches(stamp, cfg.baseUrl);
+    const strangerRefused = r.code === "auth" && !askedTheIssuer;
+    const rejected = r.code === "auth" && askedTheIssuer;
     const unreachable = r.code === "network" || r.status >= 500;
     const record: PlusRefreshRecord = {
       kind: rejected ? "rejected" : "failed",
       message: rejected
         ? PLUS_REFRESH_REJECTED_MESSAGE
-        : unreachable
-          ? PLUS_REFRESH_UNREACHABLE_MESSAGE
-          : r.message,
+        : strangerRefused
+          ? PLUS_BASE_REFUSED_MESSAGE
+          : unreachable
+            ? PLUS_REFRESH_UNREACHABLE_MESSAGE
+            : r.message,
       at: now,
       lastOkAt: previous?.lastOkAt,
       email: session.email,
