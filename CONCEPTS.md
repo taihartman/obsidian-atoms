@@ -155,7 +155,10 @@ A retired acknowledgment stops permitting on its own, so nothing is stranded by 
 A vault note treated as a person entity for linking. Matching and link repair prefer hub titles and match keys over free-form model inventiveness. Identity lives in the hub note, not in name-tags.
 
 ### Person hub invite
-Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confidence person has no hub. Human accept creates a minimal person note; never silent auto-create. Soft `[[People]]` is fallback only until accept or a real hub exists.
+Calm Atoms home card (**Add {Name}?**) after Process/Update when a high-confidence person has no hub. Human accept creates a minimal person note; never silent auto-create. Soft `[[People]]` is fallback only until accept or a real hub exists. The person beat of **hub association invite**.
+
+### Hub association invite
+One Home card after Process/Update whenever a high-confidence atom↔hub pairing is noticed and not yet established — person, list, watch list, or later kinds. Existing vault note first (**Add to Show list?**); create only if none (**Add {Name}?** / **Make {label}?**). Pick a different note when the guess is wrong. **Not now** dismisses. Accept writes the atom into the **managed hub block**; never silent auto-create. After that hub is accepted, later matching atoms land with no ask. Not a Settings roster. Plan: `docs/plans/2026-08-17-1540-feat-hub-association-invite-plan.md`.
 
 ### Peer link (pre-hub)
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.

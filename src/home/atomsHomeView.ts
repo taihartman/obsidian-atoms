@@ -48,32 +48,32 @@ import {
   sortSiblingRows,
 } from "../pipeline/entityOrbitPolicy";
 import {
-  collectEntityInvites,
-  entityInviteCopy,
   ENTITY_INVITE_SNOOZE_DAYS,
   formatEntityHubMarkdown,
-  type EntityInviteCandidate,
 } from "../pipeline/entityInvite";
+import {
+  collectHubAssociationInvites,
+  hubAssociationInviteCopy,
+  listLinkReason,
+  pairingId,
+  seedHubListMarkdown,
+  type HubAssociationCandidate,
+} from "../pipeline/hubInvite";
 import { runHubProjectionForHubs } from "../pipeline/runHubProjection";
 import {
   applyHardLinkToAtomContent,
   applyPersonPeerLinksToContents,
-  collectPersonInvites,
   formatPersonNoteMarkdown,
   PERSON_INVITE_SNOOZE_DAYS,
-  personInviteCopy,
   personNotePath,
   resolvePeopleFolderPrefix,
   resolveAtomPersonName,
-  type PersonInviteCandidate,
 } from "../pipeline/personInvite";
 import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
 import {
   discoverPersonHubs,
   type PersonHubFile,
 } from "../pipeline/enrich/people";
-import { formatLinkProse } from "../pipeline/render";
-import { extractLinkProseRegion, parseLinkProse } from "../pipeline/parseLinkProse";
 import {
   CURRENT_ATOMS_QUALITY,
 } from "../pipeline/atomQuality";
@@ -325,11 +325,9 @@ export class AtomsHomeView extends ItemView {
     | null = null;
   /** Cached person hub titles for Also about exclusivity. */
   private personHubTitles: string[] = [];
-  /** Pending entity hub invite (Make packing list?). */
-  private entityInvite: EntityInviteCandidate | null = null;
-  /** Pending person note invite (Add {Name}?). Outranks packing. */
-  private personInvite: PersonInviteCandidate | null = null;
-  private personInviteBusy = false;
+  /** Pending hub association invite (person or list). */
+  private hubInvite: HubAssociationCandidate | null = null;
+  private hubInviteBusy = false;
   /** Surfaceable Together orbit for calm home card. */
   private togetherCard: {
     label: string;
@@ -1271,10 +1269,6 @@ export class AtomsHomeView extends ItemView {
     return this.readSnoozeMap(LS_ENTITY_INVITE_SNOOZE);
   }
 
-  private snoozeEntityInvite(label: string): void {
-    this.writeSnooze(LS_ENTITY_INVITE_SNOOZE, label, ENTITY_INVITE_SNOOZE_DAYS);
-  }
-
   private snoozePersonInvite(name: string): void {
     this.writeSnooze(LS_PERSON_INVITE_SNOOZE, name, PERSON_INVITE_SNOOZE_DAYS);
   }
@@ -1291,23 +1285,18 @@ export class AtomsHomeView extends ItemView {
         sourceDate: extractSourceDay(f.content),
       }));
 
-    const personInvites = collectPersonInvites(atoms, {
-      personHubTitles: [...this.personHubTitles],
+    const invites = collectHubAssociationInvites({
+      atoms,
       vaultTitles,
-      snoozedNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
+      personHubTitles: [...this.personHubTitles],
+      snoozedIds: this.readInviteSnooze(),
+      snoozedPersonNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
     });
-    this.personInvite = personInvites[0] ?? null;
-
-    const invites = collectEntityInvites(atoms, vaultTitles, {
-      snoozedLabels: this.readInviteSnooze(),
-      minMembers: 1,
-    });
-    // Person invite outranks packing Make
-    this.entityInvite = this.personInvite ? null : (invites[0] ?? null);
+    this.hubInvite = invites[0] ?? null;
 
     // Together card: any surfaceable orbit (hub already exists)
     this.togetherCard = null;
-    if (!this.personInvite && !this.entityInvite) {
+    if (!this.hubInvite) {
       const orbits = buildOrbits(atoms, {
         vaultTitles,
         personHubTitles: this.personHubTitles,
@@ -1329,14 +1318,20 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
-  private renderPersonInviteCard(scroll: HTMLElement): void {
-    const inv = this.personInvite;
+  private renderHubInviteCard(scroll: HTMLElement): void {
+    const inv = this.hubInvite;
     if (!inv) return;
-    const copy = personInviteCopy(inv.displayName, inv.memberPaths.length, {
+    const copy = hubAssociationInviteCopy({
+      kind: inv.kind,
+      label: inv.label,
+      memberCount: inv.memberPaths.length,
       existingNote: inv.existingNote,
     });
     const card = flatCard(scroll, {
-      className: "atoms-home-entity-invite atoms-home-person-invite",
+      className:
+        inv.kind === "person"
+          ? "atoms-home-entity-invite atoms-home-person-invite"
+          : "atoms-home-entity-invite",
     });
     card.createEl("p", {
       cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker atoms-home-person-invite-kicker",
@@ -1353,60 +1348,161 @@ export class AtomsHomeView extends ItemView {
     const actions = actionRow(card);
     button(actions, {
       grade: "primary",
-      label: this.personInviteBusy
+      label: this.hubInviteBusy
         ? inv.existingNote
-          ? "Linking…"
-          : "Adding…"
+          ? "Adding…"
+          : "Creating…"
         : copy.createLabel,
-      disabled: this.personInviteBusy,
-      onClick: () => void this.onAddPersonNote(inv),
+      disabled: this.hubInviteBusy,
+      onClick: () => void this.onAcceptHubInvite(inv),
     });
     button(actions, {
       grade: "secondary",
       label: copy.alreadyLabel,
-      disabled: this.personInviteBusy,
-      onClick: () => this.onAlreadyHavePerson(inv),
+      disabled: this.hubInviteBusy,
+      onClick: () => this.onPickDifferentHub(inv),
     });
     button(actions, {
       grade: "secondary",
       label: copy.dismissLabel,
-      disabled: this.personInviteBusy,
+      disabled: this.hubInviteBusy,
       onClick: () => {
-        this.snoozePersonInvite(inv.displayName);
-        this.personInvite = null;
+        this.snoozeHubInvite(inv);
+        this.hubInvite = null;
         this.refreshEntitySurfaces();
         this.render();
       },
     });
   }
 
-  /**
-   * Already have them — pick an existing vault note and link atoms to it.
-   * Never creates a person note. Not the same as Not now (snooze only).
-   */
-  private onAlreadyHavePerson(inv: PersonInviteCandidate): void {
-    if (this.personInviteBusy) return;
+  private snoozeHubInvite(inv: HubAssociationCandidate): void {
+    if (inv.kind === "person") {
+      this.snoozePersonInvite(inv.label);
+      return;
+    }
+    this.writeSnooze(
+      LS_ENTITY_INVITE_SNOOZE,
+      pairingId("list", inv.label),
+      ENTITY_INVITE_SNOOZE_DAYS,
+    );
+  }
+
+  private onPickDifferentHub(inv: HubAssociationCandidate): void {
+    if (this.hubInviteBusy) return;
     const folder = this.plugin.settings.atomFolder || "Atoms";
-    new PersonNoteSuggestModal(this.app, folder, async (file) => {
-      await this.linkInviteToExistingNote(inv, file);
-    }).open();
+    new PersonNoteSuggestModal(
+      this.app,
+      folder,
+      async (file) => {
+        await this.linkInviteToExistingNote(inv, file);
+      },
+      {
+        preferPeoplePaths: inv.kind === "person",
+        placeholder:
+          inv.kind === "person"
+            ? "Choose the person note you already have…"
+            : "Choose the note you already have…",
+      },
+    ).open();
+  }
+
+  private async onAcceptHubInvite(
+    inv: HubAssociationCandidate,
+  ): Promise<void> {
+    if (inv.kind === "person") {
+      await this.onAddPersonNote(inv);
+      return;
+    }
+    await this.onAcceptListInvite(inv);
+  }
+
+  private async onAcceptListInvite(
+    inv: HubAssociationCandidate,
+  ): Promise<void> {
+    const label = inv.label.trim();
+    if (!label || this.hubInviteBusy) return;
+    this.hubInviteBusy = true;
+    this.render();
+    try {
+      let file = this.findNoteByTitle(label);
+      if (!file && !inv.existingNote) {
+        const path = `${label}.md`;
+        const created = this.app.vault.getAbstractFileByPath(path);
+        if (!(created instanceof TFile)) {
+          await this.app.vault.create(path, formatEntityHubMarkdown(label));
+        }
+        file = this.findNoteByTitle(label);
+      }
+      if (!file) {
+        new Notice("Atoms: could not find that list note");
+        return;
+      }
+      const linkName = file.basename.trim();
+      for (const memberPath of inv.memberPaths) {
+        await this.upgradeAtomToHub(memberPath, linkName, listLinkReason(linkName));
+      }
+      if (this.plugin.settings.enableHubProjection === true) {
+        const fresh = await this.app.vault.read(file);
+        const titles = inv.memberTitles.map((t) => t.trim()).filter(Boolean);
+        const next = seedHubListMarkdown(fresh, titles);
+        if (next !== fresh) await this.app.vault.modify(file, next);
+      }
+      this.snoozeHubInvite({ ...inv, label: linkName });
+      this.hubInvite = null;
+      new Notice(`Atoms: added to ${linkName}`);
+      this.plugin.scheduleAskMirrorSync();
+      await this.loadData();
+      this.render();
+    } catch {
+      new Notice("Atoms: could not update that list note");
+      this.render();
+    } finally {
+      this.hubInviteBusy = false;
+    }
+  }
+
+  private findNoteByTitle(title: string): TFile | null {
+    const want = title.trim().toLowerCase();
+    if (!want) return null;
+    const hits = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => f.basename.trim().toLowerCase() === want);
+    return hits.length === 1 ? hits[0]! : hits[0] ?? null;
   }
 
   private async linkInviteToExistingNote(
-    inv: PersonInviteCandidate,
+    inv: HubAssociationCandidate,
     file: TFile,
   ): Promise<void> {
     const linkName = file.basename.trim();
     if (!linkName) return;
-    this.personInviteBusy = true;
+    this.hubInviteBusy = true;
     this.render();
     try {
-      const paths = this.upgradePathSet(inv);
+      const reason =
+        inv.kind === "person"
+          ? `about [[${linkName}]]`
+          : listLinkReason(linkName);
+      const paths =
+        inv.kind === "person" ? this.upgradePathSet(inv) : new Set(inv.memberPaths);
       for (const memberPath of paths) {
-        await this.upgradeAtomToPerson(memberPath, linkName);
+        await this.upgradeAtomToHub(
+          memberPath,
+          linkName,
+          reason,
+          inv.kind === "person",
+        );
       }
-      this.snoozePersonInvite(inv.displayName);
-      this.personInvite = null;
+      if (inv.kind === "list" && this.plugin.settings.enableHubProjection === true) {
+        const latest = this.app.vault.getAbstractFileByPath(file.path);
+        if (latest instanceof TFile) {
+          const fresh = await this.app.vault.read(latest);
+          const next = seedHubListMarkdown(fresh, inv.memberTitles);
+          if (next !== fresh) await this.app.vault.modify(latest, next);
+        }
+      }
+      this.snoozeHubInvite(inv);
+      this.hubInvite = null;
       new Notice(`Atoms: linked to ${linkName}`);
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
@@ -1415,14 +1511,14 @@ export class AtomsHomeView extends ItemView {
       new Notice("Atoms: could not link to that note");
       this.render();
     } finally {
-      this.personInviteBusy = false;
+      this.hubInviteBusy = false;
     }
   }
 
-  private async onAddPersonNote(inv: PersonInviteCandidate): Promise<void> {
-    const name = inv.displayName.trim();
-    if (!name || this.personInviteBusy) return;
-    this.personInviteBusy = true;
+  private async onAddPersonNote(inv: HubAssociationCandidate): Promise<void> {
+    const name = inv.label.trim();
+    if (!name || this.hubInviteBusy) return;
+    this.hubInviteBusy = true;
     this.render();
     try {
       const folder = resolvePeopleFolderPrefix(
@@ -1432,7 +1528,7 @@ export class AtomsHomeView extends ItemView {
       const existing = this.app.vault.getAbstractFileByPath(path);
       const anyTitle = this.app.vault
         .getMarkdownFiles()
-        .find((f) => f.basename.toLowerCase() === name.toLowerCase());
+        .find((f) => f.basename.trim().toLowerCase() === name.toLowerCase());
       let created = false;
       if (!(existing instanceof TFile) && !anyTitle) {
         const parts = folder.split("/").filter(Boolean);
@@ -1450,10 +1546,14 @@ export class AtomsHomeView extends ItemView {
 
       const paths = this.upgradePathSet(inv);
       for (const memberPath of paths) {
-        await this.upgradeAtomToPerson(memberPath, name);
+        await this.upgradeAtomToHub(
+          memberPath,
+          name,
+          `about [[${name}]]`,
+          true,
+        );
       }
 
-      // Multi-member same-name group: ensure peers if still no hard hub (edge)
       if (paths.size >= 2 && created) {
         await this.applyPeersForPaths([...paths]);
       }
@@ -1470,7 +1570,7 @@ export class AtomsHomeView extends ItemView {
       new Notice(
         created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
       );
-      this.personInvite = null;
+      this.hubInvite = null;
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
@@ -1478,13 +1578,13 @@ export class AtomsHomeView extends ItemView {
       new Notice("Atoms: could not add person note");
       this.render();
     } finally {
-      this.personInviteBusy = false;
+      this.hubInviteBusy = false;
     }
   }
 
-  private upgradePathSet(inv: PersonInviteCandidate): Set<string> {
+  private upgradePathSet(inv: HubAssociationCandidate): Set<string> {
     const upgradePaths = new Set(inv.memberPaths);
-    const label = inv.displayName.trim().toLowerCase();
+    const label = inv.label.trim().toLowerCase();
     for (const f of this.atomFileInputs) {
       if (!isGeneratedAtomContent(f.content)) continue;
       if (upgradePaths.has(f.path)) continue;
@@ -1496,20 +1596,19 @@ export class AtomsHomeView extends ItemView {
     return upgradePaths;
   }
 
-  private async upgradeAtomToPerson(
+  private async upgradeAtomToHub(
     memberPath: string,
     name: string,
+    reason: string,
+    dropSoft = false,
   ): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(memberPath);
     if (!(file instanceof TFile)) return;
     const content = await this.app.vault.read(file);
     if (!isGeneratedAtomContent(content)) return;
-    const next = applyHardLinkToAtomContent(
-      content,
-      name,
-      `about [[${name}]]`,
-      { dropSoft: true },
-    );
+    const next = applyHardLinkToAtomContent(content, name, reason, {
+      dropSoft,
+    });
     if (next) await this.app.vault.modify(file, next);
   }
 
@@ -1531,41 +1630,6 @@ export class AtomsHomeView extends ItemView {
       const file = this.app.vault.getAbstractFileByPath(p);
       if (file instanceof TFile) await this.app.vault.modify(file, content);
     }
-  }
-
-  private renderEntityInviteCard(scroll: HTMLElement): void {
-    const inv = this.entityInvite;
-    if (!inv) return;
-    const copy = entityInviteCopy(inv.label, inv.memberPaths.length);
-    const card = flatCard(scroll, { className: "atoms-home-entity-invite" });
-    card.createEl("p", {
-      cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
-      text: copy.kicker,
-    });
-    card.createEl("h2", { text: copy.title });
-    card.createEl("p", { text: copy.body });
-    if (inv.memberTitles.length) {
-      const peek = card.createEl("ul", { cls: "atoms-home-entity-invite-peek" });
-      for (const t of inv.memberTitles.slice(0, 3)) {
-        peek.createEl("li", { text: t });
-      }
-    }
-    const actions = actionRow(card);
-    button(actions, {
-      grade: "primary",
-      label: copy.createLabel,
-      onClick: () => void this.onCreateEntityHub(inv),
-    });
-    button(actions, {
-      grade: "secondary",
-      label: copy.dismissLabel,
-      onClick: () => {
-        this.snoozeEntityInvite(inv.label);
-        this.entityInvite = null;
-        this.refreshEntitySurfaces();
-        this.render();
-      },
-    });
   }
 
   private renderTogetherCard(scroll: HTMLElement): void {
@@ -1608,71 +1672,6 @@ export class AtomsHomeView extends ItemView {
         this.render();
       },
     });
-  }
-
-  private async onCreateEntityHub(inv: EntityInviteCandidate): Promise<void> {
-    const label = inv.label.trim();
-    if (!label) return;
-    const path = `${label}.md`;
-    try {
-      const existing = this.app.vault.getAbstractFileByPath(path);
-      if (!existing) {
-        await this.app.vault.create(path, formatEntityHubMarkdown(label));
-      }
-      // Re-point member atoms: add hard link to new hub in link-prose
-      for (const memberPath of inv.memberPaths) {
-        const file = this.app.vault.getAbstractFileByPath(memberPath);
-        if (!(file instanceof TFile)) continue;
-        const content = await this.app.vault.read(file);
-        if (!isGeneratedAtomContent(content)) continue;
-        const prose = extractLinkProseRegion(content);
-        const links = parseLinkProse(prose);
-        const has = links.some(
-          (l) => l.note.trim().toLowerCase() === label.toLowerCase(),
-        );
-        if (has) continue;
-        const nextLinks = [
-          ...links,
-          {
-            note: label,
-            reason: `belongs with [[${label}]]`,
-          },
-        ];
-        const newProse = formatLinkProse(nextLinks);
-        let nextContent: string;
-        if (prose) {
-          nextContent = content.replace(prose, newProse);
-        } else {
-          // append after body
-          const body = bodyAfterFrontmatter(content).trimEnd();
-          const fmEnd = content.indexOf("\n---", 3);
-          if (content.startsWith("---") && fmEnd !== -1) {
-            const fm = content.slice(0, fmEnd + 4);
-            const rest = content.slice(fmEnd + 4).replace(/^\r?\n/, "");
-            const capture = rest.split(/\n\n/)[0] ?? rest;
-            nextContent = `${fm}\n${capture.trimEnd()}\n\n${newProse}\n`;
-          } else {
-            nextContent = `${body}\n\n${newProse}\n`;
-          }
-        }
-        await this.app.vault.modify(file, nextContent);
-      }
-      if (this.plugin.settings.enableHubProjection === true) {
-        await runHubProjectionForHubs({
-          app: this.app,
-          enabled: true,
-          atomFolder: this.plugin.settings.atomFolder,
-          touchedHubTitles: [label],
-        });
-      }
-      new Notice(`Atoms: created ${label}`);
-      this.entityInvite = null;
-      this.plugin.scheduleAskMirrorSync();
-      await this.loadData();
-      this.render();
-    } catch {
-      new Notice("Atoms: could not create list note");
-    }
   }
 
   private buildAlsoAboutForPath(path: string): {
@@ -2282,10 +2281,8 @@ export class AtomsHomeView extends ItemView {
       !workPending &&
       !this.landPeak
     ) {
-      if (this.personInvite) {
-        this.renderPersonInviteCard(scroll);
-      } else if (this.entityInvite) {
-        this.renderEntityInviteCard(scroll);
+      if (this.hubInvite) {
+        this.renderHubInviteCard(scroll);
       } else if (this.togetherCard) {
         this.renderTogetherCard(scroll);
       } else {

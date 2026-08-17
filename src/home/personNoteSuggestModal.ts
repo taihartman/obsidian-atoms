@@ -12,9 +12,16 @@ export class PersonNoteSuggestModal extends FuzzySuggestModal<TFile> {
     app: App,
     private readonly atomFolder: string,
     private readonly onPick: (file: TFile) => void | Promise<void>,
+    opts: { preferPeoplePaths?: boolean; placeholder?: string } = {},
   ) {
     super(app);
-    this.setPlaceholder("Choose the person note you already have…");
+    const preferPeople = opts.preferPeoplePaths !== false;
+    this.setPlaceholder(
+      opts.placeholder ??
+        (preferPeople
+          ? "Choose the person note you already have…"
+          : "Choose the note you already have…"),
+    );
     const folder = atomFolder.replace(/\/$/, "") || "Atoms";
     this.files = app.vault.getMarkdownFiles().filter((f) => {
       const base = f.basename.trim().toLowerCase();
@@ -27,9 +34,11 @@ export class PersonNoteSuggestModal extends FuzzySuggestModal<TFile> {
       return true;
     });
     this.files.sort((a, b) => {
-      const sa = peoplePathScore(a.path);
-      const sb = peoplePathScore(b.path);
-      if (sa !== sb) return sb - sa;
+      if (preferPeople) {
+        const sa = peoplePathScore(a.path);
+        const sb = peoplePathScore(b.path);
+        if (sa !== sb) return sb - sa;
+      }
       return a.path.localeCompare(b.path);
     });
   }
