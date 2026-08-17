@@ -4,7 +4,7 @@ Get stuff **out of your head** into Obsidian — then have it **filed, linked, a
 
 The loop is simple:
 
-1. **Dump** — capture a thought instantly (phone shortcut or a bullet in Daily Notes). No filing UI, no folders, no “where does this go?”
+1. **Dump** — capture a thought instantly (Capture Atom on iPhone, Atoms Capture on Android, or a bullet in Daily Notes). No filing UI, no folders, no “where does this go?”
 2. **File** — Atoms classifies **past** captures into flat notes under `Atoms/` (title, tags, reason-bearing links). Your original words stay **verbatim** as the body.
 3. **Recall** — home resurfaces filed notes (For you / mind-change / library) so you’re not stuck in a guilt task list. Open any atom in Obsidian and keep writing.
 
@@ -162,14 +162,18 @@ Link to a person note you already keep (e.g. `People/Jordan`). Backlinks surface
 
 ## Capture (phone)
 
+**Android:** install [Atoms Capture](https://play.google.com/store/apps/details?id=app.tryatoms.capture) from Play, or open **Settings → Atoms → 1 · Capture → Atoms Capture** and press **Get Atoms Capture**. Link the vault in the app.
+
+**iPhone:**
+
 1. Open Obsidian with Atoms once so it creates `Atoms System/Inbox.md` and the **Atoms Inbox** bookmark.
-2. **Settings → Capture → Install Capture Atom** (or Atoms home).
+2. **Settings → Atoms → 1 · Capture → Capture on your phone → Install Capture Atom**.
 3. **Lock once:** Shortcuts → Capture Atom → edit → **Append to Bookmark** → **Atoms Inbox** (not Ask Each Time) → Done.
 4. Run it to append a stamped line to the inbox.
-5. When Obsidian next opens (or via the **Drain inbox** command), each line files into the daily for its stamp date.
-6. **Preview / Process** past days from Atoms home as usual.
 
-Uses Obsidian's **Capture to Bookmark**, which appends with the app force-quit — so a capture on a day with no daily still survives. See [docs/capture-shortcut.md](./docs/capture-shortcut.md).
+When Obsidian next opens (or via the **Drain inbox** command), each line files into the daily for its stamp date. Then **Preview / Process** past days from Atoms home as usual.
+
+The iPhone path uses Obsidian's **Capture to Bookmark**, which appends with the app force-quit. See [docs/capture-shortcut.md](./docs/capture-shortcut.md). The Android app writes the same inbox.
 
 ---
 

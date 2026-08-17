@@ -159,9 +159,14 @@ import {
   type ContinueParentPending,
 } from "../platform/continueParent";
 import { openSettingsTab } from "../platform/obsidianSettings";
-import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
 import {
-  labelCaptureShortcutCta,
+  ANDROID_COMPANION_STORE_URL,
+  CAPTURE_ATOM_VERSION,
+  detectCompanionPlatform,
+  writeCompanionGuideAck,
+} from "../shared/mobileInstall";
+import {
+  labelPhoneCaptureCta,
   needsShortcutCta,
   openShortcutInstallUrl,
   readShortcutAck,
@@ -661,7 +666,8 @@ export class AtomsHomeView extends ItemView {
   }
 
   private showShortcutBanner(): boolean {
-    if (this.isFirstDay()) return false; // setup card owns Install Capture Atom
+    if (this.isFirstDay()) return false; // setup card owns the phone-capture button
+    if (detectCompanionPlatform() === "android") return false;
     return needsShortcutCta(this.shortcutAcked);
   }
 
@@ -2326,7 +2332,7 @@ export class AtomsHomeView extends ItemView {
       });
       button(banner, {
         grade: "secondary",
-        label: labelCaptureShortcutCta(this.shortcutAcked),
+        label: labelPhoneCaptureCta(this.shortcutAcked),
         className: "atoms-home-update-btn",
         onClick: () => this.onInstallShortcut(),
       });
@@ -2364,14 +2370,16 @@ export class AtomsHomeView extends ItemView {
       if (firstDayCopy.showShortcut) {
         button(actions, {
           grade: "secondary",
-          label: labelCaptureShortcutCta(this.shortcutAcked),
-          disabled: !this.installUrl(),
-          attrs: this.installUrl()
-            ? undefined
-            : {
-                title:
-                  "No shortcut link to open. Add one in Settings → Capture",
-              },
+          label: labelPhoneCaptureCta(this.shortcutAcked),
+          disabled:
+            detectCompanionPlatform() !== "android" && !this.installUrl(),
+          attrs:
+            detectCompanionPlatform() === "android" || this.installUrl()
+              ? undefined
+              : {
+                  title:
+                    "No shortcut link to open. Add one in Settings → Capture",
+                },
           onClick: () => this.onInstallShortcut(),
         });
       }
@@ -2572,7 +2580,7 @@ export class AtomsHomeView extends ItemView {
     }
     menu.addItem((i) =>
       i
-        .setTitle(labelCaptureShortcutCta(this.shortcutAcked))
+        .setTitle(labelPhoneCaptureCta(this.shortcutAcked))
         .onClick(() => this.onInstallShortcut()),
     );
     menu.addItem((i) =>
@@ -2842,8 +2850,20 @@ export class AtomsHomeView extends ItemView {
     modal.open();
   }
 
-  /** iOS Capture Atom shortcut — companion stays off until App Store. */
+  /** iOS: Capture Atom shortcut. Android: the Play listing. */
   private onInstallShortcut(): void {
+    if (detectCompanionPlatform() === "android") {
+      try {
+        window.open(ANDROID_COMPANION_STORE_URL, "_blank");
+      } catch {
+        new Notice("Could not open Google Play.");
+        return;
+      }
+      writeCompanionGuideAck((k, v) => this.app.saveLocalStorage(k, v));
+      new Notice("Opened Atoms Capture on Play. Link this vault in the app.");
+      this.render();
+      return;
+    }
     const url = this.installUrl();
     if (!url) {
       new Notice(

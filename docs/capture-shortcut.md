@@ -1,8 +1,9 @@
 # Capture Atom — the iOS capture Shortcut
 
+On **Android**, capture is the [Atoms Capture](https://play.google.com/store/apps/details?id=app.tryatoms.capture) app. This page is the iPhone Shortcut.
+
 Capture on the phone appends one line to the inbox note. The plugin files that
-line into the right daily when Obsidian next opens. This recipe is the whole
-capture path — there is no filing UI on the phone.
+line into the right daily when Obsidian next opens. There is no filing UI on the phone.
 
 ## What the plugin owns
 

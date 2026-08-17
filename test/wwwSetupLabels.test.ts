@@ -100,6 +100,24 @@ describe("setup guide quotes labels the plugin still renders", () => {
     expect(sentence).toContain("Capture on your phone");
   });
 
+  it("names the Android Play row and button the plugin renders", () => {
+    const { tab } = settingTab();
+    tab.display();
+    expect(rowNames(tab)).toContain("Atoms Capture");
+    open(tab, "Atoms Capture");
+    expect(sheetButtons()).toContain("Get Atoms Capture");
+    dismissSheet();
+
+    expect(guide.includes("Get Atoms Capture"), "guide does not name Play CTA").toBe(
+      true,
+    );
+    const sentence = guide
+      .split(/(?<=\.)\s+/)
+      .find((s) => s.includes("Get Atoms Capture"));
+    expect(sentence, "guide has no Android install step").toBeDefined();
+    expect(sentence).toContain("Atoms Capture");
+  });
+
   it("names the two Ask switches the main screen renders", () => {
     // Owning source: src/settings/settings.ts, renderAskSection.
     const { tab } = plusTab();

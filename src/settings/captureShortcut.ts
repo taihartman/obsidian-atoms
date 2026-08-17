@@ -9,6 +9,8 @@ import {
   CAPTURE_ATOM_ALL_URLS,
   CAPTURE_ATOM_INSTALL_URL,
   CAPTURE_ATOM_VERSION,
+  detectCompanionPlatform,
+  type CompanionPlatform,
 } from "../shared/mobileInstall";
 
 /** @deprecated Prefer CAPTURE_ATOM_VERSION — kept for existing imports. */
@@ -123,6 +125,15 @@ export function labelCaptureShortcutCta(
 ): "Install Capture Atom" | "Update Capture Atom" {
   if (acked == null || acked === "") return "Install Capture Atom";
   return "Update Capture Atom";
+}
+
+/** What the phone-capture button says on this device. Android is the Play app. */
+export function labelPhoneCaptureCta(
+  shortcutAcked: string | null | undefined,
+  platform: CompanionPlatform = detectCompanionPlatform(),
+): "Get Atoms Capture" | "Install Capture Atom" | "Update Capture Atom" {
+  if (platform === "android") return "Get Atoms Capture";
+  return labelCaptureShortcutCta(shortcutAcked);
 }
 
 /** @deprecated Prefer {@link labelCaptureShortcutCta}. */

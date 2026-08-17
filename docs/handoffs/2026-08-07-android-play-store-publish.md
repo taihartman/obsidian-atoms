@@ -29,9 +29,10 @@ Get **Atoms Capture** (`app.tryatoms.capture`) onto Google Play, starting with *
 | App name | Atoms Capture |
 | applicationId / package | `app.tryatoms.capture` |
 | Namespace | `app.tryatoms.capture` |
-| Current versionName | `0.2.0-poc` → **bump before store** (e.g. `0.2.0` or `1.0.0-beta`) |
-| Current versionCode | `2` → increment per upload |
-| minSdk / targetSdk | 26 / 35 |
+| Current versionName | `0.2.1` |
+| Current versionCode | `3` |
+| minSdk / targetSdk | 26 / 36 |
+| Play listing | https://play.google.com/store/apps/details?id=app.tryatoms.capture (live) |
 | Repo path | `companion/android/` on **master** (merged PR #362) |
 | Issues closed | #166, #369 |
 | Website | https://tryatoms.com |

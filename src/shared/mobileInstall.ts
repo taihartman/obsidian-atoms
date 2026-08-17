@@ -19,6 +19,8 @@ export type CompanionInstallSpec = {
   version: string;
   role: string;
   docsUrl: string;
+  /** Play / App Store listing. Open this for "get the app", not the README. */
+  storeUrl?: string;
   bundleId?: string;
   applicationId?: string;
 };
@@ -80,6 +82,9 @@ function readCompanion(raw: unknown, key: string): CompanionInstallSpec {
     role,
     docsUrl: docsUrl.trim(),
   };
+  if (typeof o.storeUrl === "string" && o.storeUrl.startsWith("https://")) {
+    out.storeUrl = o.storeUrl.trim();
+  }
   if (typeof o.bundleId === "string") out.bundleId = o.bundleId;
   if (typeof o.applicationId === "string") out.applicationId = o.applicationId;
   return out;
@@ -114,6 +119,8 @@ export const APPEND_SHORTCUT_ALL_URLS = MOBILE_INSTALL.atomsCaptureAppend.urls;
 
 export const IOS_COMPANION_DOCS_URL = MOBILE_INSTALL.iosCompanion.docsUrl;
 export const ANDROID_COMPANION_DOCS_URL = MOBILE_INSTALL.androidCompanion.docsUrl;
+export const ANDROID_COMPANION_STORE_URL =
+  MOBILE_INSTALL.androidCompanion.storeUrl ?? ANDROID_COMPANION_DOCS_URL;
 export const IOS_COMPANION_VERSION = MOBILE_INSTALL.iosCompanion.version;
 export const ANDROID_COMPANION_VERSION = MOBILE_INSTALL.androidCompanion.version;
 
@@ -138,13 +145,15 @@ export function openCompanionDocs(
       window.open(IOS_COMPANION_DOCS_URL, "_blank");
     }
     if (platform === "android" || platform === "both") {
+      // Play listing when we have one. The README is for sideload, not for "get the app".
+      const androidUrl = ANDROID_COMPANION_STORE_URL;
       // Slight delay so two tabs aren't blocked as one gesture on some WebViews.
       if (platform === "both") {
         window.setTimeout(() => {
-          window.open(ANDROID_COMPANION_DOCS_URL, "_blank");
+          window.open(androidUrl, "_blank");
         }, 200);
       } else {
-        window.open(ANDROID_COMPANION_DOCS_URL, "_blank");
+        window.open(androidUrl, "_blank");
       }
     }
     return true;
