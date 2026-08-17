@@ -30,9 +30,10 @@
   },
   "androidCompanion": {
     "name": "Atoms Capture",
-    "version": "0.2.0-poc",
-    "role": "Android hub + overlay + widget.",
+    "version": "0.3.1",
+    "role": "Android capture: overlay, widget, shade tile. Live on Play.",
     "docsUrl": "https://github.com/taihartman/obsidian-atoms/blob/master/companion/android/README.md",
+    "storeUrl": "https://play.google.com/store/apps/details?id=app.tryatoms.capture",
     "applicationId": "app.tryatoms.capture"
   }
 }

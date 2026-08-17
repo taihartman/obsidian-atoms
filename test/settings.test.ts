@@ -954,6 +954,30 @@ describe("capture on your phone (U9, R2/R19)", () => {
   });
 });
 
+describe("Atoms Capture on Android", () => {
+  it("sits next to the iPhone shortcut on desktop", () => {
+    const { tab } = settingTab();
+    tab.display();
+    expect(rowNames(tab)).toContain("Capture on your phone");
+    expect(rowNames(tab)).toContain("Atoms Capture");
+    expect(row(tab, "Atoms Capture").textContent).toContain("On Android");
+  });
+
+  it("opens Play, not Shortcuts", () => {
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { tab } = settingTab();
+    tab.display();
+    open(tab, "Atoms Capture");
+    expect(sheetButtons()).toEqual(["Close", "Get Atoms Capture"]);
+    pressSheet("Get Atoms Capture");
+    expect(opened).toHaveBeenCalledWith(
+      "https://play.google.com/store/apps/details?id=app.tryatoms.capture",
+      "_blank",
+    );
+    opened.mockRestore();
+  });
+});
+
 /**
  * U8's regression bar: the account screen changes how it *looks* and not what it *holds*.
  *
@@ -3417,6 +3441,7 @@ describe("main screen row grammar (U9)", () => {
       // U9: a name and a status, with the procedure behind it. It was an action row whose
       // description carried all six steps.
       "Capture on your phone",
+      "Atoms Capture",
       // `Custom shortcut link` is not here since U7: it only matters to somebody who forked the
       // recipe, so it sits with the other escape hatches on Advanced.
       // 2 · File, in the mock's order: who files, whether it runs on its own, where atoms land,
@@ -3451,7 +3476,7 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
-    expect(rows).toHaveLength(15);
+    expect(rows).toHaveLength(16);
   });
 
   it("renders thirteen rows signed out — the Ask group is the only difference", () => {
@@ -3461,7 +3486,7 @@ describe("main screen row grammar (U9)", () => {
     const rows = rowNames(tab, { headings: false });
     // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
     expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(14);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {

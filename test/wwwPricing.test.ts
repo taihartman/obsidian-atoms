@@ -579,10 +579,12 @@ describe("setup guide", () => {
     expect(setup).toContain(`${base}/mcp`);
   });
 
-  it("says plainly that Android has no capture shortcut yet", () => {
-    // Honesty beats a recipe we cannot device-verify. If Android capture ever
-    // ships, this test should fail and be rewritten, not deleted quietly.
-    expect(setup).toContain("no Android equivalent yet");
+  it("points Android capture at the live Play app", () => {
+    expect(setup).not.toContain("no Android equivalent yet");
+    expect(setup).toContain(
+      "https://play.google.com/store/apps/details?id=app.tryatoms.capture",
+    );
+    expect(setup).toContain("Get Atoms Capture");
   });
 
   it("references only screenshots that actually ship", () => {

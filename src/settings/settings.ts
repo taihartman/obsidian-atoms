@@ -30,7 +30,12 @@ import {
   LAST_CATCHUP_LABEL,
   readEgressNoticeAcked,
 } from "../platform/resume";
-import { CAPTURE_ATOM_VERSION } from "../shared/mobileInstall";
+import {
+  ANDROID_COMPANION_STORE_URL,
+  CAPTURE_ATOM_VERSION,
+  detectCompanionPlatform,
+  writeCompanionGuideAck,
+} from "../shared/mobileInstall";
 import {
   captureShortcutStatus,
   customCaptureShortcutUrl,
@@ -40,7 +45,13 @@ import {
   resolveCaptureShortcutInstallUrl,
   writeShortcutAck,
 } from "./captureShortcut";
-import { CAPTURE_SHEET_TITLE, CaptureShortcutSheetModal } from "./captureSheet";
+import {
+  ANDROID_CAPTURE_SHEET_LEAD,
+  ANDROID_CAPTURE_SHEET_TITLE,
+  ANDROID_CAPTURE_STEPS,
+  CAPTURE_SHEET_TITLE,
+  CaptureShortcutSheetModal,
+} from "./captureSheet";
 import { markDestructive } from "./destructiveButton";
 import { askSignOutAllApproval } from "./plusSignOutAllConfirmModal";
 import {
@@ -554,7 +565,7 @@ const NEXT_RUN_ROW = {
 const CAPTURE_GROUP = {
   header: "1 · Capture",
   footer:
-    "Atoms never captures for you. Write a top-level bullet in your daily note, like “- Alex likes periwinkle”, or add the phone shortcut and say one out loud. An indented bullet is read as part of the one above it.",
+    "Atoms never captures for you. Write a top-level bullet in your daily note, like “- Alex likes periwinkle”, or capture from your phone: Capture Atom on iPhone, or Atoms Capture on Android. An indented bullet is read as part of the one above it.",
 } as const;
 
 const FILE_GROUP = {
@@ -3228,12 +3239,24 @@ export class AtomsSettingTab extends PluginSettingTab {
    * shows it to everybody spends a row on the one reader in a hundred who wants it (R4).
    */
   private renderCaptureShortcutRows(containerEl: HTMLElement) {
-    const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
-    destinationRow(containerEl, {
-      name: CAPTURE_SHEET_TITLE,
-      desc: captureShortcutStatus(shortcutAcked),
-      onOpen: () => this.openCaptureShortcutSheet(shortcutAcked),
-    });
+    const platform = detectCompanionPlatform();
+    // iOS keeps Capture Atom. Android opens Play. Desktop offers both so a
+    // person setting up their phone from the computer sees the live app.
+    if (platform !== "android") {
+      const shortcutAcked = readShortcutAck((k) => loadLocal(this.app, k));
+      destinationRow(containerEl, {
+        name: CAPTURE_SHEET_TITLE,
+        desc: captureShortcutStatus(shortcutAcked),
+        onOpen: () => this.openCaptureShortcutSheet(shortcutAcked),
+      });
+    }
+    if (platform !== "ios") {
+      destinationRow(containerEl, {
+        name: ANDROID_CAPTURE_SHEET_TITLE,
+        desc: platform === "android" ? "On this phone" : "On Android",
+        onOpen: () => this.openAndroidCaptureSheet(),
+      });
+    }
   }
 
   /** The procedure, and the install. Dismissing writes nothing — only a successful open acks. */
@@ -3243,13 +3266,40 @@ export class AtomsSettingTab extends PluginSettingTab {
     );
     new CaptureShortcutSheetModal(this.app, {
       installLabel: labelCaptureShortcutCta(shortcutAcked),
-      // Companion stays hidden until App Store, so a missing link is a packaging fault rather
-      // than a state the user can fix — say which file, and leave the button dead.
+      // A missing iCloud link is a packaging fault, not a state the user can fix.
       disabledNote: installUrl
         ? undefined
         : "No link to open. Check the Capture Atom urls in mobile-install.json.",
       onInstall: () => this.installCaptureShortcut(installUrl),
     }).open();
+  }
+
+  private openAndroidCaptureSheet(): void {
+    const storeUrl = ANDROID_COMPANION_STORE_URL.trim();
+    new CaptureShortcutSheetModal(this.app, {
+      title: ANDROID_CAPTURE_SHEET_TITLE,
+      lead: ANDROID_CAPTURE_SHEET_LEAD,
+      steps: ANDROID_CAPTURE_STEPS,
+      installLabel: "Get Atoms Capture",
+      disabledNote: storeUrl
+        ? undefined
+        : "No Play link to open. Check androidCompanion.storeUrl in mobile-install.json.",
+      onInstall: () => this.installAndroidCapture(storeUrl),
+    }).open();
+  }
+
+  private installAndroidCapture(storeUrl: string): void {
+    try {
+      window.open(storeUrl, "_blank");
+    } catch {
+      new Notice("Could not open Google Play.");
+      return;
+    }
+    writeCompanionGuideAck((k, v) => this.app.saveLocalStorage(k, v));
+    new Notice(
+      "Opened Atoms Capture on Play. Link this vault in the app.",
+    );
+    this.redisplay();
   }
 
   private installCaptureShortcut(installUrl: string): void {

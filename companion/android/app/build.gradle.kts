@@ -19,14 +19,14 @@ val keystoreProps =
 
 android {
     namespace = "app.tryatoms.capture"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.tryatoms.capture"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.0"
+        targetSdk = 36
+        versionCode = 6
+        versionName = "0.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

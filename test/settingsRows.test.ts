@@ -1184,6 +1184,7 @@ const MAIN_DESTINATION_ROWS = [
   // U9 made this a chevron: it opens the procedure sheet rather than a route, the same way
   // `Atoms home` opens a view. Both are here and neither is in the walk table.
   "Capture on your phone",
+  "Atoms Capture",
   "Filing",
   `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",

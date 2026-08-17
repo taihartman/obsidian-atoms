@@ -5,6 +5,7 @@ import {
   customCaptureShortcutUrl,
   isAllowedCaptureShortcutUrl,
   labelCaptureShortcutCta,
+  labelPhoneCaptureCta,
   needsShortcutCta,
   readShortcutAck,
   resolveCaptureShortcutInstallUrl,
@@ -25,6 +26,12 @@ describe("needsShortcutCta / labels", () => {
   it("needs update when acked differs from shipped", () => {
     expect(needsShortcutCta("0.9.0", "1.0.0")).toBe(true);
     expect(labelCaptureShortcutCta("0.9.0")).toBe("Update Capture Atom");
+  });
+
+  it("on Android the phone-capture button is Get Atoms Capture", () => {
+    expect(labelPhoneCaptureCta(null, "android")).toBe("Get Atoms Capture");
+    expect(labelPhoneCaptureCta("2.2.0", "android")).toBe("Get Atoms Capture");
+    expect(labelPhoneCaptureCta(null, "ios")).toBe("Install Capture Atom");
   });
 });
 

@@ -12,7 +12,13 @@ import { CAPTURE_SHORTCUT_STEPS } from "./captureShortcut";
  * disagreeing about whether this phone is set up.
  */
 export interface CaptureShortcutSheetSpec {
-  /** "Install Capture Atom" or "Update Capture Atom". */
+  /** Defaults to {@link CAPTURE_SHEET_TITLE}. Android passes its own. */
+  title?: string;
+  /** Defaults to {@link CAPTURE_SHEET_LEAD}. */
+  lead?: string;
+  /** Defaults to the iOS Capture Atom steps. */
+  steps?: readonly string[];
+  /** "Install Capture Atom", "Get Atoms Capture", or "Update Capture Atom". */
   installLabel: string;
   /** Set when `mobile-install.json` yields no link, and the reason to show instead. */
   disabledNote?: string;
@@ -43,14 +49,14 @@ export class CaptureShortcutSheetModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: CAPTURE_SHEET_TITLE });
+    contentEl.createEl("h2", { text: this.spec.title ?? CAPTURE_SHEET_TITLE });
     contentEl.createEl("p", {
-      text: CAPTURE_SHEET_LEAD,
+      text: this.spec.lead ?? CAPTURE_SHEET_LEAD,
       cls: "setting-item-description",
     });
 
     const steps = contentEl.createEl("ol", { cls: "atoms-capture-steps" });
-    for (const step of CAPTURE_SHORTCUT_STEPS) {
+    for (const step of this.spec.steps ?? CAPTURE_SHORTCUT_STEPS) {
       steps.createEl("li", { text: step });
     }
 
@@ -83,6 +89,17 @@ export class CaptureShortcutSheetModal extends Modal {
 }
 
 /** Same words as the row that opens it, so the sheet is obviously the thing that row named. */
+export const ANDROID_CAPTURE_SHEET_TITLE = "Atoms Capture";
+
+export const ANDROID_CAPTURE_SHEET_LEAD =
+  "On Android, capture is its own app. It writes the same inbox line the iPhone shortcut does.";
+
+export const ANDROID_CAPTURE_STEPS: readonly string[] = [
+  "Get Atoms Capture from Google Play.",
+  "Open it and link this vault.",
+  "Capture from the overlay, the widget, or the shade tile.",
+];
+
 export const CAPTURE_SHEET_TITLE = "Capture on your phone";
 
 /**
