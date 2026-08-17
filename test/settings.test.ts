@@ -33,7 +33,12 @@ import {
 } from "../src/platform/filingAuth";
 import { ASK_PRIVACY_ACK_TITLE, EGRESS_DISCLOSURE } from "../src/settings/consent";
 import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusClient";
-import { PLUS_BASE_ADDRESS_REFUSED_MESSAGE } from "../src/platform/plusBaseVerify";
+import {
+  LS_PLUS_BASE_REFUSAL,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+  PLUS_BASE_UNREACHABLE_MESSAGE,
+  PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
+} from "../src/platform/plusBaseVerify";
 import {
   LS_ASK_MIRROR_LAST_ERROR,
   LS_ASK_MIRROR_SERVER_COUNT,
@@ -60,6 +65,7 @@ import {
   prose,
   row,
   rowNames,
+  rowsNamed,
   settingTab,
   sheet,
   sheetButtons,
@@ -1462,6 +1468,29 @@ describe("#508/#540 - the Account screen offers the way back from a refused addr
     open(tab, "Atoms Plus");
 
     expect(rowNames(tab)).not.toContain(ROW);
+  });
+
+  it("a recorded upstream refusal offers Check, and does not call it offline or a dead session", () => {
+    const host = "https://self.host.example";
+    const { tab } = settingTab({
+      ...signedIn(upgrading),
+      settings: { plusBaseUrl: host },
+      local: {
+        [LS_PLUS_BASE_REFUSAL]: JSON.stringify({
+          base: host,
+          at: 1,
+          reason: "upstream",
+        }),
+      },
+    });
+    openAccount(tab);
+
+    const check = "Check the Plus address";
+    expect(rowNames(tab)).toContain(check);
+    const text = row(tab, check).textContent ?? "";
+    expect(text).toContain(PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE);
+    expect(text).not.toContain(PLUS_BASE_ADDRESS_REFUSED_MESSAGE);
+    expect(text).not.toContain(PLUS_BASE_UNREACHABLE_MESSAGE);
   });
 });
 
@@ -3381,7 +3410,7 @@ describe("main screen row grammar (U9)", () => {
   ): string[] {
     const vocabulary = `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`;
     return [
-      filingChosen ? "File automatically" : "Choose who files your captures",
+      filingChosen ? "File automatically" : "Filing",
       // 1 · Capture. Daily Notes is a fact the leg reports rather than a preference it owns,
       // which is why it is the one row here with no control (U3).
       "Daily notes",
@@ -3668,13 +3697,16 @@ describe("status group (U2)", () => {
       tab.display();
 
       const rows = rowNames(tab, { headings: false });
-      expect(rows[0]).toBe("Choose who files your captures");
-      expect(destinationNames(tab)).toContain("Choose who files your captures");
+      expect(rows[0]).toBe("Filing");
+      expect(destinationNames(tab).filter((name) => name === "Filing")).toEqual([
+        "Filing",
+        "Filing",
+      ]);
 
-      // The screen that answers "who files" is the one offering both answers, not the one that
+      // The screen that answers Filing is the one offering both answers, not the one that
       // manages only the paid half of it. Both answers are chevrons now: the key field itself
       // moved one screen deeper, so the decision screen holds a decision.
-      open(tab, "Choose who files your captures");
+      open(tab, "Filing");
       const answers = rowNames(tab, { headings: false });
       expect(answers).toContain("Atoms Plus");
       expect(answers).toContain("Use your own Anthropic key");
@@ -3808,10 +3840,14 @@ describe("status group (U2)", () => {
     tab.display();
 
     // The screen agrees setup is unfinished, twice.
-    expect(rowNames(tab, { headings: false })[0]).toBe(
-      "Choose who files your captures",
-    );
-    expect(row(tab, "Filing").textContent).toContain("Not set up");
+    expect(rowNames(tab, { headings: false })[0]).toBe("Filing");
+    expect(rowNames(tab, { headings: false }).filter((name) => name === "Filing")).toEqual([
+      "Filing",
+      "Filing",
+    ]);
+    expect(
+      rowsNamed(tab, "Filing").some((el) => el.textContent?.includes("Not set up")),
+    ).toBe(true);
 
     // So the toggle may not say otherwise.
     const toggle = row(tab, "File automatically when Obsidian opens");
@@ -4564,8 +4600,16 @@ describe("Capture and File groups (U3)", () => {
 
   describe("the engine row", () => {
     /** What the row says under its name: the answer to the question the name asks. */
-    const answer = (tab: AtomsSettingTab) =>
-      row(tab, "Filing").textContent ?? "";
+    const answer = (tab: AtomsSettingTab) => {
+      const found = rowsNamed(tab, "Filing");
+      // Setup unfinished: Get started and File share the noun. The File row's subtitle is
+      // the engine answer, not Required.
+      const engine =
+        found.find(
+          (el) => el.querySelector(".setting-item-description")?.textContent !== "Required",
+        ) ?? found[0];
+      return engine?.textContent ?? "";
+    };
 
     it("says nothing is chosen when no engine is", () => {
       const { tab } = settingTab();

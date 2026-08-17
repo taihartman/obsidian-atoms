@@ -102,7 +102,7 @@ Without the Advanced toggle, `obsidian` prints “Command line interface is not 
 | Lane | When | Action |
 |---|---|---|
 | **Stable release** | Version bump `X.Y.Z` merges to master | CI auto-Release (**not** prerelease) → BRAT (betas **off**) + Community when listed |
-| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) in package+manifest+versions → merge master → CI **prerelease** → BRAT only if **Enable betas** |
+| **Beta release** | “beta” / dogfood-only | Bump to `X.Y.Z-beta.N` (or `-rc.N`) **on the feature branch**, tag that commit, push the tag → CI **prerelease** → BRAT only if **Enable betas**. **Never merge a `-beta` / `-rc` version to master** — Community reads default-branch `manifest.json` and delists when it is not a plain `X.Y.Z` with a matching non-prerelease Release. |
 | **Master merge, version unchanged** | docs/www/already-released version | CI no-ops (Release already exists). No agent vault copy |
 
 **Why auto:** Community plugins are delisted when default-branch `manifest.json` has no matching GitHub Release tag. Bump + merge **is** the release.

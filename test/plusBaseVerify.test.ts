@@ -23,7 +23,7 @@ import {
   type LocalStorageLike,
   type PlusSession,
 } from "../src/platform/filingAuth";
-import type { RequestFn } from "../src/platform/plusClient";
+import { upstreamRefusedMessage, type RequestFn } from "../src/platform/plusClient";
 import {
   clearPlusBaseRefusal,
   createPlusBaseVerifyCache,
@@ -37,6 +37,7 @@ import {
   PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
   PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
+  PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
   type PlusBaseStamp,
   type PlusBaseVerifyDeps,
 } from "../src/platform/plusBaseVerify";
@@ -353,14 +354,51 @@ describe("verifyPlusBase — the probe", () => {
     });
   });
 
-  it("a gateway 401 with no service body is unreachable, not a session refusal", async () => {
+  it("a gateway 401 with no service body is an upstream refusal, not offline", async () => {
     const s = session({ verifiedBase: PRODUCTION });
     const request = mockRequest(() => ({ status: 401, json: undefined, text: "" }));
     const verdict = await verifyPlusBase(deps(appWith(s), request), {
       session: s,
       resolvedBase: SELF_HOST,
     });
-    expect(verdict).toEqual({ kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE });
+    expect(verdict).toEqual({
+      kind: "refused",
+      reason: "upstream",
+      message: upstreamRefusedMessage(401),
+    });
+  });
+
+  it("an explained 401 that is not a session refusal is also upstream, not offline", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const request = mockRequest(() => ({
+      status: 401,
+      json: { error: "unauthorized", message: "nope" },
+    }));
+    const verdict = await verifyPlusBase(deps(appWith(s), request), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(verdict).toEqual({
+      kind: "refused",
+      reason: "upstream",
+      message: upstreamRefusedMessage(401),
+    });
+  });
+
+  it("a proxy 403 is the same upstream refusal", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const request = mockRequest(() => ({ status: 403, json: undefined, text: "" }));
+    const verdict = await verifyPlusBase(deps(appWith(s), request), {
+      session: s,
+      resolvedBase: SELF_HOST,
+      configuredBase: SELF_HOST,
+    });
+    expect(verdict).toEqual({
+      kind: "refused",
+      reason: "upstream",
+      message: upstreamRefusedMessage(403),
+    });
   });
 
   it("a 5xx is unreachable and does not re-stamp", async () => {
@@ -592,7 +630,11 @@ describe("the refusal record", () => {
   it("normalizes at write time, so a trailing slash still matches", () => {
     const app = fakeApp();
     writePlusBaseRefusal(app, `${SELF_HOST}/`, 5);
-    expect(readPlusBaseRefusal(app)).toEqual({ base: SELF_HOST, at: 5 });
+    expect(readPlusBaseRefusal(app)).toEqual({
+      base: SELF_HOST,
+      at: 5,
+      reason: "unverified",
+    });
     clearPlusBaseRefusal(app);
     expect(readPlusBaseRefusal(app)).toBeNull();
   });
@@ -606,7 +648,28 @@ describe("the refusal record", () => {
       { session: s, resolvedBase: SELF_HOST },
     );
     expect(verdict.kind).toBe("refused");
-    expect(readPlusBaseRefusal(app)).toEqual({ base: SELF_HOST, at: 4242 });
+    expect(readPlusBaseRefusal(app)).toEqual({
+      base: SELF_HOST,
+      at: 4242,
+      reason: "unverified",
+    });
+  });
+
+  it("a gateway 401 is recorded as upstream, so the recovery row can appear", async () => {
+    const s = session({ verifiedBase: PRODUCTION });
+    const app = appWith(s);
+    const request = mockRequest(() => ({ status: 401, json: undefined, text: "" }));
+    const verdict = await verifyPlusBase(
+      { storage: app, request, now: () => 77 },
+      { session: s, resolvedBase: SELF_HOST, configuredBase: SELF_HOST },
+    );
+    expect(verdict.kind).toBe("refused");
+    if (verdict.kind === "refused") expect(verdict.reason).toBe("upstream");
+    expect(readPlusBaseRefusal(app)).toEqual({
+      base: SELF_HOST,
+      at: 77,
+      reason: "upstream",
+    });
   });
 
   it("needs-address does NOT record: that state already has its own row", async () => {
@@ -667,6 +730,22 @@ describe("plusAddressAdvisory", () => {
     ...over,
   });
   const refusal = (base: string) => ({ base, at: 1 });
+
+  it("an upstream record names the address, not the connection or the session", () => {
+    expect(
+      plusAddressAdvisory(stamp(), SELF_HOST, { base: SELF_HOST, at: 1, reason: "upstream" }),
+    ).toEqual({
+      kind: "refused",
+      message: PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
+    });
+  });
+
+  it("a record written before reasons existed still reads as a sign-in refusal", () => {
+    expect(plusAddressAdvisory(stamp(), SELF_HOST, { base: SELF_HOST, at: 1 })).toEqual({
+      kind: "refused",
+      message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+    });
+  });
 
   it("says nothing without a session", () => {
     expect(plusAddressAdvisory(null, "", refusal(PRODUCTION))).toBeNull();

@@ -13,6 +13,7 @@ import {
   backfillDismissUntil,
   backfillOfferCopy,
   countUnprocessedSince,
+  FILING_NAME,
   filingHeroCopy,
   filingPathFromAuth,
   firstDaySetupCopy,
@@ -1054,11 +1055,11 @@ describe("firstDaySetupCopy", () => {
       expect(copy.nextStep?.name).toBe(copy.title);
     });
 
-    it("names choosing who files once Daily Notes is on and nobody files", () => {
+    it("names the Filing step once Daily Notes is on and nobody files", () => {
       const copy = firstDaySetupCopy(true, false);
       expect(copy.nextStep).toEqual({
         kind: "filing_owner",
-        name: "Choose who files your captures",
+        name: FILING_NAME,
       });
     });
 

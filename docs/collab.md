@@ -108,7 +108,7 @@ Enforced on `taihartman/obsidian-atoms` (includes admins):
 
 - **PR required** to merge into `master` (no direct push)  
 - **0** required approving reviews — GitHub does **not** block self-merge  
-- **`test` required to pass** — the `plus-service tests` job (#238/#239). A red run blocks the merge for everyone, admins included  
+- **`test` required to pass** — the `plus-service tests` job (#238/#239). A red run blocks the merge for everyone, admins included. That job also runs `scripts/community-manifest-version.mjs` on PRs to `master`, so a `-beta` / `-rc` plugin version cannot land (#554).  
 - Force-push and branch delete on `master` disabled  
 - Stale reviews dismissed when new commits land  
 

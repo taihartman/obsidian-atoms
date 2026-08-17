@@ -14,7 +14,6 @@ import {
   type PlusSession,
 } from "../src/platform/filingAuth";
 import {
-  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
   PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_UNREACHABLE_MESSAGE,
 } from "../src/platform/plusBaseVerify";

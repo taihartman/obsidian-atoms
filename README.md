@@ -225,7 +225,7 @@ Releases ship `main.js`, `manifest.json`, and `styles.css` (plus `SHA256SUMS.txt
 
 **Cut a release (maintainers):** bump `manifest.json` + `package.json` (+ `versions.json` via `npm version` / `version-bump.mjs`) and merge to `master`. CI creates the matching GitHub Release and tag. Do not hand-tag after a normal version-bump merge.
 
-The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Tag must equal `package.json` / `manifest.json` version. **Stable:** version `0.7.10` → ordinary Release. **Beta:** bump to `0.7.11-beta.1` in package+manifest, then merge: CI marks the Release as prerelease for BRAT betas. Manual tag is recovery only: [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). Do not upload laptop-built `main.js` for production tags.
+The [Release](https://github.com/taihartman/obsidian-atoms/actions/workflows/release.yml) workflow builds, attests, and attaches assets. Tag must equal `package.json` / `manifest.json` version. **Stable:** version `0.7.10` on `master` → ordinary Release. **Beta:** bump to `0.7.11-beta.1` on the feature branch and push that tag — do not merge the `-beta` version. A prerelease on the default branch delists the Community plugin. [`docs/runbooks/plugin-release-beta-stable.md`](docs/runbooks/plugin-release-beta-stable.md). Do not upload laptop-built `main.js` for production tags.
 
 (Previously `obsidian-ai-linker`; renamed with the product.)
 
