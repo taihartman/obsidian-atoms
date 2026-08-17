@@ -1307,12 +1307,15 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     },
   });
 
-  /** Walk to Account, whatever the engine screen has named the row for this state. */
+  /**
+   * Walk to Account. The entry row is named `Atoms Plus` in every account state
+   * since 0.8.1 — the state rides in its description, not its name — so this no
+   * longer has to guess which label the current state produced.
+   */
   function openAccount(tab: AtomsSettingTab): void {
     tab.display();
-    open(tab, "Who does the filing");
-    const entry = destinationNames(tab).find((n) => n !== "Account");
-    open(tab, entry ?? "");
+    open(tab, "Filing");
+    open(tab, "Atoms Plus");
   }
 
   it("offers the row when there is no stamp and no address", () => {
@@ -1400,8 +1403,8 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
   it("says nothing when nobody is signed in", () => {
     const { tab } = settingTab();
     tab.display();
-    open(tab, "Who does the filing");
-    open(tab, "Set up automatic filing");
+    open(tab, "Filing");
+    open(tab, "Atoms Plus");
 
     expect(rowNames(tab)).not.toContain(ROW);
   });
