@@ -1,10 +1,11 @@
-# Atoms Capture (Android POC)
+# Atoms Capture (Android)
 
 Thin companion app: **type → save** appends a stamped line to  
 `Atoms System/Inbox.md` in your Obsidian vault via the Storage Access Framework.
 
 - Spec: [`docs/plans/2026-08-07-001-feat-android-companion-capture-poc-plan.md`](../../docs/plans/2026-08-07-001-feat-android-companion-capture-poc-plan.md)
 - Issue: [#166](https://github.com/taihartman/obsidian-atoms/issues/166)
+- Play listing: [#382](https://github.com/taihartman/obsidian-atoms/issues/382)
 - No network, no Plus, no classify — plugin still files.
 
 ## Requirements
@@ -12,6 +13,19 @@ Thin companion app: **type → save** appends a stamped line to
 - JDK 17+
 - Android SDK (`ANDROID_HOME` or `local.properties` `sdk.dir`)
 - Device or emulator (API 26+)
+
+One build. Play will not grant all-files access to a capture app, so there is
+no silent whole-phone scan. Pick the vault folder, or pick **Documents** and
+the app lists every vault inside that grant.
+
+## Localization
+
+User-facing copy lives in `app/src/main/res/values/strings.xml`. Never a
+literal in Kotlin or layout XML. See [`docs/localization.md`](../../docs/localization.md).
+A second language is `values-<lang>/strings.xml` with the same keys.
+
+`verify<Variant>Manifest` reads the **merged** manifest and fails the build if
+broad storage or `INTERNET` comes back, from our manifest or a library's.
 
 ## Build & test
 
@@ -28,14 +42,37 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n app.tryatoms.capture/.MainActivity
 ```
 
+## Release build
+
+The upload keystore lives on the owner's machine and never in git. Copy
+`keystore.properties.example` to `keystore.properties`, point it at the keystore,
+then:
+
+```bash
+./gradlew bundleRelease
+```
+
+Without `keystore.properties` the bundle task fails rather than quietly producing
+an unsigned AAB. Output: `app/build/outputs/bundle/release/app-release.aab`.
+
+Store and tracking Releases: [`docs/runbooks/companion-release-beta-stable.md`](../../docs/runbooks/companion-release-beta-stable.md).
+
+```bash
+bundle install
+bundle exec fastlane android beta   # GitHub prerelease + Play Internal if PLAY_STORE_JSON_KEY is set
+bundle exec fastlane android prod   # GitHub Release (not Latest) + Play production draft
+bundle exec fastlane android build  # signed AAB only
+```
+
 ## Dogfood
 
 ### Hub (once)
 
 1. Prefer a **throwaway vault** for agent tests when possible.
-2. Open **Atoms Capture** → **Allow file access** (all files) so vaults are found automatically.
-3. Pick **Remote Vault** (or your vault) if more than one appears.
-4. Optional hub capture to confirm write.
+2. Open **Atoms Capture** → **Folder picker**.
+3. Pick the vault folder, or pick **Documents** if that is where the vaults live.
+4. If more than one vault appears, pick yours.
+5. Optional hub capture to confirm write.
 
 ### One-second path (daily)
 
@@ -63,6 +100,9 @@ Open Obsidian with Atoms → drain files into the daily for the stamp’s date.
 | Link vault | Persistable SAF tree URI stored |
 | Save a capture | Successful append once |
 
-## Out of POC
+## Not built yet
 
-Widgets, share sheet, iOS, Plus capture queue, Play Store release.
+Share sheet, iOS, Plus capture queue.
+
+Store listing assets and copy live in [`store/`](store/). Play publishing is tracked in
+[#382](https://github.com/taihartman/obsidian-atoms/issues/382).

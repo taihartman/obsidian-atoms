@@ -1,0 +1,126 @@
+# frozen_string_literal: true
+
+require "json"
+require "shellwords"
+
+default_platform(:android)
+
+CHANNEL = File.expand_path("../../release/channel.mjs", __dir__)
+GRADLE = File.expand_path("../app/build.gradle.kts", __dir__)
+AAB = File.expand_path("../app/build/outputs/bundle/release/app-release.aab", __dir__)
+
+def channel_json(lane, version)
+  raw = sh(
+    "node #{CHANNEL.shellescape} --platform android --lane #{lane.shellescape} --version #{version.shellescape}",
+    log: false,
+  )
+  JSON.parse(raw)
+end
+
+def current_android_version
+  text = File.read(GRADLE)
+  name = text[/versionName = "([^"]+)"/, 1]
+  code = text[/versionCode = (\d+)/, 1]
+  UI.user_error!("could not read versionName/versionCode from app/build.gradle.kts") if name.nil? || code.nil?
+  { name: name, code: code.to_i }
+end
+
+def write_android_version(name, code)
+  text = File.read(GRADLE)
+  text = text.sub(/versionCode = \d+/, "versionCode = #{code}")
+  text = text.sub(/versionName = "[^"]+"/, "versionName = \"#{name}\"")
+  File.write(GRADLE, text)
+end
+
+def require_no_release(tag)
+  status = sh("gh release view #{tag.shellescape} --repo taihartman/obsidian-atoms >/dev/null 2>&1; echo $?", log: false).to_s.strip
+  UI.user_error!("GitHub Release #{tag} already exists") if status == "0"
+end
+
+def create_github_release(ch, aab_path)
+  notes = "Atoms Capture Android #{ch['marketing']} (versionCode #{current_android_version[:code]})"
+  prerelease = ch["prerelease"] ? "--prerelease" : ""
+  sh(
+    "gh release create #{ch['tag'].shellescape} #{aab_path.shellescape} " \
+    "--repo taihartman/obsidian-atoms --title #{notes.shellescape} " \
+    "--notes #{notes.shellescape} --latest=false #{prerelease}",
+  )
+end
+
+def play_json_path
+  ENV["PLAY_STORE_JSON_KEY"]
+end
+
+def play_json_usable?
+  path = play_json_path
+  return :missing if path.to_s.empty?
+  return :invalid unless File.file?(path) && File.readable?(path)
+  :ok
+end
+
+platform :android do
+  desc "Signed AAB only"
+  lane :build do
+    gradle(task: "bundleRelease")
+    UI.user_error!("missing #{AAB}") unless File.exist?(AAB)
+    UI.success("signed AAB at #{AAB}")
+  end
+
+  desc "Bump beta, signed AAB, GitHub Release, Play Internal if key present"
+  lane :beta do
+    cur = current_android_version
+    ch = channel_json("beta", cur[:name])
+    require_no_release(ch["tag"])
+    write_android_version(ch["marketing"], cur[:code] + 1)
+    gradle(task: "bundleRelease")
+    UI.user_error!("missing #{AAB}") unless File.exist?(AAB)
+    create_github_release(ch, AAB)
+    case play_json_usable?
+    when :ok
+      upload_to_play_store(
+        track: "internal",
+        release_status: "completed",
+        aab: AAB,
+        json_key: play_json_path,
+        skip_upload_apk: true,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: true,
+      )
+    when :missing
+      UI.important("Play skipped — set PLAY_STORE_JSON_KEY to an absolute JSON path outside the repo")
+    else
+      UI.user_error!("PLAY_STORE_JSON_KEY is set but not a readable file: #{play_json_path}")
+    end
+  end
+
+  desc "Bump prod, signed AAB, GitHub Release, Play production draft if key present"
+  lane :prod do
+    cur = current_android_version
+    ch = channel_json("prod", cur[:name])
+    require_no_release(ch["tag"])
+    write_android_version(ch["marketing"], cur[:code] + 1)
+    gradle(task: "bundleRelease")
+    UI.user_error!("missing #{AAB}") unless File.exist?(AAB)
+    create_github_release(ch, AAB)
+    case play_json_usable?
+    when :ok
+      upload_to_play_store(
+        track: "production",
+        release_status: "draft",
+        aab: AAB,
+        json_key: play_json_path,
+        skip_upload_apk: true,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: true,
+      )
+    when :missing
+      UI.important("Play skipped — set PLAY_STORE_JSON_KEY to an absolute JSON path outside the repo")
+    else
+      UI.user_error!("PLAY_STORE_JSON_KEY is set but not a readable file: #{play_json_path}")
+    end
+  end
+end

@@ -3,18 +3,17 @@ package app.tryatoms.capture.ui
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.tryatoms.capture.R
 import app.tryatoms.capture.data.CaptureRepository
 import app.tryatoms.capture.data.InboxWriter
 import app.tryatoms.capture.data.SafVaultScanner
-import app.tryatoms.capture.data.VaultLocator
 import app.tryatoms.capture.data.VaultStore
-import app.tryatoms.capture.domain.DiscoveredVault
 import app.tryatoms.capture.domain.VaultRef
 import app.tryatoms.capture.widget.CaptureHomeWidget
 import kotlinx.coroutines.Dispatchers
@@ -37,10 +36,8 @@ data class CaptureUiState(
     val busy: Boolean = false,
     val banner: String? = null,
     val bannerIsError: Boolean = false,
-    val discoveredVaults: List<DiscoveredVault> = emptyList(),
     val listedVaults: List<VaultRef> = emptyList(),
     val hasAccessRoot: Boolean = false,
-    val hasAllFilesAccess: Boolean = false,
     val scanning: Boolean = false,
 )
 
@@ -54,34 +51,20 @@ class CaptureViewModel(
     private val draft = MutableStateFlow("")
     private val busy = MutableStateFlow(false)
     private val banner = MutableStateFlow<Pair<String, Boolean>?>(null)
-    private val discovered = MutableStateFlow<List<DiscoveredVault>>(emptyList())
     private val listed = MutableStateFlow<List<VaultRef>>(emptyList())
     private val scanning = MutableStateFlow(false)
-    private val allFiles = MutableStateFlow(hasAllFilesAccess())
 
     private data class UiBits(
         val draft: String,
         val busy: Boolean,
         val banner: Pair<String, Boolean>?,
-        val discovered: List<DiscoveredVault>,
         val listed: List<VaultRef>,
         val scanning: Boolean,
-        val allFiles: Boolean,
     )
 
-    private val bitsA =
-        combine(draft, busy, banner, discovered, listed) { d, b, ban, disc, list ->
-            Triple(d, b, ban) to (disc to list)
-        }
-    private val bitsB = combine(scanning, allFiles) { s, a -> s to a }
-
     private val bits =
-        combine(bitsA, bitsB) { a, b ->
-            val (dbg, discList) = a
-            val (d, busyV, ban) = dbg
-            val (disc, list) = discList
-            val (scan, af) = b
-            UiBits(d, busyV, ban, disc, list, scan, af)
+        combine(draft, busy, banner, listed, scanning) { d, b, ban, list, scan ->
+            UiBits(d, b, ban, list, scan)
         }
 
     val uiState: StateFlow<CaptureUiState> =
@@ -97,10 +80,8 @@ class CaptureViewModel(
                 busy = t.busy,
                 banner = t.banner?.first,
                 bannerIsError = t.banner?.second == true,
-                discoveredVaults = t.discovered,
                 listedVaults = t.listed,
                 hasAccessRoot = vault.accessRootUri != null,
-                hasAllFilesAccess = t.allFiles,
                 scanning = t.scanning,
             )
         }.stateIn(
@@ -114,20 +95,20 @@ class CaptureViewModel(
                 homeWidgetAdded = store.current().homeWidgetAdded,
                 lastStatus = store.current().lastStatus,
                 hasAccessRoot = store.current().accessRootUri != null,
-                hasAllFilesAccess = hasAllFilesAccess(),
             ),
         )
 
     init {
         restoreFromSystemGrants()
-        refreshAllFilesAndScan()
         store.current().accessRootUri?.let { root ->
             viewModelScope.launch { scanSafRoot(root, autoSelectSingle = !store.current().vaultLinked) }
         }
     }
 
     fun onResume() {
-        refreshAllFilesAndScan()
+        store.current().accessRootUri?.let { root ->
+            viewModelScope.launch { scanSafRoot(root, autoSelectSingle = false) }
+        }
     }
 
     fun onDraftChange(value: String) {
@@ -147,27 +128,16 @@ class CaptureViewModel(
     }
 
     fun onPickerCancelled() {
-        banner.value =
-            "Folder picker closed without a choice. Prefer Allow file access — " +
-            "that finds Remote Vault automatically." to true
+        banner.value = s(R.string.banner_picker_cancelled) to true
     }
 
-    fun refreshAllFilesAndScan() {
-        val granted = hasAllFilesAccess()
-        allFiles.value = granted
-        if (granted) {
-            viewModelScope.launch { runFileScan(autoSelectSingle = !store.current().vaultLinked) }
-        }
-    }
+    private fun s(@StringRes id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
 
-    fun selectDiscoveredVault(vault: DiscoveredVault) {
-        store.setFileVault(vault.absolutePath, vault.name)
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { CaptureHomeWidget.updateAll(getApplication()) }
-        }
-        banner.value =
-            "Using ${vault.name}. Long-press home → Widgets → Atoms Capture for one-tap capture." to false
-    }
+    private fun quantity(
+        @PluralsRes id: Int,
+        count: Int,
+    ): String = getApplication<Application>().resources.getQuantityString(id, count, count)
 
     fun onAccessRootPicked(uri: Uri) {
         viewModelScope.launch {
@@ -179,7 +149,7 @@ class CaptureViewModel(
                 cr.takePersistableUriPermission(uri, flags)
             } catch (e: SecurityException) {
                 banner.value =
-                    "Could not keep folder access (${e.message}). Try again." to true
+                    s(R.string.banner_keep_access_failed, e.message.orEmpty()) to true
                 return@launch
             }
             store.setAccessRoot(uri)
@@ -190,27 +160,22 @@ class CaptureViewModel(
     fun selectVault(ref: VaultRef) {
         val root = store.current().accessRootUri
         if (root == null) {
-            banner.value = "Grant a folder first." to true
+            banner.value = s(R.string.banner_grant_folder_first) to true
             return
         }
         store.setSelectedVault(ref.relativePath, ref.name)
-        banner.value =
-            "Using ${ref.name}. Captures go to Atoms System/Inbox.md." to false
+        banner.value = s(R.string.banner_using_vault_inbox, ref.name) to false
     }
 
     fun useAccessRootAsVault() {
         val root = store.current().accessRootUri ?: return
-        val name = guessName(root) ?: "Vault"
+        val name = guessName(root) ?: s(R.string.vault_name_fallback)
         store.setVaultAsRoot(root, name)
         listed.value = listOf(VaultRef(name = name, relativePath = "", score = 1))
-        banner.value = "Using $name as your vault." to false
+        banner.value = s(R.string.banner_using_vault, name) to false
     }
 
     fun rescanListedVaults() {
-        if (allFiles.value) {
-            viewModelScope.launch { runFileScan(autoSelectSingle = false) }
-            return
-        }
         val root = store.current().accessRootUri ?: return
         viewModelScope.launch { scanSafRoot(root, autoSelectSingle = false) }
     }
@@ -218,19 +183,16 @@ class CaptureViewModel(
     fun unlinkVault() {
         store.clearVaultLink()
         listed.value = emptyList()
-        banner.value = "Vault unlinked." to false
-        if (allFiles.value) {
-            viewModelScope.launch { runFileScan(autoSelectSingle = false) }
-        }
+        banner.value = s(R.string.banner_unlinked) to false
     }
 
     fun capture() {
         if (!repo.isLinked()) {
-            banner.value = "Choose a vault first." to true
+            banner.value = s(R.string.banner_choose_vault_first) to true
             return
         }
         if (draft.value.isBlank()) {
-            banner.value = "Type something first." to true
+            banner.value = s(R.string.banner_type_first) to true
             return
         }
         if (busy.value) return
@@ -246,47 +208,18 @@ class CaptureViewModel(
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
                     draft.value = ""
-                    repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
+                    repo.markCaptureDone(s(R.string.status_saved, result.stamp, result.preview))
                     withContext(Dispatchers.IO) {
                         CaptureHomeWidget.updateAll(getApplication())
                     }
-                    banner.value =
-                        "Saved. Next: add the shade button + home widget for one-second capture." to false
+                    banner.value = s(R.string.banner_saved_next) to false
                 }
                 is InboxWriter.WriteResult.Err -> {
-                    repo.setLastStatus("Failed · ${result.message}")
+                    repo.setLastStatus(s(R.string.status_failed, result.message))
                     banner.value = result.message to true
                 }
             }
             busy.value = false
-        }
-    }
-
-    private suspend fun runFileScan(autoSelectSingle: Boolean) {
-        scanning.value = true
-        val found =
-            withContext(Dispatchers.IO) {
-                VaultLocator.discover()
-            }
-        discovered.value = found
-        scanning.value = false
-        Log.i(TAG, "file scan ${found.size} auto=$autoSelectSingle")
-
-        when {
-            found.isEmpty() -> {
-                banner.value =
-                    "File access is on, but no Obsidian vaults turned up under Documents." to true
-            }
-            found.size == 1 && autoSelectSingle -> {
-                selectDiscoveredVault(found.first())
-                banner.value =
-                    "Found ${found.first().name}. Captures go to Atoms System/Inbox.md." to false
-            }
-            store.current().vaultLinked -> Unit
-            else -> {
-                banner.value =
-                    "Found ${found.size} vaults — pick which one to capture into." to false
-            }
         }
     }
 
@@ -304,19 +237,16 @@ class CaptureViewModel(
 
         when {
             vaults.isEmpty() -> {
-                banner.value =
-                    "No vaults in that folder. Prefer Allow file access." to true
+                banner.value = s(R.string.banner_no_vaults_in_folder) to true
             }
             vaults.size == 1 && autoSelectSingle -> {
                 val v = vaults.first()
                 store.setAccessRootAndVault(uri, v.relativePath, v.name)
-                banner.value =
-                    "Linked ${v.name}. Captures go to Atoms System/Inbox.md." to false
+                banner.value = s(R.string.banner_linked_inbox, v.name) to false
             }
             store.current().vaultLinked -> Unit
             else -> {
-                banner.value =
-                    "Found ${vaults.size} vaults — pick which one to capture into." to false
+                banner.value = quantity(R.plurals.banner_found_vaults, vaults.size) to false
             }
         }
     }
@@ -332,14 +262,6 @@ class CaptureViewModel(
                 emptyList()
             }
         if (grants.isNotEmpty()) store.restoreRootIfMissing(grants)
-    }
-
-    private fun hasAllFilesAccess(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            true
-        }
     }
 
     private fun guessName(treeUri: Uri): String? {

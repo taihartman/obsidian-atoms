@@ -27,6 +27,9 @@ data.json
 !.env.example
 !plus-service/.env.example
 *.pem
+*.p8
+AuthKey_*.p8
+tmp-play-store/
 
 # Local throwaway vault (may contain secrets)
 test_vault/
@@ -54,3 +57,10 @@ new vault/
 # Scratch dist for the Field notes archive test (it must never write www/dist,
 # which is the artifact `pages deploy` ships).
 www/dist-archive-test/
+
+# Signing keys, anywhere in the tree. Losing an upload keystore means losing the
+# ability to update the app on Play; committing one is worse.
+keystore.properties
+*.jks
+*.keystore
+*.p12

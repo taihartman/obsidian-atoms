@@ -76,12 +76,13 @@ private fun Content() {
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val ctx = LocalContext.current
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Capture",
+                text = ctx.getString(R.string.hub_capture),
                 maxLines = 1,
                 style =
                     TextStyle(
@@ -94,7 +95,7 @@ private fun Content() {
             Spacer(GlanceModifier.width(8.dp))
             Image(
                 provider = ImageProvider(R.drawable.ic_atoms_mark_blue),
-                contentDescription = "Capture",
+                contentDescription = ctx.getString(R.string.widget_capture_cd),
                 modifier = GlanceModifier.size(28.dp),
             )
         }

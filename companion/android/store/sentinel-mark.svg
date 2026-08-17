@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 262">
+  <!--
+    Atoms sentinel mark, drawn as geometry rather than the U+21B3 glyph.
+    Menlo (the first monospace that resolves in www/src/favicon.svg on this machine)
+    chops the arrowhead flat, which reads as a clipped arrow at icon sizes.
+    Colour matches the favicon: #0a84ff on black.
+  -->
+  <g fill="#0a84ff">
+    <path d="M0 0h62v226H0z"/>
+    <path d="M0 164h207v62H0z"/>
+    <path d="M207 129l80 66-80 66z"/>
+  </g>
+</svg>

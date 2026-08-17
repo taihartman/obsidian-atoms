@@ -3,6 +3,7 @@ package app.tryatoms.capture.data
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import app.tryatoms.capture.R
 import app.tryatoms.capture.domain.CaptureLine
 import app.tryatoms.capture.domain.VaultPathJoin
 import java.io.BufferedReader
@@ -36,17 +37,19 @@ class InboxWriter(
             try {
                 CaptureLine.format(body, now)
             } catch (e: IllegalArgumentException) {
-                return WriteResult.Err(e.message ?: "Empty capture")
+                return WriteResult.Err(e.message ?: context.getString(R.string.err_empty_capture))
             }
 
         val vault = File(vaultAbsolutePath)
         if (!vault.isDirectory) {
-            return WriteResult.Err("Vault folder missing: $vaultAbsolutePath")
+            return WriteResult.Err(context.getString(R.string.err_vault_folder_missing, vaultAbsolutePath))
         }
 
         val systemDir = File(vault, CaptureLine.SYSTEM_FOLDER)
         if (!systemDir.exists() && !systemDir.mkdirs()) {
-            return WriteResult.Err("Could not create ${CaptureLine.SYSTEM_FOLDER}")
+            return WriteResult.Err(
+                context.getString(R.string.err_create_system_folder, CaptureLine.SYSTEM_FOLDER),
+            )
         }
 
         val inbox = File(systemDir, CaptureLine.INBOX_FILE_NAME)
@@ -58,7 +61,7 @@ class InboxWriter(
             }
             okPreview(formatted.stamp, body)
         } catch (e: Exception) {
-            WriteResult.Err(e.message ?: "Write failed")
+            WriteResult.Err(e.message ?: context.getString(R.string.err_write_failed))
         }
     }
 
@@ -72,28 +75,32 @@ class InboxWriter(
             try {
                 CaptureLine.format(body, now)
             } catch (e: IllegalArgumentException) {
-                return WriteResult.Err(e.message ?: "Empty capture")
+                return WriteResult.Err(e.message ?: context.getString(R.string.err_empty_capture))
             }
 
         val root =
             DocumentFile.fromTreeUri(context, accessRootUri)
-                ?: return WriteResult.Err("Could not open the linked folder")
+                ?: return WriteResult.Err(context.getString(R.string.err_open_linked_folder))
 
         val vaultDir =
             resolveRelative(root, vaultRelativePath)
-                ?: return WriteResult.Err("Could not open the vault folder. Pick it again.")
+                ?: return WriteResult.Err(context.getString(R.string.err_open_vault_folder))
 
         if (!vaultDir.canRead() || !vaultDir.canWrite()) {
-            return WriteResult.Err("No permission to write this folder. Link again.")
+            return WriteResult.Err(context.getString(R.string.err_no_write_permission))
         }
 
         val systemFolder =
             findOrCreateDirectory(vaultDir, CaptureLine.SYSTEM_FOLDER)
-                ?: return WriteResult.Err("Could not create ${CaptureLine.SYSTEM_FOLDER}")
+                ?: return WriteResult.Err(
+                    context.getString(R.string.err_create_system_folder, CaptureLine.SYSTEM_FOLDER),
+                )
 
         val inbox =
             findOrCreateFile(systemFolder, CaptureLine.INBOX_FILE_NAME)
-                ?: return WriteResult.Err("Could not create ${CaptureLine.INBOX_FILE_NAME}")
+                ?: return WriteResult.Err(
+                    context.getString(R.string.err_create_inbox, CaptureLine.INBOX_FILE_NAME),
+                )
 
         return try {
             synchronized(WRITE_LOCK) {
@@ -115,7 +122,7 @@ class InboxWriter(
             }
             okPreview(formatted.stamp, body)
         } catch (e: Exception) {
-            WriteResult.Err(e.message ?: "Write failed")
+            WriteResult.Err(e.message ?: context.getString(R.string.err_write_failed))
         }
     }
 

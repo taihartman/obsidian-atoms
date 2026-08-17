@@ -76,7 +76,7 @@ class CaptureOverlayService : LifecycleService() {
                         if (!promoteForeground(mic = on) && on) {
                             speech?.stopNow()
                             listening = false
-                            error = "Could not enable microphone"
+                            error = getString(R.string.overlay_mic_enable_failed)
                         }
                     }
                 },
@@ -102,7 +102,7 @@ class CaptureOverlayService : LifecycleService() {
             return START_NOT_STICKY
         }
         if (!promoteForeground(mic = listening)) {
-            Toast.makeText(this, "Could not start capture service", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.toast_service_start_failed), Toast.LENGTH_LONG).show()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -118,7 +118,10 @@ class CaptureOverlayService : LifecycleService() {
      */
     private fun promoteForeground(mic: Boolean): Boolean {
         if (destroying) return false
-        val notif = buildNotification(if (mic) "Listening…" else "Capturing…")
+        val notif =
+            buildNotification(
+                if (mic) getString(R.string.notif_listening) else getString(R.string.notif_capturing),
+            )
         val type =
             if (Build.VERSION.SDK_INT >= 34) {
                 var t = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -204,8 +207,7 @@ class CaptureOverlayService : LifecycleService() {
                                             android.Manifest.permission.RECORD_AUDIO,
                                         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                     if (!ok) {
-                                        error =
-                                            "Allow microphone — open hub once to grant mic"
+                                        error = getString(R.string.overlay_allow_mic)
                                         return@QuickCaptureScreen
                                     }
                                     error = null
@@ -237,7 +239,11 @@ class CaptureOverlayService : LifecycleService() {
             overlayView = compose
             treeOwner.onResume()
         } catch (e: Exception) {
-            Toast.makeText(this, "Could not show capture: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                getString(R.string.toast_show_capture_failed, e.message.orEmpty()),
+                Toast.LENGTH_LONG,
+            ).show()
             stopSelf()
         }
     }
@@ -266,17 +272,23 @@ class CaptureOverlayService : LifecycleService() {
             if (!isActive || !isAlive()) return@launch
             when (result) {
                 is InboxWriter.WriteResult.Ok -> {
-                    repo.markCaptureDone("Saved · ${result.stamp} · ${result.preview}")
+                    repo.markCaptureDone(
+                        getString(R.string.status_saved, result.stamp, result.preview),
+                    )
                     withContext(Dispatchers.IO) {
                         CaptureHomeWidget.updateAll(this@CaptureOverlayService)
                     }
                     if (isAlive()) {
-                        Toast.makeText(this@CaptureOverlayService, "Saved", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@CaptureOverlayService,
+                            getString(R.string.toast_saved),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                         stopSelf()
                     }
                 }
                 is InboxWriter.WriteResult.Err -> {
-                    repo.setLastStatus("Failed · ${result.message}")
+                    repo.setLastStatus(getString(R.string.status_failed, result.message))
                     if (isAlive()) {
                         error = result.message
                         busy = false
@@ -292,7 +304,7 @@ class CaptureOverlayService : LifecycleService() {
             nm.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    "Capture",
+                    getString(R.string.hub_capture),
                     NotificationManager.IMPORTANCE_LOW,
                 ),
             )
@@ -307,11 +319,11 @@ class CaptureOverlayService : LifecycleService() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Atoms Capture")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(status)
             .setSmallIcon(R.drawable.ic_atoms_mark)
             .setOngoing(true)
-            .addAction(0, "Stop", stopPi)
+            .addAction(0, getString(R.string.notif_stop), stopPi)
             .build()
     }
 

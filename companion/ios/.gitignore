@@ -1,6 +1,6 @@
-.build/
-DerivedData/
-*.xcuserstate
-xcuserdata/
-.swiftpm/
-.DS_Store
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/test_output
+*.ipa
+*.p8
+AuthKey_*.p8

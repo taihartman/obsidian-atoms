@@ -42,6 +42,9 @@ Move every pending inbox capture into **its own day's** daily as a `- HH:MM body
 ### Filed marker
 `<!--atoms:filed-->` after an inbox capture's extent — the inbox's own sentinel, distinct from daily `<!--linker:*-->` markers and unknown to `parse.ts`. Presence is a **region** property (scan to the next top-level bullet), so drifted whitespace never re-files a capture.
 
+### Vault link
+How the Android companion holds onto a vault: a persisted SAF tree URI plus a relative path. Play will not grant all-files access to a capture app, so there is no silent whole-phone scan. The user picks the vault folder, or a parent such as Documents, and the app lists vaults under that grant. A leftover absolute path from an older all-files install is ignored, so it reads as unlinked rather than as a link that silently fails.
+
 ### Held / unparseable
 Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of the clock, so no daily exists to file into yet. **Unparseable** = no readable stamp. Both stay in place, counted and surfaced on home rather than dropped or guessed at.
 
