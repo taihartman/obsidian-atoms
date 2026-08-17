@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | [#554](https://github.com/taihartman/obsidian-atoms/issues/554) | Grok | `chore/community-safe-master-version` | runbook + CI gate | `scripts/community-manifest-version.mjs`, `.github/workflows/plus-service-tests.yml`, `.github/workflows/root-tests.yml`, `.github/workflows/release.yml`, `docs/runbooks/plugin-release-beta-stable.md` | A `-beta` on master delists Community. Merge-blocking check: master-bound version must be plain `X.Y.Z`. |
 
 ## How to claim (copy)
 

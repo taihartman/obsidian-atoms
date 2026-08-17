@@ -61,6 +61,13 @@ jobs:
           else
             TAG="$PKG"
             echo "master push: will release $TAG if missing"
+            # Default-branch manifest is what Community reads. A -beta here
+            # delists the plugin even if this job later cuts a prerelease
+            # with a matching tag (2026-08-17, 0.8.3-beta.2).
+            if echo "$PKG" | grep -qE -- '-(beta|rc)(\.|$)'; then
+              echo "::error::master manifest is '$PKG' — a prerelease on the default branch delists the Community plugin. Bump to a plain X.Y.Z, or revert to the last stable. Tag betas from the feature branch."
+              exit 1
+            fi
           fi
 
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
