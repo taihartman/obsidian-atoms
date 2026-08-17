@@ -37,6 +37,7 @@ import {
   LS_PLUS_BASE_REFUSAL,
   PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
   PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+  PLUS_BASE_UNREACHABLE_MESSAGE,
   PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE,
 } from "../src/platform/plusBaseVerify";
 import {
@@ -1435,7 +1436,7 @@ describe("#508 - the Account screen offers the upgrade cohort a way out", () => 
     const text = row(tab, check).textContent ?? "";
     expect(text).toContain(PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE);
     expect(text).not.toContain(PLUS_BASE_ADDRESS_REFUSED_MESSAGE);
-    expect(text.toLowerCase()).not.toContain("online");
+    expect(text).not.toContain(PLUS_BASE_UNREACHABLE_MESSAGE);
   });
 });
 

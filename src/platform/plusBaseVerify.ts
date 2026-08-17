@@ -444,10 +444,7 @@ async function decidePlusBase(
       verdict = {
         kind: "refused",
         reason: "upstream",
-        message:
-          result.code === "upstream"
-            ? result.message
-            : upstreamRefusedMessage(result.status),
+        message: upstreamRefusedMessage(result.status),
       };
     } else {
       verdict = { kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE };
