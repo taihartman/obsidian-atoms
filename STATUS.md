@@ -7,6 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
+| In progress | #538 | taihartman | `fix/538-filing-setup-name` | amend leftover of #530 | `src/home/atomsHomeData.ts`, `src/settings/settings.ts` | Get started uses the File row's noun `Filing` |
 
 ## How to claim (copy)
 

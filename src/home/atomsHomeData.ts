@@ -895,6 +895,14 @@ export type SetupStep = {
 };
 
 /**
+ * The noun the File row, its destination, and the unfinished setup step all share.
+ *
+ * #530 renamed the destination. #538 makes the Get started step use the same word so a new
+ * install is not told to do a step whose name is not on the screen it lands on.
+ */
+export const FILING_NAME = "Filing";
+
+/**
  * The words each step is asked for by, written once.
  *
  * Home's first-day card titles itself from this same record rather than repeating the sentence,
@@ -903,7 +911,7 @@ export type SetupStep = {
  */
 const SETUP_STEP_NAMES: Record<SetupStep["kind"], string> = {
   daily_notes: "Turn on Daily Notes",
-  filing_owner: "Choose who files your captures",
+  filing_owner: FILING_NAME,
 };
 
 /**

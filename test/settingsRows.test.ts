@@ -972,7 +972,7 @@ describe("grouped list", () => {
   it("renders no paragraph at all for a group with no footer", () => {
     group(container, {
       header: "Get started",
-      render: (el) => destinationRow(el, { name: "Choose who files your captures", onOpen: () => {} }),
+      render: (el) => destinationRow(el, { name: "Filing", onOpen: () => {} }),
     });
 
     expect(container.querySelectorAll("p")).toHaveLength(0);
@@ -1160,9 +1160,8 @@ function onMainScreen(tab: AtomsSettingTab): boolean {
  */
 const DESTINATIONS: Array<[entry: string, title: string]> = [
   // U2's status group opens the screen with the one unfinished step, which on an install where
-  // nobody files yet is a second way into the engine screen. The step keeps its verb form while
-  // the row is a bare noun: a step is an instruction, a row names a thing.
-  ["Choose who files your captures", "Filing"],
+  // nobody files yet is a second way into the engine screen. Get started and the File row
+  // share the noun (#538); open() hits the first, which is enough because both land here.
   ["Filing", "Filing"],
   [`Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`, "Tag vocabulary"],
   ["Connect Claude or ChatGPT", "Connect Claude or ChatGPT"],
@@ -1181,7 +1180,7 @@ const DESTINATIONS: Array<[entry: string, title: string]> = [
  * which is about screens you can come *back* from.
  */
 const MAIN_DESTINATION_ROWS = [
-  "Choose who files your captures",
+  "Filing",
   // U9 made this a chevron: it opens the procedure sheet rather than a route, the same way
   // `Atoms home` opens a view. Both are here and neither is in the walk table.
   "Capture on your phone",
