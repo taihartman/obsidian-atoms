@@ -48,6 +48,7 @@ import {
   plusBaseMatches,
   DEFAULT_PLUS_BASE_URL,
   PLUS_BASE_REFUSED_MESSAGE,
+  upstreamRefusedMessage,
   type PlusClientConfig,
 } from "./plusClient";
 
@@ -85,7 +86,17 @@ export type PlusBaseVerdict =
       previousBase?: string;
     }
   /** Answered, and the answer was no. Nothing content-bearing may be sent. */
-  | { kind: "refused"; reason: "unverified" | "needs-address"; message: string }
+  | {
+      kind: "refused";
+      /**
+       * `unverified` — the service rejected this session.
+       * `needs-address` — KTD1 carve-out: no stamp and an empty field, so no probe.
+       * `upstream` — the host answered 401/403, but not about this session
+       * (gateway, proxy, WAF, or an unexplained body). Not offline.
+       */
+      reason: "unverified" | "needs-address" | "upstream";
+      message: string;
+    }
   /** Unanswerable. Fails closed exactly like a refusal, with softer copy. */
   | { kind: "unreachable"; message: string };
 
@@ -107,6 +118,15 @@ export const PLUS_BASE_NEEDS_ADDRESS_MESSAGE =
  */
 export const PLUS_BASE_ADDRESS_REFUSED_MESSAGE =
   "Atoms Plus didn’t accept your sign-in at this address, so your notes stayed on this device.";
+
+/**
+ * Settings copy for a recorded `upstream` refusal. The Notice keeps
+ * `upstreamRefusedMessage(status)` (it has the HTTP code). This sentence is
+ * for the recovery row: it names the address, not the connection, and not
+ * the session.
+ */
+export const PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE =
+  "Atoms Plus answered from this address but refused the request, so your notes stayed on this device. Your session on this device looks fine.";
 
 export const PLUS_BASE_UNREACHABLE_MESSAGE =
   "Atoms Plus couldn’t be reached, so your notes stayed on this device. Try again when you’re back online.";
@@ -150,7 +170,18 @@ export const LS_PLUS_BASE_REFUSAL = "atoms-plus-base-refusal";
  * The memo that a live probe refused this address. `base` is normalized at write
  * time so the compare side and the stamp side stay in one form.
  */
-export type PlusBaseRefusal = { base: string; at: number };
+export type PlusBaseRefusalReason = "unverified" | "upstream";
+
+export type PlusBaseRefusal = {
+  base: string;
+  at: number;
+  /** Absent on records written before #536: treated as `unverified`. */
+  reason?: PlusBaseRefusalReason;
+};
+
+function parseRefusalReason(raw: unknown): PlusBaseRefusalReason | undefined {
+  return raw === "unverified" || raw === "upstream" ? raw : undefined;
+}
 
 export function readPlusBaseRefusal(
   storage: LocalStorageLike,
@@ -164,9 +195,11 @@ export function readPlusBaseRefusal(
     if (!parsed || typeof parsed !== "object") return null;
     const o = parsed as Record<string, unknown>;
     if (typeof o.base !== "string" || !o.base.trim()) return null;
+    const reason = parseRefusalReason(o.reason);
     return {
       base: o.base,
       at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : 0,
+      ...(reason ? { reason } : {}),
     };
   } catch {
     return null;
@@ -177,11 +210,12 @@ export function writePlusBaseRefusal(
   storage: LocalStorageLike,
   base: string,
   at: number,
+  reason: PlusBaseRefusalReason = "unverified",
 ): void {
   try {
     storage.saveLocalStorage(
       LS_PLUS_BASE_REFUSAL,
-      JSON.stringify({ base: normalizePlusBase(base), at }),
+      JSON.stringify({ base: normalizePlusBase(base), at, reason }),
     );
   } catch {
     // The record is a memo about a verdict, not the verdict itself — the caller
@@ -232,7 +266,13 @@ export function plusAddressAdvisory(
   }
   const resolved = configuredBase.trim() || DEFAULT_PLUS_BASE_URL;
   if (refusal && plusBaseMatches(refusal.base, resolved)) {
-    return { kind: "refused", message: PLUS_BASE_ADDRESS_REFUSED_MESSAGE };
+    return {
+      kind: "refused",
+      message:
+        refusal.reason === "upstream"
+          ? PLUS_BASE_UPSTREAM_ADDRESS_MESSAGE
+          : PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+    };
   }
   return null;
 }
@@ -320,8 +360,9 @@ export async function verifyPlusBase(
  *
  * Deliberately narrow about what counts. `needs-address` already has its own
  * row and would double up. `unreachable` is KTD3's briefly-offline user, who
- * must not be pointed at a settings field they never touched. Only a live
- * `unverified` refusal is a host that answered and said no.
+ * must not be pointed at a settings field they never touched. A live
+ * `unverified` or `upstream` refusal is a host that answered and said no —
+ * the second is not a session problem, but it is still this address.
  */
 function recordPlusBaseOutcome(
   deps: PlusBaseVerifyDeps,
@@ -330,8 +371,16 @@ function recordPlusBaseOutcome(
 ): void {
   if (verdict.kind === "verified") {
     clearPlusBaseRefusal(deps.storage);
-  } else if (verdict.kind === "refused" && verdict.reason === "unverified") {
-    writePlusBaseRefusal(deps.storage, resolvedBase, (deps.now ?? Date.now)());
+  } else if (
+    verdict.kind === "refused" &&
+    (verdict.reason === "unverified" || verdict.reason === "upstream")
+  ) {
+    writePlusBaseRefusal(
+      deps.storage,
+      resolvedBase,
+      (deps.now ?? Date.now)(),
+      verdict.reason,
+    );
   }
 }
 
@@ -384,12 +433,25 @@ async function decidePlusBase(
 
   let verdict: PlusBaseVerdict;
   if (!result.ok) {
-    // Only code "auth" means our service rejected the session. A gateway 401, a
-    // proxy 403 and a 5xx are all "could not check", the same convention
-    // `plusRefresh` already follows, and reading one as a session refusal would
-    // tell a user to edit a field that is fine.
-    verdict =
-      result.code === "auth" ? refused("unverified") : { kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE };
+    // Three cases, not two. Code "auth" is our service rejecting the session.
+    // A 401/403 that is not "auth" is the host answering no for some other
+    // reason (gateway, proxy, WAF, unexplained body): still a refusal, still
+    // this address, never "you're offline". A 5xx or a transport failure is
+    // the one that stays unreachable — the host did not refuse, it failed.
+    if (result.code === "auth") {
+      verdict = refused("unverified");
+    } else if (result.status === 401 || result.status === 403) {
+      verdict = {
+        kind: "refused",
+        reason: "upstream",
+        message:
+          result.code === "upstream"
+            ? result.message
+            : upstreamRefusedMessage(result.status),
+      };
+    } else {
+      verdict = { kind: "unreachable", message: PLUS_BASE_UNREACHABLE_MESSAGE };
+    }
   } else if (!emailMatches(result.entitlement.email, email)) {
     // 2xx alone proves a server is willing to accept a token, not that it minted
     // one. Only naming the account is proof of issuance.
