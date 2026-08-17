@@ -1,12 +1,50 @@
-import { describe, expect, it } from "vitest";
-import { resolveClassifyAuth } from "../src/platform/classifyAuth";
-import type { FilingAuth } from "../src/platform/filingAuth";
+import { describe, expect, it, vi } from "vitest";
+import type { App, PluginManifest } from "obsidian";
+import AtomsPlugin from "../src/plugin/main";
+import {
+  resolveClassifyAuth,
+  type ClassifyBaseVerifier,
+} from "../src/platform/classifyAuth";
+import {
+  LS_PLUS_SESSION,
+  readPlusSession,
+  serializePlusSession,
+  type FilingAuth,
+  type IssuedBase,
+  type PlusSession,
+} from "../src/platform/filingAuth";
+import {
+  PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+  PLUS_BASE_REFUSED_MESSAGE,
+  PLUS_BASE_UNREACHABLE_MESSAGE,
+} from "../src/platform/plusBaseVerify";
 import { PLUS_BASE_URL_INVALID_MESSAGE } from "../src/platform/plusClient";
+import { DEFAULT_SETTINGS } from "../src/shared/types";
+
+/**
+ * A verifier that says yes to whatever base it is handed. The default for tests
+ * about *other* things — the #508 refusals get explicit doubles below.
+ */
+function verifies(): ClassifyBaseVerifier & { calls: unknown[] } {
+  const calls: unknown[] = [];
+  const fn = vi.fn(async (input: Parameters<ClassifyBaseVerifier>[0]) => {
+    calls.push(input);
+    return { kind: "verified" as const, base: input.resolvedBase, restamped: false };
+  });
+  return Object.assign(fn as unknown as ClassifyBaseVerifier, { calls });
+}
+
+/** A verifier that must never be consulted, because nothing should get that far. */
+function neverAsked(): ClassifyBaseVerifier {
+  return vi.fn(async () => {
+    throw new Error("the gate was consulted when it should not have been");
+  }) as unknown as ClassifyBaseVerifier;
+}
 
 describe("resolveClassifyAuth", () => {
-  it("byok passes key", () => {
+  it("byok passes key", async () => {
     const auth: FilingAuth = { mode: "byok", apiKey: "sk-test" };
-    const r = resolveClassifyAuth(auth);
+    const r = await resolveClassifyAuth(auth, { verifyBase: neverAsked() });
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.apiKey).toBe("sk-test");
@@ -14,8 +52,8 @@ describe("resolveClassifyAuth", () => {
     }
   });
 
-  it("none fails with free-path message", () => {
-    const r = resolveClassifyAuth({ mode: "none" });
+  it("none fails with free-path message", async () => {
+    const r = await resolveClassifyAuth({ mode: "none" }, { verifyBase: neverAsked() });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.reason).toBe("none");
@@ -23,7 +61,7 @@ describe("resolveClassifyAuth", () => {
     }
   });
 
-  it("plus active builds proxy deps", () => {
+  it("plus active builds proxy deps", async () => {
     const auth: FilingAuth = {
       mode: "plus",
       sessionToken: "sess",
@@ -31,7 +69,10 @@ describe("resolveClassifyAuth", () => {
       status: "active",
       remaining: 10,
     };
-    const r = resolveClassifyAuth(auth, { plusBaseUrl: "https://plus.test" });
+    const r = await resolveClassifyAuth(auth, {
+      verifyBase: verifies(),
+      plusBaseUrl: "https://plus.test",
+    });
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.apiKey).toBe("");
@@ -45,7 +86,7 @@ describe("resolveClassifyAuth", () => {
    * alongside the session token, so a base we would not talk to has to be
    * refused here — before Process, Preview, Update or auto-run build a request.
    */
-  it("plus refuses a base URL that is not https or loopback, before any capture leaves", () => {
+  it("plus refuses a base URL that is not https or loopback, before any capture leaves", async () => {
     const auth: FilingAuth = {
       mode: "plus",
       sessionToken: "sess",
@@ -59,7 +100,12 @@ describe("resolveClassifyAuth", () => {
       "ftp://example.com",
       "plus.tryatoms.app",
     ]) {
-      const r = resolveClassifyAuth(auth, { plusBaseUrl: bad });
+      // The #500 refusal must come *before* the #508 probe: asking an
+      // unvettable host to name the account would send the token there.
+      const r = await resolveClassifyAuth(auth, {
+        verifyBase: neverAsked(),
+        plusBaseUrl: bad,
+      });
       expect(r.ok, bad).toBe(false);
       if (!r.ok) {
         expect(r.reason).toBe("none");
@@ -68,7 +114,7 @@ describe("resolveClassifyAuth", () => {
     }
   });
 
-  it("plus keeps the documented loopback override working", () => {
+  it("plus keeps the documented loopback override working", async () => {
     const auth: FilingAuth = {
       mode: "plus",
       sessionToken: "sess",
@@ -76,14 +122,15 @@ describe("resolveClassifyAuth", () => {
       status: "active",
       remaining: 10,
     };
-    const r = resolveClassifyAuth(auth, {
+    const r = await resolveClassifyAuth(auth, {
+      verifyBase: verifies(),
       plusBaseUrl: "http://127.0.0.1:8787",
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.plus?.baseUrl).toBe("http://127.0.0.1:8787");
   });
 
-  it("plus exhausted blocks without BYOK pitch", () => {
+  it("plus exhausted blocks without BYOK pitch", async () => {
     const auth: FilingAuth = {
       mode: "plus",
       sessionToken: "sess",
@@ -91,13 +138,129 @@ describe("resolveClassifyAuth", () => {
       status: "exhausted",
       remaining: 0,
     };
-    const r = resolveClassifyAuth(auth);
+    const r = await resolveClassifyAuth(auth, { verifyBase: neverAsked() });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.reason).toBe("exhausted");
       expect(r.message).toMatch(/Monthly Limit Reached/i);
       expect(r.message.toLowerCase()).not.toMatch(/paste|sk-ant|your own api key/);
     }
+  });
+});
+
+/**
+ * #508 U4 — the classify choke point refuses when the resolved base cannot be
+ * shown to hold this session. All four classify entries (Process, Preview,
+ * Update, auto-run) come through here, so this is where capture text stops.
+ */
+describe("resolveClassifyAuth — the issuer gate", () => {
+  const plus: FilingAuth = {
+    mode: "plus",
+    sessionToken: "sess",
+    email: "a@b.co",
+    status: "active",
+    remaining: 10,
+    verifiedBase: "https://my.host",
+  };
+
+  it("asks about the resolved base and hands the gate the raw field", async () => {
+    const verify = verifies();
+    await resolveClassifyAuth(plus, { verifyBase: verify, plusBaseUrl: "  " });
+    // Resolved for the request, raw for the KTD1 carve-out. Collapsing the two
+    // is what would make an empty field indistinguishable from a chosen host.
+    expect(verify.calls[0]).toMatchObject({
+      resolvedBase: "https://plus.tryatoms.app",
+      configuredBase: "  ",
+    });
+  });
+
+  it("passes the session stamps through, or the gate has nothing to compare", async () => {
+    const verify = verifies();
+    await resolveClassifyAuth(
+      { ...plus, issuedBase: "https://issued.host" as IssuedBase },
+      { verifyBase: verify, plusBaseUrl: "https://my.host" },
+    );
+    expect(verify.calls[0]).toMatchObject({
+      session: expect.objectContaining({
+        issuedBase: "https://issued.host",
+        verifiedBase: "https://my.host",
+      }),
+    });
+  });
+
+  it("a refusal blocks the run and carries the gate's own copy", async () => {
+    const r = await resolveClassifyAuth(plus, {
+      verifyBase: async () => ({
+        kind: "refused",
+        reason: "unverified",
+        message: PLUS_BASE_REFUSED_MESSAGE,
+      }),
+      plusBaseUrl: "https://someone.elses.host",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("unverified_base");
+      expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    }
+  });
+
+  it("the needs-address state blocks too, with copy that is not an accusation", async () => {
+    const r = await resolveClassifyAuth(plus, {
+      verifyBase: async () => ({
+        kind: "refused",
+        reason: "needs-address",
+        message: PLUS_BASE_NEEDS_ADDRESS_MESSAGE,
+      }),
+      plusBaseUrl: "",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toBe(PLUS_BASE_NEEDS_ADDRESS_MESSAGE);
+  });
+
+  it("fails closed when the gate could not check (KTD3)", async () => {
+    const r = await resolveClassifyAuth(plus, {
+      verifyBase: async () => ({
+        kind: "unreachable",
+        message: PLUS_BASE_UNREACHABLE_MESSAGE,
+      }),
+      plusBaseUrl: "https://my.host",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("unverified_base");
+      // Names the connection, not a settings field a hosted user never touched.
+      expect(r.message).toBe(PLUS_BASE_UNREACHABLE_MESSAGE);
+    }
+  });
+
+  it("hands the egress backstop the verified base, not the resolved one", async () => {
+    const r = await resolveClassifyAuth(plus, {
+      verifyBase: async () => ({
+        kind: "verified",
+        base: "https://my.host",
+        restamped: true,
+        previousBase: "https://plus.tryatoms.app",
+      }),
+      plusBaseUrl: "https://my.host/",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Normalized by the gate, so the backstop compares like with like.
+      expect(r.plus?.verifiedBase).toBe("https://my.host");
+      expect(r.issuerMovedFrom).toBe("https://plus.tryatoms.app");
+    }
+  });
+
+  it("says nothing about a move when there was no previous issuer", async () => {
+    const r = await resolveClassifyAuth(plus, {
+      verifyBase: async () => ({
+        kind: "verified",
+        base: "https://my.host",
+        restamped: true,
+      }),
+      plusBaseUrl: "https://my.host",
+    });
+    expect(r.ok && r.issuerMovedFrom).toBeUndefined();
   });
 });
 
@@ -117,8 +280,11 @@ describe("resolveClassifyAuth on an ended period", () => {
     periodEnd: "2026-08-10T14:52:03.632Z",
   };
 
-  it("says the trial ended, and never promises a billing date", () => {
-    const r = resolveClassifyAuth(lapsedTrial, { now: T0 });
+  it("says the trial ended, and never promises a billing date", async () => {
+    const r = await resolveClassifyAuth(lapsedTrial, {
+      verifyBase: neverAsked(),
+      now: T0,
+    });
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.message).toMatch(/trial has ended/i);
@@ -127,24 +293,76 @@ describe("resolveClassifyAuth on an ended period", () => {
     }
   });
 
-  it("says subscription, not trial, when a paid period ended", () => {
-    const r = resolveClassifyAuth(
+  it("says subscription, not trial, when a paid period ended", async () => {
+    const r = await resolveClassifyAuth(
       { ...lapsedTrial, plan: "monthly" },
-      { now: T0 },
+      { verifyBase: neverAsked(), now: T0 },
     );
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.message).toMatch(/subscription has ended/i);
   });
 
-  it("still shows the limit copy for a spent meter inside a live period", () => {
-    const r = resolveClassifyAuth(
+  it("still shows the limit copy for a spent meter inside a live period", async () => {
+    const r = await resolveClassifyAuth(
       { ...lapsedTrial, plan: "monthly", periodEnd: "2026-09-10T00:00:00.000Z" },
-      { now: T0 },
+      { verifyBase: neverAsked(), now: T0 },
     );
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.message).toMatch(/Monthly Limit Reached/);
       expect(r.message).toMatch(/next billing date/);
     }
+  });
+});
+
+/**
+ * #508 U1. The `onRemaining` callback in `AtomsPlugin.requireClassifyAuth` is
+ * the second mutation path that writes a session without `installPlusSession`.
+ * It spreads the stored session today, so the issuer stamp survives a meter
+ * update — but a refactor to a fresh literal would blank it, and an unstamped
+ * session is exactly what makes the issuer gate fail open.
+ */
+describe("#508 meter update preserves the issuer stamp", () => {
+  const stamped: PlusSession = {
+    sessionToken: "sess_live",
+    email: "plus@example.com",
+    status: "active",
+    remaining: 12,
+    periodEnd: "2026-09-01T00:00:00.000Z",
+    issuedBase: "https://my.host" as IssuedBase,
+    verifiedBase: "https://my.host",
+  };
+
+  it("keeps issuedBase and verifiedBase when the remaining count changes", async () => {
+    const store = new Map<string, string>();
+    store.set(LS_PLUS_SESSION, serializePlusSession(stamped));
+    const app = {
+      loadLocalStorage: (k: string) => store.get(k),
+      saveLocalStorage: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+
+    const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+    Object.assign(plugin, {
+      app,
+      settings: { ...DEFAULT_SETTINGS, plusBaseUrl: "https://my.host" },
+      getApiKey: () => null,
+    });
+
+    const resolved = await (
+      plugin as unknown as {
+        requireClassifyAuth: () => Promise<{
+          plus?: { onRemaining?: (n: number) => void };
+        } | null>;
+      }
+    ).requireClassifyAuth();
+    expect(resolved?.plus?.onRemaining).toBeTypeOf("function");
+    resolved?.plus?.onRemaining?.(3);
+
+    const after = readPlusSession(app);
+    expect(after?.remaining).toBe(3);
+    expect(after?.issuedBase).toBe("https://my.host");
+    expect(after?.verifiedBase).toBe("https://my.host");
   });
 });

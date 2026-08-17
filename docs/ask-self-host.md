@@ -160,7 +160,9 @@ Leave it empty only for hosted production (`https://plus.tryatoms.app`).
 
 A rejected value is not silently swapped for production — a self-host token does not belong at `plus.tryatoms.app` either. Plus goes quiet and the settings row says why. Hosting on your LAN? Front it with TLS and use the `https://` name.
 
-> **Do not clear this field while signed in to your own server.** Empty means the hosted service, so the next call sends your self-host session token — and your capture text — to `plus.tryatoms.app`. Sign out first, then clear. Tracked as [#508](https://github.com/taihartman/obsidian-atoms/issues/508); until it lands, clearing is the one way to leave your own server by accident.
+> **Clearing this field no longer sends your notes to the hosted service.** Empty still *resolves* to `plus.tryatoms.app`, but since [#508](https://github.com/taihartman/obsidian-atoms/issues/508) your session records the server that issued it, and anything carrying note text — filing, the Ask mirror, the outbox ack — refuses a server that did not. You get a Notice pointing at the field instead of a silent re-point. Clear it and Plus goes quiet until you put your address back or sign in to the hosted service.
+>
+> **Your session token is a different question, and it is not closed.** The calls that carry no note text — entitlement, billing, sign-out — still go to whatever address is configured, and so does the check above, because a check cannot verify the host it is asking. So clearing the field while signed in to your own server does send one token to `plus.tryatoms.app`. Sign out first, then clear.
 
 The same Advanced screen has **Self-host guide**, which opens this page.
 

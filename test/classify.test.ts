@@ -12,6 +12,7 @@ import {
 import type { VaultContext } from "../src/shared/types";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
 import { filterTagsToActive } from "../src/pipeline/vocabulary";
+import { PLUS_BASE_REFUSED_MESSAGE } from "../src/platform/plusBaseVerify";
 
 const ctx: VaultContext = {
   titles: ["Sleep debt doesn't accumulate linearly", "Other note"],
@@ -234,7 +235,11 @@ describe("classifyCapture request layer", () => {
       apiKey: "",
       model: "claude-sonnet-5",
       request: request as never,
-      plus: { baseUrl: "https://plus.test", sessionToken: "sess" },
+      plus: {
+        baseUrl: "https://plus.test",
+        sessionToken: "sess",
+        verifiedBase: "https://plus.test",
+      },
     });
 
     expect(outcome.ok).toBe(true);
@@ -395,7 +400,11 @@ describe("classifyCapture request layer", () => {
     const outcome = await classifyCapture("x", ctx, {
       apiKey: "",
       model: "m",
-      plus: { baseUrl: "https://plus.test", sessionToken: "sess" },
+      plus: {
+        baseUrl: "https://plus.test",
+        sessionToken: "sess",
+        verifiedBase: "https://plus.test",
+      },
       request: request as never,
       onAuthFailure: (msg) => notices.push(msg),
     });
@@ -424,13 +433,86 @@ describe("classifyCapture request layer", () => {
     const outcome = await classifyCapture("private note text", ctx, {
       apiKey: "",
       model: "m",
-      plus: { baseUrl: "http://evil.example", sessionToken: "sess" },
+      plus: {
+        baseUrl: "http://evil.example",
+        sessionToken: "sess",
+        verifiedBase: "http://evil.example",
+      },
       request: request as never,
     });
 
     expect(request).not.toHaveBeenCalled();
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.reason).toBe("auth");
+  });
+
+  /**
+   * #508, the egress backstop. `resolveClassifyAuth` runs the network half of
+   * the issuer gate and hands the answer down as `verifiedBase`; this is the
+   * layer that refuses to send when the two disagree.
+   *
+   * The #500 check above cannot catch this case, and that is the whole point:
+   * `https://plus.tryatoms.app` is a perfectly allowed base. The question here
+   * is whether *this session* was issued by it, which is what stops a
+   * self-hoster's note text reaching production after they clear the field.
+   */
+  it("a base this session was not verified against sends no request and no capture", async () => {
+    const request = vi.fn(async () => {
+      throw new Error("must not be called");
+    });
+
+    const outcome = await classifyCapture("private note text", ctx, {
+      apiKey: "",
+      model: "m",
+      plus: {
+        baseUrl: "https://plus.tryatoms.app",
+        sessionToken: "sess",
+        verifiedBase: "https://self.host.example",
+      },
+      request: request as never,
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.reason).toBe("auth");
+      expect(outcome.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    }
+  });
+
+  it("the backstop normalizes, so a trailing slash is not a refusal", async () => {
+    const request = vi.fn(async () => ({
+      status: 200,
+      json: {
+        result: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                verdict: "noise",
+                title: "",
+                tags: [],
+                proposed_tags: [],
+                links: [],
+              }),
+            },
+          ],
+          usage: {},
+        },
+        remaining: 4,
+      },
+    }));
+    const outcome = await classifyCapture("note", ctx, {
+      apiKey: "",
+      model: "m",
+      plus: {
+        baseUrl: "https://plus.test/",
+        sessionToken: "sess",
+        verifiedBase: "https://plus.test",
+      },
+      request: request as never,
+    });
+    expect(outcome.ok).toBe(true);
   });
 
   it("missing key does not call network", async () => {

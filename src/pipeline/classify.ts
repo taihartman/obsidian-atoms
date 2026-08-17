@@ -1,7 +1,9 @@
 import { requestUrl } from "obsidian";
+import { PLUS_BASE_REFUSED_MESSAGE } from "../platform/plusBaseVerify";
 import {
   isAllowedPlusBaseUrl,
   isSessionRejectedMessage,
+  plusBaseMatches,
   PLUS_BASE_URL_INVALID_MESSAGE,
   plusFetchRequest,
 } from "../platform/plusClient";
@@ -726,6 +728,13 @@ export interface ClassifyDeps {
     sessionToken: string;
     /** Called after successful classify with updated remaining. */
     onRemaining?: (remaining: number) => void;
+    /**
+     * #508. The base this session was *proven* to belong to, from
+     * `resolveClassifyAuth`. Required, so a caller assembling `plus` by hand has
+     * to state it rather than inherit a default that would make the backstop
+     * below compare a value against itself.
+     */
+    verifiedBase: string;
   };
 }
 
@@ -763,6 +772,19 @@ export async function classifyCapture(
       ok: false,
       reason: "auth",
       message: PLUS_BASE_URL_INVALID_MESSAGE,
+    };
+  }
+  // #508, same reasoning one layer down: #500 asks whether the base is *allowed*,
+  // which a cleared field always is. This asks whether it is the base that holds
+  // this session, which is the question that keeps capture text off a server the
+  // user never signed in to. Synchronous by construction — the network half ran
+  // in `resolveClassifyAuth`, and a gate that could await here would be a second
+  // place for the answer to be computed, and so a second place to get it wrong.
+  if (plus && !plusBaseMatches(plus.verifiedBase, plus.baseUrl)) {
+    return {
+      ok: false,
+      reason: "auth",
+      message: PLUS_BASE_REFUSED_MESSAGE,
     };
   }
 

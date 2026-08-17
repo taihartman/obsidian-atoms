@@ -121,6 +121,9 @@ import {
 import {
   DEFAULT_PLUS_BASE_URL,
   isAllowedPlusBaseUrl,
+  issuedBaseFromResponse,
+  plusBaseMatches,
+  PLUS_BASE_REFUSED_MESSAGE,
   PLUS_BASE_URL_INVALID_MESSAGE,
   requestMagicLink,
   startPlusAccount,
@@ -135,6 +138,14 @@ import {
   plusFetchRequest,
   PLUS_UNREACHABLE_MESSAGE,
 } from "../platform/plusClient";
+import {
+  plusAddressAdvisory,
+  plusAddressStateMessage,
+  plusBaseHost,
+  plusSessionStamp,
+  readPlusBaseRefusal,
+  PLUS_BASE_ADDRESS_REFUSED_MESSAGE,
+} from "../platform/plusBaseVerify";
 import {
   type AskMirrorOffReason,
   disarmAskMirror,
@@ -1423,6 +1434,32 @@ export class AtomsSettingTab extends PluginSettingTab {
       });
       return;
     }
+    // #508, the same reasoning one question further in. The base above is
+    // *allowed*; this asks whether it is the one that issued this session, which
+    // matters here because the screen publishes an origin for Claude or ChatGPT
+    // to OAuth against and `askMcpPair` then sends the session token there.
+    //
+    // Compared against the stamp rather than probed: a render must not egress,
+    // and a screen that opened a network call to name its own address would be
+    // sending the token to the host it is trying to decide about. Sync means a
+    // stale stamp reads as "not yet confirmed", which is the safe direction --
+    // a Process or a mirror push re-verifies and this row then resolves.
+    if (!plusBaseMatches(plusSessionStamp(session), base)) {
+      // Two states block this row, and they ask the reader for different
+      // things. The upgrade cohort has no stamp and an empty field, so telling
+      // them we cannot confirm a sign-in "at this address" names an address
+      // they never chose; they need to supply one. Everyone else has a stamp
+      // that disagrees with the configured base, which is the refusal proper.
+      const needsAddress = plusAddressStateMessage(
+        session,
+        this.plugin.settings.plusBaseUrl,
+      );
+      containerEl.createEl("p", {
+        text: needsAddress || PLUS_BASE_REFUSED_MESSAGE,
+        cls: "setting-item-description atoms-ask-mirror-error",
+      });
+      return;
+    }
     const mcpUrl = askMcpUrl(base);
 
     const status = this.mirrorStatusLine(session.email);
@@ -1703,8 +1740,20 @@ export class AtomsSettingTab extends PluginSettingTab {
           const raw = this.plugin.settings.plusBaseUrl.trim();
           // Empty is the hosted default, not a mistake.
           const rejected = raw !== "" && !isAllowedPlusBaseUrl(raw);
+          // #508 A6. A *valid* address can still be the wrong one, and before
+          // this line that case rendered an empty div: `isAllowedPlusBaseUrl`
+          // passes, so there is no #500 message, and the needs-address state
+          // only speaks for an empty field. The recorded refusal is what closes
+          // it. The #500 message keeps priority — a value the request layer will
+          // not even send to is the more basic problem.
           plusBaseUrlErrorEl.setText(
-            rejected ? PLUS_BASE_URL_INVALID_MESSAGE : "",
+            rejected
+              ? PLUS_BASE_URL_INVALID_MESSAGE
+              : (plusAddressAdvisory(
+                  readPlusSession(this.app),
+                  raw,
+                  readPlusBaseRefusal(this.app),
+                )?.message ?? ""),
           );
         };
         syncPlusBaseUrlError();
@@ -2601,6 +2650,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     if (state.kind === "signedOut") {
       this.renderSignedOutAccount(containerEl);
     } else {
+      this.renderConfirmPlusAddressRow(containerEl);
       this.renderSignedInAccount(containerEl, state);
     }
 
@@ -2613,6 +2663,62 @@ export class AtomsSettingTab extends PluginSettingTab {
     containerEl.createEl("p", {
       text: "When you use Plus, captures are sent securely to Anthropic under our account. We don’t train on your notes.",
       cls: "setting-item-description",
+    });
+  }
+
+  /**
+   * The KTD1 carve-out's way out, on the screen the refusal points at (#508).
+   *
+   * Every session minted before #508 is unstamped, and a hosted user leaves `plusBaseUrl` empty,
+   * so the first Process, Preview, Update, auto-run, mirror push and outbox ack after upgrading
+   * all refuse. The Notice says to open Settings, and until this row the only place that could
+   * resolve it was Advanced: the screen labelled for the settings almost nobody needs, asking
+   * them to type the address that is already the implicit default. That is a dead end wearing a
+   * signpost.
+   *
+   * The button writes the address rather than minting a stamp. A stamp from here would be a
+   * verdict nothing verified, and the ungated path it would have to trust is precisely the leak
+   * this issue closed. With a non-empty field the next content call probes, matches the account,
+   * and stamps for real.
+   *
+   * Above the account facts, because it blocks all of them: nothing this screen reports is
+   * actionable while note text has nowhere it is allowed to go.
+   *
+   * Two states share the row (adversarial A5/A6), because the way out is the same one. The
+   * second is a base that has actually *refused* this session: before it, Settings kept
+   * reporting `Plus · 50 filings left` beside an address every Process was silently failing
+   * against, and a user who had typed a wrong-but-valid address lost this row entirely — the
+   * only way back was guessing that clearing the field re-summons it. Gated on a recorded
+   * refusal rather than a stamp mismatch so the upgrading hosted cohort is not nagged through
+   * the transient state they pass through on the way to their first filing.
+   */
+  private renderConfirmPlusAddressRow(containerEl: HTMLElement): void {
+    const advisory = plusAddressAdvisory(
+      readPlusSession(this.app),
+      this.plugin.settings.plusBaseUrl,
+      readPlusBaseRefusal(this.app),
+    );
+    if (!advisory) return;
+    const refused = advisory.kind === "refused";
+    this.actionRow(containerEl, {
+      action: "plus:confirm-address",
+      name: refused ? "Check the Plus address" : "Confirm the Plus address",
+      desc: refused
+        ? `${PLUS_BASE_ADDRESS_REFUSED_MESSAGE} You can correct the address under Advanced, or use the standard one, ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}.`
+        : `Atoms Plus needs its address before your notes are sent. The standard one is ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. If you run the service yourself, set your own address under Advanced instead.`,
+      label: `Use ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}`,
+      onClick: () => {
+        this.plugin.settings.plusBaseUrl = DEFAULT_PLUS_BASE_URL;
+        void this.plugin.saveSettings();
+        // Says what happened, not what will happen. Writing the address is not
+        // a stamp: the next content call still probes this host and can still
+        // refuse it, so promising a filing here would be a promise this row has
+        // no way to keep.
+        new Notice(
+          `Atoms Plus: saved ${plusBaseHost(DEFAULT_PLUS_BASE_URL)}. Your next Process checks it.`,
+        );
+        this.redisplay();
+      },
     });
   }
 
@@ -2907,10 +3013,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        ...started.session,
-        setupKind: "trial",
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        { ...started.session, setupKind: "trial" },
+        started.issuedBase,
+      );
       await this.openTrialCheckout(started.session);
     } finally {
       this.redisplay();
@@ -2942,10 +3049,11 @@ export class AtomsSettingTab extends PluginSettingTab {
         new Notice(`Atoms Plus: ${started.message}`);
         return;
       }
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        ...started.session,
-        setupKind: "subscribe",
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        { ...started.session, setupKind: "subscribe" },
+        started.issuedBase,
+      );
       await this.openSubscribeCheckoutForSession(started.session);
     } finally {
       this.redisplay();
@@ -3048,15 +3156,22 @@ export class AtomsSettingTab extends PluginSettingTab {
         j.status === "inactive"
           ? j.status
           : "unknown";
-      await installPlusSession(this.askMirrorDisarmHost(), {
-        sessionToken,
-        email,
-        status,
-        remaining: typeof j.remaining === "number" ? j.remaining : undefined,
-        periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
-        plan: parsePlusPlan(j.plan),
-        refreshedAt: Date.now(),
-      });
+      await installPlusSession(
+        this.askMirrorDisarmHost(),
+        {
+          sessionToken,
+          email,
+          status,
+          remaining: typeof j.remaining === "number" ? j.remaining : undefined,
+          periodEnd: typeof j.periodEnd === "string" ? j.periodEnd : undefined,
+          plan: parsePlusPlan(j.plan),
+          refreshedAt: Date.now(),
+        },
+        // This path hand-rolls its own request, so it mints its own stamp —
+        // from `base`, the URL just fetched above, and only after the 2xx and
+        // the email check have both passed (#508 KTD4).
+        issuedBaseFromResponse(base),
+      );
       // Fresh session — the old "sign-in needed" row no longer applies.
       clearPlusRefreshRecord(this.app);
       new Notice("Atoms Plus session saved on this device");

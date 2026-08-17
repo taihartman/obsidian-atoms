@@ -3,6 +3,9 @@ import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
   askMirrorDelete,
   askMirrorReconcile,
+  askMirrorUpsert,
+  askOutboxAck,
+  PLUS_BASE_REFUSED_MESSAGE,
   askMirrorStatus,
   askMcpPair,
   classifyViaProxy,
@@ -11,7 +14,10 @@ import {
   exchangeMagicToken,
   getEntitlement,
   isAllowedPlusBaseUrl,
+  issuedBaseFromResponse,
+  normalizePlusBase,
   openableHttpUrl,
+  plusBaseMatches,
   PLUS_UNOPENABLE_URL_MESSAGE,
   peekMagicToken,
   PLUS_BASE_URL_INVALID_MESSAGE,
@@ -42,6 +48,13 @@ function mockRequest(
 }
 
 const base = "https://plus.test";
+
+/** A request function whose being called at all is the failure. */
+function neverCalled() {
+  return vi.fn(async () => {
+    throw new Error("must not be called");
+  }) as unknown as RequestFn;
+}
 
 describe("plusClient", () => {
   it("startPlusAccount posts email and returns session", async () => {
@@ -386,6 +399,80 @@ describe("plusClient", () => {
     if (r.ok) expect(r.code).toBe("ABCD1234");
   });
 
+  /**
+   * #508 egress backstop. The coordinator gates where it builds the mirror
+   * config, but `askCoordinator` is not the only place one is built, so the
+   * three calls that carry vault content refuse for themselves.
+   *
+   * The assertion is that nothing was *sent*. A returned error object only
+   * proves a branch was chosen, and what this change claims is that a
+   * self-hoster's atom bodies never reach a server that did not issue their
+   * session.
+   */
+  describe("mirror calls refuse a base this session was not verified against", () => {
+    const unverified = { baseUrl: base, request: neverCalled(), verifiedBase: "https://other.host" };
+
+    it("askMirrorUpsert sends no atom bodies", async () => {
+      const r = await askMirrorUpsert(unverified, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    });
+
+    it("askMirrorDelete sends no vault paths", async () => {
+      const r = await askMirrorDelete(unverified, "sess", ["Atoms/A.md"]);
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("askMirrorReconcile sends no vault path list", async () => {
+      const r = await askMirrorReconcile(unverified, "sess", {
+        keepPaths: ["Atoms/A.md"],
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("askOutboxAck sends no plan.reason, which is free text from the vault", async () => {
+      // Not a mirror call. It is here because its id-and-status shape reads as
+      // content-free and is not: `error` is `plan.reason` upstream.
+      const r = await askOutboxAck(unverified, "sess", {
+        id: "item-1",
+        status: "rejected",
+        error: "collided with a note the user already wrote",
+      });
+      expect(unverified.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message).toBe(PLUS_BASE_REFUSED_MESSAGE);
+    });
+
+    it("an unstamped config refuses too, rather than reading as a match", async () => {
+      const blank = { baseUrl: base, request: neverCalled(), verifiedBase: "" };
+      const r = await askMirrorUpsert(blank, "sess", [
+        { path: "Atoms/A.md", title: "A", body: "private note text" },
+      ]);
+      expect(blank.request).not.toHaveBeenCalled();
+      expect(r.ok).toBe(false);
+    });
+
+    it("a matching base still goes out, normalization and all", async () => {
+      const urls: string[] = [];
+      const request = mockRequest((p) => {
+        urls.push(p.url);
+        return { status: 200, json: { ok: true, count: 1, upserted: 1 } };
+      });
+      const r = await askMirrorUpsert(
+        { baseUrl: `${base}/`, request, verifiedBase: base },
+        "sess",
+        [{ path: "Atoms/A.md", title: "A", body: "b" }],
+      );
+      expect(urls).toEqual([`${base}/v1/ask/mirror/upsert`]);
+      expect(r.ok).toBe(true);
+    });
+  });
+
   it("askMirrorDelete posts paths", async () => {
     const request = mockRequest((p) => {
       expect(p.url).toBe("https://plus.test/v1/ask/mirror/delete");
@@ -396,7 +483,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 1, missing: 0, count: 0 } };
     });
     const r = await askMirrorDelete(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       ["Atoms/A.md"],
     );
@@ -413,7 +500,7 @@ describe("plusClient", () => {
       return { status: 200, json: { ok: true, deleted: 0, count: 1 } };
     });
     const r = await askMirrorReconcile(
-      { baseUrl: base, request },
+      { baseUrl: base, request, verifiedBase: base },
       "sess",
       { keepPaths: ["Atoms/A.md"], done: true },
     );
@@ -773,6 +860,59 @@ describe("plusClient", () => {
       ]) {
         expect(isAllowedPlusBaseUrl(url), JSON.stringify(url)).toBe(false);
       }
+    });
+  });
+
+  describe("normalizePlusBase / plusBaseMatches (#508 KTD2)", () => {
+    it("treats trailing slashes and scheme/host case as noise", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host/"],
+        ["https://my.host", "https://my.host///"],
+        ["https://my.host", "HTTPS://my.host"],
+        ["https://my.host", "https://MY.HOST"],
+        ["https://my.host", "  https://My.Host/  "],
+        // new URL() drops a default port, so these are the same server here.
+        // Decided in KTD2: same parser as isAllowedPlusBaseUrl, and a spurious
+        // mismatch would only have cost one probe anyway.
+        ["https://my.host", "https://my.host:443"],
+        ["http://127.0.0.1:8787", "http://127.0.0.1:8787/"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(true);
+      }
+    });
+
+    it("keeps port, path and subdomain significant", () => {
+      for (const [a, b] of [
+        ["https://my.host", "https://my.host:8443"],
+        ["https://my.host:8443", "https://my.host:9443"],
+        ["https://my.host", "https://my.host/plus"],
+        ["https://my.host/plus", "https://my.host/Plus"],
+        ["https://a.trycloudflare.com", "https://b.trycloudflare.com"],
+        ["https://my.host", "http://my.host"],
+      ]) {
+        expect(normalizePlusBase(a), `${a} vs ${b}`).not.toBe(normalizePlusBase(b));
+        expect(plusBaseMatches(a, b), `${a} vs ${b}`).toBe(false);
+      }
+    });
+
+    it("an unknown side never matches", () => {
+      expect(plusBaseMatches(undefined, "https://my.host")).toBe(false);
+      expect(plusBaseMatches("https://my.host", undefined)).toBe(false);
+      expect(plusBaseMatches(undefined, undefined)).toBe(false);
+      expect(plusBaseMatches("", "")).toBe(false);
+      expect(plusBaseMatches("   ", "https://my.host")).toBe(false);
+    });
+
+    it("does not throw on an unparseable base, and never matches a real one", () => {
+      expect(normalizePlusBase("plus.tryatoms.app/")).toBe("plus.tryatoms.app");
+      expect(plusBaseMatches("plus.tryatoms.app", "https://plus.tryatoms.app")).toBe(false);
+    });
+
+    it("mints a stamp in the same normalized form the comparison uses", () => {
+      const stamp = issuedBaseFromResponse("HTTPS://My.Host/");
+      expect(stamp).toBe("https://my.host");
+      expect(plusBaseMatches(stamp, "https://my.host")).toBe(true);
     });
   });
 

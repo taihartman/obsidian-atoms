@@ -29,7 +29,7 @@ import {
   settingTab,
 } from "./helpers/settingsTab";
 import { DEFAULT_SETTINGS } from "../src/shared/types";
-import type { PlusSession } from "../src/platform/filingAuth";
+import type { IssuedBase, PlusSession } from "../src/platform/filingAuth";
 // Imported from the mock by path, not from "obsidian": vitest aliases the module but `tsc`
 // does not, so a bare "obsidian" import would typecheck against the real API and never see
 // the recorder's `controls`. Code under test still imports "obsidian" and gets this same
@@ -1129,6 +1129,10 @@ const MIRROR_SESSION: PlusSession = {
   status: "active",
   remaining: 12,
   periodEnd: "2026-09-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 function backRowEl(tab: AtomsSettingTab): HTMLElement | null {
@@ -1205,6 +1209,10 @@ const SESSION: PlusSession = {
   status: "active",
   remaining: 12,
   periodEnd: "2026-09-01T00:00:00.000Z",
+  // #508: stamped with the base an empty `plusBaseUrl` resolves to, which is
+  // what a hosted session carries from sign-in onward.
+  issuedBase: "https://plus.tryatoms.app" as IssuedBase,
+  verifiedBase: "https://plus.tryatoms.app",
 };
 
 describe("destination shell", () => {

@@ -9,6 +9,7 @@
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import { parsePlusPlan } from "./filingAuth";
 import type {
+  IssuedBase,
   PlusEntitlementStatus,
   PlusPlan,
   PlusSession,
@@ -186,6 +187,45 @@ export const PLUS_BASE_URL_INVALID_MESSAGE =
   "Plus service URL must start with https:// (http:// is allowed only for localhost). Fix it in Settings → Atoms → Advanced, or clear it to use the hosted service.";
 
 /**
+ * Shown when the base is fine but this session was not shown to belong to it
+ * (#508). A different question from the one above: `plus.tryatoms.app` is always
+ * an allowed host, and whether *this* session was issued by it is what decides
+ * whether note text may go there.
+ *
+ * It lives down here rather than beside the rest of the #508 copy in
+ * `plusBaseVerify` because the request layer itself now returns it, and having
+ * that module import from the one that imports it would be a cycle.
+ */
+export const PLUS_BASE_REFUSED_MESSAGE =
+  "Atoms Plus can’t confirm your sign-in at this address. Check the Plus service URL in settings.";
+
+/**
+ * Config for the Plus calls that carry note text. The extra field is the base
+ * the session was *proven* to belong to, and each of those calls refuses when it
+ * does not match the one it is about to post to.
+ *
+ * A separate type rather than an optional field on {@link PlusClientConfig}:
+ * every content-bearing caller then has to state the answer, and a new one is a
+ * build error instead of a silent fail-open. `askCoordinator` is not the only
+ * place a mirror config is built, which is exactly the gap this closes.
+ */
+export type PlusMirrorConfig = PlusClientConfig & { verifiedBase: string };
+
+/**
+ * The #508 egress backstop, one layer below wherever the caller checked.
+ * Returns the refusal to send, or null to proceed.
+ */
+function refuseUnverifiedBase(cfg: PlusMirrorConfig): PlusApiError | null {
+  if (plusBaseMatches(cfg.verifiedBase, cfg.baseUrl)) return null;
+  return {
+    ok: false,
+    status: 0,
+    code: "invalid",
+    message: PLUS_BASE_REFUSED_MESSAGE,
+  };
+}
+
+/**
  * Loopback never leaves the device, so plain http is safe there and nowhere
  * else. Exact match only: a resolver can point `localhost.example.com`
  * anywhere, so a suffix test would hand the session token to that host.
@@ -234,6 +274,54 @@ export function isAllowedPlusBaseUrl(raw: string): boolean {
   return false;
 }
 
+/**
+ * Canonical form of a Plus base for comparison (KTD2). Narrow on purpose:
+ * strip trailing slashes, lowercase scheme and host, nothing else. Port and
+ * path stay significant, because `https://my.host` and `https://my.host:8443`
+ * are different servers and guessing otherwise is how a guard fails open.
+ *
+ * Parsed with `new URL()`, the same parser `isAllowedPlusBaseUrl` uses, which
+ * drops a default port — so `https://h` and `https://h:443` normalize *equal*.
+ * That is decided, not incidental: a spurious mismatch only costs one probe,
+ * and using a second parser here is how the stamp and compare sides drift.
+ *
+ * Unparseable input is returned trimmed and de-slashed rather than thrown on,
+ * so it can never accidentally equal a real base.
+ */
+export function normalizePlusBase(raw: string): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return value.replace(/\/+$/, "");
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}${url.search}${url.hash}`;
+}
+
+/**
+ * Whether two Plus bases name the same server. Undefined on either side is
+ * *unknown*, and unknown is never a match: an unstamped session must be
+ * re-verified, not waved through.
+ */
+export function plusBaseMatches(a: string | undefined, b: string | undefined): boolean {
+  if (!a?.trim() || !b?.trim()) return false;
+  return normalizePlusBase(a) === normalizePlusBase(b);
+}
+
+/**
+ * The only way to produce an {@link IssuedBase} (KTD4). Call it with the base a
+ * Plus response actually came back from, never with one read from settings —
+ * the brand exists so the compiler can refuse the latter, but it cannot tell
+ * which string you hand it here. Normalizing at mint time keeps the stamp side
+ * and the compare side in one form.
+ */
+export function issuedBaseFromResponse(base: string): IssuedBase {
+  return normalizePlusBase(base) as IssuedBase;
+}
+
 type PlusHttpOk = { ok: true; status: number; json: Record<string, unknown> };
 
 async function plusRequest(
@@ -260,12 +348,17 @@ async function plusRequest(
   // hosted default would be worse than failing: a self-host session token would
   // then be sent to plus.tryatoms.app.
   //
-  // That reasoning holds for a *refused* value and not yet for an empty one:
-  // clearing the field resolves to the hosted default at every call site, so a
-  // self-hoster who empties it does ship their token — and their capture bodies —
-  // to plus.tryatoms.app. Proven live in the #500 adversarial pass. Closing it
-  // needs the session to record the base that issued it, which is #508, not a
-  // check that can be made here.
+  // An *empty* value is a different case and is not answerable here: clearing
+  // the field resolves to the hosted default at every call site, and this
+  // function cannot tell that apart from a hosted user who never set one.
+  //
+  // #508 closed the half that matters. The session now records the base that
+  // issued it, and every call carrying capture text or atom bodies refuses
+  // unless the resolved base is that base or can prove it holds the session —
+  // see `plusBaseVerify.ts`. What is still true, deliberately, is the token
+  // half: the content-free calls below keep sending the session token to
+  // whatever base resolves, and so does #508's own `/v1/me` probe, because a
+  // check cannot gate itself.
   if (!isAllowedPlusBaseUrl(base)) {
     return {
       ok: false,
@@ -534,7 +627,7 @@ export async function startPlusAccount(
   cfg: PlusClientConfig,
   email: string,
 ): Promise<
-  | { ok: true; session: PlusSession }
+  | { ok: true; session: PlusSession; issuedBase: IssuedBase }
   | { ok: false; needsMagicLink: true; email: string; message: string }
   | PlusApiError
 > {
@@ -579,6 +672,9 @@ export async function startPlusAccount(
   const status = parseStatus(res.json);
   return {
     ok: true,
+    // Minted here, where the round trip happened (#508 KTD4). A caller handed
+    // the stamp cannot fabricate one from settings.
+    issuedBase: issuedBaseFromResponse(cfg.baseUrl),
     session: {
       sessionToken,
       email: em,
@@ -641,7 +737,9 @@ export async function exchangeMagicToken(
   cfg: PlusClientConfig,
   token: string,
   opts?: { verifier?: string },
-): Promise<{ ok: true; session: PlusSession } | PlusApiError> {
+): Promise<
+  { ok: true; session: PlusSession; issuedBase: IssuedBase } | PlusApiError
+> {
   const verifier = opts?.verifier?.trim();
   const res = await plusRequest(cfg, {
     path: "/v1/auth/exchange",
@@ -681,6 +779,9 @@ export async function exchangeMagicToken(
   const status = parseStatus(res.json);
   return {
     ok: true,
+    // The magic-link chain's stamp is minted here for the same reason as the
+    // start path: the base that answered, not the one configured (#508 KTD4).
+    issuedBase: issuedBaseFromResponse(cfg.baseUrl),
     session: {
       sessionToken,
       email,
@@ -916,7 +1017,7 @@ export async function signOutAllDevices(
 }
 
 export async function askMirrorUpsert(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   atoms: Array<{
     path: string;
@@ -928,6 +1029,8 @@ export async function askMirrorUpsert(
     created?: string;
   }>,
 ): Promise<{ ok: true; count: number; upserted: number } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/upsert",
     method: "POST",
@@ -1067,13 +1170,15 @@ export async function askMcpPair(
 }
 
 export async function askMirrorDelete(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   paths: string[],
 ): Promise<
   | { ok: true; deleted: number; missing: number; count: number }
   | PlusApiError
 > {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/delete",
     method: "POST",
@@ -1093,7 +1198,7 @@ export async function askMirrorDelete(
 }
 
 export async function askMirrorReconcile(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   opts: {
     keepPaths: string[];
@@ -1105,6 +1210,8 @@ export async function askMirrorReconcile(
   | { ok: true; deleted: number; count: number; staged?: number }
   | PlusApiError
 > {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/mirror/reconcile",
     method: "POST",
@@ -1182,11 +1289,24 @@ export async function askOutboxPull(
   };
 }
 
+/**
+ * `PlusMirrorConfig`, not `PlusClientConfig`, because `error` is `plan.reason`
+ * upstream: free text from the vault, not a fixed literal. The id-and-status
+ * shape reads as content-free and is not, which is the axis #500 warns about.
+ *
+ * It is gated at its one call site too. This is the same deliberate belt-and-
+ * braces as the three mirror calls: the entry gate is a property of whoever
+ * currently builds the config, and a second call site added later would compile
+ * clean with no refusal at all. See
+ * docs/solutions/security/consent-gate-must-be-checked-at-egress-not-at-entry.md.
+ */
 export async function askOutboxAck(
-  cfg: PlusClientConfig,
+  cfg: PlusMirrorConfig,
   sessionToken: string,
   opts: { id: string; status: "applied" | "rejected"; error?: string },
 ): Promise<{ ok: true; id: string; status: string } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
   const res = await plusRequest(cfg, {
     path: "/v1/ask/outbox/ack",
     method: "POST",

@@ -236,6 +236,23 @@ The device's stored copy of what the service last said about the account — sta
 
 Its age is load-bearing, because expiry is the one entitlement change nothing announces: no push, no webhook, and the **post-checkout resume poll** is armed only while a checkout is in flight. A snapshot confirmed *before* its own period end therefore cannot say what happened at that boundary — the period may have lapsed, renewed, or converted from a trial — and the honest response is to refresh rather than infer. A device may narrow what it claims on stale evidence; it may never assert an entitlement verdict the service has not given.
 
+### Issuing base / issued base
+The Plus server a session was actually acquired from, stamped onto the session at sign-in and never rewritten. It is a *branded* type minted only by the helper that made the acquisition round trip, so a base read from settings is not assignable to it — presence and provenance both fail at build time rather than at runtime. Absent means **unknown**, never the hosted default: the plugin does not guess where a session came from.
+*Avoid:* treating "the configured base" and "the base that issued this session" as the same value. They are equal on almost every device and the whole gate exists for the case where they are not.
+
+### Verified base
+The base most recently *proven* to hold a given session — the mutable half of the pair whose immutable half is the **issued base**. Two fields rather than one, because a single mutable stamp erases its own evidence: after one tunnel rotation nothing on disk would record that the session began at a private host. The issuer gate compares against this; audit and warning copy read the issued base.
+
+### Issuer gate
+The check that runs before anything carrying vault content leaves the device: is the base we are about to talk to the one that holds this session? A match against the stamp answers it for free. A mismatch asks the resolved base to name the account (`GET /v1/me`) and re-stamps only if the address matches. Refused and unreachable both **fail closed** — "I could not check" is not "go ahead".
+*Avoid:* calling it authentication of the host. An email address is not a secret, so it stops a host that accepts every token without knowing the account, not a targeted host that knows it. Learning: `docs/solutions/security/a-2xx-is-not-proof-that-this-server-issued-your-session.md`; the remaining gap is issue #529.
+
+### Content-bearing vs content-free (Plus calls)
+The axis that decides whether the **issuer gate** applies. Content-bearing calls carry something from the vault — capture text, atom bodies, vault paths, or free text like an outbox ack's `plan.reason` — and are gated at the call site and backstopped again where the request is built. Content-free calls carry the session token and nothing else; they are out of scope and still reach whatever base resolves, as does the gate's own probe, because a check cannot verify the host it is asking.
+*Avoid:* sorting a call by how its payload *looks*. An id-and-status ack that also carries a reason string is content-bearing, and a screen that publishes an origin for a third party to authenticate against is egress with extra steps. Sorting on the wrong axis is what both #500 misses had in common.
+
+Content-free is also not the same as harmless: such a call is ungated, so if it *writes* local state the gate later reads, it is inside the trust boundary regardless of what it sends.
+
 ## Flagged ambiguities
 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.

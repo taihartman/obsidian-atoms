@@ -105,8 +105,8 @@ function harness(opts?: {
       opts?.whileConfirming?.(app);
       return opts?.verdict ?? "declined";
     },
-    installSession: async (session) => {
-      writePlusSession(app, session);
+    installSession: async (session, issuedBase) => {
+      writePlusSession(app, { ...session, issuedBase, verifiedBase: issuedBase });
     },
   };
   const queue = createSignInHandoffQueue({
@@ -710,8 +710,8 @@ describe("plusSignIn — a superseded handoff must not spend its token", () => {
       app: app as PlusSignInHost["app"],
       settings: { plusBaseUrl: "https://plus.test" },
       confirmSignIn,
-      installSession: async (session) => {
-        writePlusSession(app, session);
+      installSession: async (session, issuedBase) => {
+        writePlusSession(app, { ...session, issuedBase, verifiedBase: issuedBase });
       },
     };
     const queue = createSignInHandoffQueue({
