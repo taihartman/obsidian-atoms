@@ -727,7 +727,7 @@ export function registerAskTools(mcp, ctx) {
       title: "List atoms",
       annotations: { readOnlyHint: true, destructiveHint: false },
       description:
-        "List mirrored atoms (title, path, tags, created, synced_at, open_now, loop) with offset pagination. open_now true means intention not finished substance. Default order title ASC. For newest-by-note-date use sort_by=created order=desc. Optional created_after/before and tags (all must match).",
+        "List mirrored atoms (title, path, tags, created, synced_at, open_now, loop) with offset pagination. open_now true means intention not finished substance. Default order title ASC. For newest-by-note-date use sort_by=created order=desc. Optional created_after/before and tags (all must match). Optional open_now boolean filters on that derived field (active loop AND no redeeming child) so \"list open loops\" does not need to page the whole mirror.",
       inputSchema: {
         limit: z.number().int().min(1).max(50).optional(),
         offset: z.number().int().min(0).optional(),
@@ -745,6 +745,12 @@ export function registerAskTools(mcp, ctx) {
           .array(z.string())
           .optional()
           .describe("All tags must match (same as search_atoms)"),
+        open_now: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, only currently open loops (active mark AND no redeeming child). When false, the complement. Omit for no loop-state filter.",
+          ),
       },
     },
     async ({
@@ -755,6 +761,7 @@ export function registerAskTools(mcp, ctx) {
       created_after,
       created_before,
       tags,
+      open_now,
     }) => {
       const rl = listAtomsRateOk();
       if (!rl.ok) {
@@ -771,6 +778,7 @@ export function registerAskTools(mcp, ctx) {
         created_after,
         created_before,
         tags,
+        open_now,
       });
       const st = await store.mirrorStatus(email);
       const cov = page.created_coverage;
