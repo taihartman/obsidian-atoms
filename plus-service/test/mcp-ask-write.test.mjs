@@ -33,6 +33,15 @@ describe("MCP ask write helpers + store path", () => {
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /tools cannot write/i);
   });
 
+  it("instructions: a reminder or calendar entry is not a close", () => {
+    assert.match(ASK_MCP_INSTRUCTIONS, /reminder or calendar/i);
+    assert.match(ASK_MCP_INSTRUCTIONS, /not closing/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /ordinary continue child/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /never redeems/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /never set_loop resolved_elsewhere/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /continued_by/);
+  });
+
   it("validate create and continue payloads", () => {
     const bad = validateOutboxPayload("create", { title: "", body: "x" });
     assert.equal(bad.ok, false);
