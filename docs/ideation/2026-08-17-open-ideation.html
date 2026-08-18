@@ -84,6 +84,14 @@
     padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
   }
+  h3.pass {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 0 0 0.85rem;
+  }
   p { max-width: 70ch; }
   .card {
     background: var(--surface);
@@ -167,16 +175,16 @@
   <p class="eyebrow">Ideation</p>
   <h1>What to build next</h1>
   <div class="meta">
-    <span><strong>Date</strong> <time datetime="2026-08-17">2026-08-17</time></span>
+    <span><strong>Date</strong> <time datetime="2026-08-17">2026-08-17</time>, updated <time datetime="2026-08-18">2026-08-18</time></span>
     <span><strong>Topic</strong> open</span>
     <span><strong>Mode</strong> repo-grounded</span>
-    <span><strong>Focus</strong> none (surprise-me)</span>
+    <span><strong>Focus</strong> none (surprise-me, continue)</span>
   </div>
   <div class="stats">
-    <div class="stat"><b>48</b><span>raw ideas</span></div>
-    <div class="stat"><b>8</b><span>combos</span></div>
-    <div class="stat"><b>7</b><span>kept</span></div>
-    <div class="stat"><b>49</b><span>cut</span></div>
+    <div class="stat"><b>95</b><span>raw ideas</span></div>
+    <div class="stat"><b>16</b><span>combos</span></div>
+    <div class="stat"><b>14</b><span>kept</span></div>
+    <div class="stat"><b>81</b><span>cut</span></div>
   </div>
 </header>
 
@@ -185,7 +193,8 @@
   <ol>
     <li><a href="#grounding-context">Grounding Context</a></li>
     <li><a href="#topic-axes">Topic Axes</a></li>
-    <li><a href="#ranked-ideas">Ranked Ideas</a></li>
+    <li><a href="#ranked-ideas">Ranked Ideas</a> (17 Aug)</li>
+    <li><a href="#ranked-ideas-18">Ranked Ideas</a> (18 Aug)</li>
     <li><a href="#rejection-summary">Rejection Summary</a></li>
   </ol>
 </nav>
@@ -195,11 +204,12 @@
   <p>Atoms turns yesterday’s daily notes into a second brain. It files them as atoms (your words stay as you wrote them), shows a few back on Home, and lets you Ask questions of the vault. Capture stays outside the plugin. People pay with Plus or bring their own key.</p>
   <p>Rules we do not break: never rewrite the capture body, never invent folders, never file today on its own, never turn Home into a to-do list, never copy atom bodies back from the cloud.</p>
   <p>The last two weeks went to Plus sign-in and Settings. The older gap is still this: after a week of real notes, does the vault feel like a brain, or a pile of files? The first live vault run filed everything correctly and still failed — the links said “preference about Nichita” instead of a real why, and some keepable ideas were thrown away as noise. Ask can also lie: if your words and the question do not share the same words, it looks like the vault is empty. Home has one quiet look for “nothing to show,” “something is blocked,” and “filing is broken.”</p>
+  <p>18 August continue: hub-association invite (person + list) shipped in 0.8.8–0.8.10. Home already collects “Add {Name}?” and then hides it whenever any capture is still unfiled. Together still takes the first orbit and stops. Continue lives in this phone’s memory and dies at midnight, on the day the pipeline refuses to file. Open loops are real in Ask and banned from Home. Watchlist membership is named work you mean to watch; classify may still write the list link. Plus still may not ask you to type a value it already knows.</p>
 </section>
 
 <section id="topic-axes">
   <h2 class="sec">Topic Axes</h2>
-  <p>Decomposition skipped — surprise-me mode. The seven keepers sit on six surfaces: telling the truth on Home, making link reasons good, honest Ask misses, seeing today before midnight, finding notes when the words do not match, and choosing what old history to file.</p>
+  <p>Decomposition skipped — surprise-me mode. The 17 August keepers sit on six surfaces: telling the truth on Home, making link reasons good, honest Ask misses, seeing today before midnight, finding notes when the words do not match, and choosing what old history to file. The 18 August keepers sit on seven more: wait vs invite, Continue across devices, Together’s first-fit, nominate vs grant, one hanging thought, silent lists vs invited people, and a watch intention that can die.</p>
 </section>
 
 <section id="ranked-ideas">
@@ -439,6 +449,252 @@
   </article>
 </section>
 
+<section id="ranked-ideas-18">
+  <h2 class="sec">Ranked Ideas</h2>
+  <h3 class="pass">18 August continue — seven new bets</h3>
+  <ul class="jump">
+    <li><a href="#idea-8">8. Invite inherits the hero</a></li>
+    <li><a href="#idea-9">9. Continue is a catchword for the next filed day</a></li>
+    <li><a href="#idea-10">10. Together refuses first-fit</a></li>
+    <li><a href="#idea-11">11. Classify nominates; decline still shows the cluster</a></li>
+    <li><a href="#idea-12">12. One hanging thought, never a loop list</a></li>
+    <li><a href="#idea-13">13. Lists join in silence; people still ask</a></li>
+    <li><a href="#idea-14">14. Watchlist dies; people do not</a></li>
+  </ul>
+
+  <article class="card" id="idea-8">
+    <h3><span class="rank">8</span> Invite inherits the hero</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 85%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Home already collects “Add {Name}?” or “Add to Show list?”, then hides it whenever any capture is still unfiled. A living vault is usually in backlog, so the invite that just shipped is dark on the vaults that need it. Put “4 waiting” on the chrome. Keep the hero for the invite. Show how many peer notes one accept would upgrade. Auto-run already files; a leftover daily is a count, not a room you must clear before the brain may speak.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> <code>atomsHomeView.ts</code> 2275–2283: one hero, and wait must be false before invite, Together, or resurface can draw. Invite is collected earlier at 1288–1296 even when wait will hide it. CONCEPTS: after a hub is accepted, later matching atoms land with no ask. Peer links upgrade on accept.<br /><code>external:</code> Pathfinder reset because a low-priority task held a lock the high-priority bus needed. NASA’s fix was priority inheritance.<br /><code>reasoned:</code> A collected invite is the one question only a person can answer. A leftover daily is work the pipeline already knows how to finish. Six independent frames named this hole.</dd>
+      <dt>Rationale</dt>
+      <dd>One accepted hub makes every later Process cheaper. Hiding that tap behind a count wastes the only compounding action Home has.</dd>
+      <dt>Downsides</dt>
+      <dd>A vault with a huge backlog can look like it is ignoring filing. Keep the count visible. Do not invent a second hero. This is occupancy, not a new card.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 150" width="100%" height="150" role="img">
+        <title>Wait as a count versus invite as the hero</title>
+        <rect x="16" y="24" width="300" height="102" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="32" y="48" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">Today</text>
+        <text x="32" y="74" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">4 waiting</text>
+        <text x="32" y="96" fill="#9aa6bd" font-size="13" font-family="DM Sans, sans-serif">invite collected, then hidden</text>
+        <rect x="404" y="24" width="300" height="102" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="420" y="48" fill="#7fd99a" font-size="12" font-family="DM Sans, sans-serif">This idea</text>
+        <text x="420" y="74" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Add Nichita? · 3 peers</text>
+        <text x="420" y="96" fill="#9aa6bd" font-size="13" font-family="DM Sans, sans-serif">4 waiting stays a badge</text>
+        <path d="M328 75 H392" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <polygon points="392,70 404,75 392,80" fill="#7c9cff"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: the same collected invite, no longer evicted by a leftover daily.</p>
+  </article>
+
+  <article class="card" id="idea-9">
+    <h3><span class="rank">9</span> Continue is a catchword for the next filed day</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 80%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Continue today lives in this phone’s memory, injects only when the note’s date is today, and the notice says “Write in today, then Process today.” Default filing skips today. The baton and the next runner are never in the same race unless you force today on the same phone that tapped Continue. Write the catchword on the parent atom. Attach it on the next day that actually files — tomorrow’s Process of today’s notes — on any device that can read the vault. Clear only when a filed atom continues it. The parent body stays untouched.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> <code>continueParent.ts</code> 33–46: today-only inject, local storage, no parent when the note is not today. CONCEPTS: pending is one-shot and same-device, not synced. Constitution: do not process today unless forced. Android Capture is on Play.<br /><code>external:</code> Medieval scribes wrote the first word of the next quire on the current page so a later binder, another desk, could continue the book.<br /><code>reasoned:</code> Skip-today is the product. The inject clock has to move. A gesture that only works if you also know the secret second command is not a gesture.</dd>
+      <dt>Rationale</dt>
+      <dd>Continue is the only way a human says “this capture is the same thought.” As built, it only works if you violate the product’s own default.</dd>
+      <dt>Downsides</dt>
+      <dd>A mark on the parent atom is vault state, not device memory — Sync will carry it, which is the point and the risk. Several captures in tomorrow’s batch may share one parent; that is better than orphans. Do not treat Continue as a close of an open loop.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 150" width="100%" height="150" role="img">
+        <title>Catchword travels with the vault</title>
+        <rect x="16" y="28" width="200" height="94" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="116" y="56" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">Today</text>
+        <text x="116" y="80" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">tap Continue</text>
+        <text x="116" y="100" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">write, do not file</text>
+        <rect x="260" y="28" width="200" height="94" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="360" y="56" text-anchor="middle" fill="#7c9cff" font-size="12" font-family="DM Sans, sans-serif">On the parent</text>
+        <text x="360" y="80" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">catchword</text>
+        <text x="360" y="100" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">any device can read</text>
+        <rect x="504" y="28" width="200" height="94" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="604" y="56" text-anchor="middle" fill="#7fd99a" font-size="12" font-family="DM Sans, sans-serif">Tomorrow</text>
+        <text x="604" y="80" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">Process files it</text>
+        <text x="604" y="100" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">child attached</text>
+        <path d="M216 75 H260" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <path d="M460 75 H504" stroke="#7c9cff" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: the parent carries the baton; tomorrow’s Process runs the next page.</p>
+  </article>
+
+  <article class="card" id="idea-10">
+    <h3><span class="rank">10</span> Together refuses first-fit</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 78%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Together walks atoms, takes the first primary orbit, and stops. Primary is whoever sits first in the list. That is file order pretending to be taste. If one inhabit-able room exists, stand in it and show three bodies. If two rooms grew, name both and wait — do not invent a new noun for the group. Prefer the room you have not stood in, or the one that gained a member, never the first path in the folder.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> <code>atomsHomeView.ts</code> 1298–1317: first <code>pickPrimaryOrbit</code> hit wins, then break. <code>entityOrbitPolicy.ts</code> 103–109: primary is <code>list[0]</code>. Together also waits behind the invite.<br /><code>external:</code> First-past-the-post elects one dish. A radio array needs several dishes to see a structure.<br /><code>reasoned:</code> Together is the proof filing made a graph. Directory order is not a second brain. A silent first-orbit card is worse than naming two rooms.</dd>
+      <dt>Rationale</dt>
+      <dd>The Together card will keep lying about “what this vault is about” until selection is a choice.</dd>
+      <dt>Downsides</dt>
+      <dd>Naming two rooms can look like a picker, which is Settings gravity. Keep it to two labels and a stand-in. After-Process speech of a grown orbit is yesterday’s first idea — this card is the standing Together, not that moment.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 140" width="100%" height="140" role="img">
+        <title>First orbit versus two named rooms</title>
+        <rect x="16" y="28" width="300" height="84" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="32" y="54" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">Today</text>
+        <text x="32" y="80" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">whoever sorts first</text>
+        <rect x="404" y="28" width="300" height="84" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="420" y="54" fill="#7c9cff" font-size="12" font-family="DM Sans, sans-serif">This idea</text>
+        <text x="420" y="80" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Maya · Show list</text>
+        <path d="M328 70 H392" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <polygon points="392,65 404,70 392,75" fill="#7c9cff"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: if two rooms grew, name both. Do not mint a third noun.</p>
+  </article>
+
+  <article class="card" id="idea-11">
+    <h3><span class="rank">11</span> Classify nominates; decline still shows the cluster</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 74%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Mentioning a lion at dinner does not put a lion on your shield. Classify may nominate a person or a named work. The invite is the grant. Until you accept, no hub membership link — not even a soft one Together or Ask can treat as membership. After accept, later atoms that name the work land with no ask. After Not now, the peer-linked notes remain. Show that census: “3 notes already name the same person.” Do not create the hub. Do not invent a new noun.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> CONCEPTS: watchlist membership follows the work, not the word <code>movie</code>; invite is Add {Name}?, never silent create. The watchlist plan still defers classify-emitted hub links. Together only runs when no invite is up, and only for a hub that already exists. Snooze hides the invite; the cluster goes dark.<br /><code>external:</code> A grant of arms is the letters patent. A census is not a state.<br /><code>reasoned:</code> If classify writes membership before the grant, Together rehearses the snack-as-movie bug as taste. “Not now” currently erases the only picture of the unnamed group.</dd>
+      <dt>Rationale</dt>
+      <dd>The invite just shipped. The next classify pass will want to stamp genre. The grant has to be the only door, and decline must not delete the evidence.</dd>
+      <dt>Downsides</dt>
+      <dd>Nomination without a link can look like the product is unsure. Keep the census short. Do not let a declined cluster become a second invite that nags.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 140" width="100%" height="140" role="img">
+        <title>Nominate, grant, or keep the census</title>
+        <rect x="16" y="36" width="200" height="68" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="116" y="66" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">classify nominates</text>
+        <text x="116" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">no membership yet</text>
+        <rect x="260" y="36" width="200" height="68" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="360" y="66" text-anchor="middle" fill="#7fd99a" font-size="13" font-family="DM Sans, sans-serif">you grant</text>
+        <text x="360" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">later atoms land</text>
+        <rect x="504" y="36" width="200" height="68" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="604" y="66" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">you decline</text>
+        <text x="604" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">3 notes still name them</text>
+        <path d="M216 70 H260" stroke="#7c9cff" stroke-width="2" fill="none"/>
+        <path d="M460 70 H504" stroke="#7c9cff" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: the grant is the only door. Decline keeps the census.</p>
+  </article>
+
+  <article class="card" id="idea-12">
+    <h3><span class="rank">12</span> One hanging thought, never a loop list</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 70%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Open loops are first-class in frontmatter and Ask, and banned from Home on purpose. That ban is right about N items. It is wrong about 1. When Ask already knows exactly one still-open intention, that atom may take the For-you slot. Zero stays quiet. Two or more stay quiet — a list is a task app. Only a later atom with a redeeming link closes it. Reminder is not a close. Put today’s open-now titles into classify context the way Continue injects a parent, so the next capture can redeem without scanning every title.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> <code>openLoops.ts</code> 1–2: Browse and Review helpers, no Home chrome. CONCEPTS: an open loop is not a Home unfinished queue. Resurface cue order is calendar, then connected, then quiet — as if every atom were equally past.<br /><code>external:</code> A fermata is unresolved on purpose, not overdue. Weed’s problem list on a medical chart is still there when today’s visit is about something else.<br /><code>reasoned:</code> “Second brain, not a task app” forbade due dates, not memory of what you meant. A mark only Ask can see is a database field.</dd>
+      <dt>Rationale</dt>
+      <dd>You already taught the vault what is still open. Exactly one hanging thought is how a second brain continues a life without becoming a to-do list.</dd>
+      <dt>Downsides</dt>
+      <dd>One card can still read as “you have unfinished work.” Copy must stay retrieval, not duty. “Still-open outranks on-this-day” is the line that becomes guilt if it slips. Do not add a Review shelf.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 120" width="100%" height="120" role="img">
+        <title>Zero and two stay quiet; one may speak</title>
+        <rect x="16" y="28" width="220" height="64" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="126" y="56" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">0 open</text>
+        <text x="126" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">quiet</text>
+        <rect x="250" y="28" width="220" height="64" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="360" y="56" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">1 open</text>
+        <text x="360" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">For-you may speak it</text>
+        <rect x="484" y="28" width="220" height="64" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="594" y="56" text-anchor="middle" fill="#e8ecf4" font-size="13" font-family="DM Sans, sans-serif">2 or more</text>
+        <text x="594" y="76" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">quiet again</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: a fermata is one note, not a shelf.</p>
+  </article>
+
+  <article class="card" id="idea-13">
+    <h3><span class="rank">13</span> Lists join in silence; people still ask</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 72%</span>
+      <span class="chip cx-m">Complexity Medium</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>A person hub is a claim about someone. A Show list is filing the product already owns: named work, family follows the work. Asking “Add to Show list?” after classify already tagged the show is the same shape as asking a Plus subscriber to type the service address. People still fail closed — Add {Name}?, never silent create, never invite the verb. Lists accept into the named work and say so once: “Frieren joined Show list.” Store accepted work titles as a negative prior so the next snack with <code>#movie</code> stops earning an invite.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> CONCEPTS: watchlist membership is named work you mean to watch; <code>#movie</code> on a snack is not membership. After one accept, later matching atoms land with no ask. 0.8.8 shipped one invite family for person and list. Constitution: Plus never asks the user to supply a value Plus already knows.<br /><code>reasoned:</code> One invite family was the right shipping cut. It is the wrong product: people are identity, lists are filing. Each false invite trains the user to tap Not now. Each accepted title is a free classifier for the next dump.</dd>
+      <dt>Rationale</dt>
+      <dd>Plus absorbed the packing decision. The list invite hands it back. People stay invited because a fake person is a lie.</dd>
+      <dt>Downsides</dt>
+      <dd>A silent list join can look like the product packed your life. The one spoken sentence after join is load-bearing. Do not auto-build a Movies note. Do not let classify invent a list that does not exist.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 140" width="100%" height="140" role="img">
+        <title>People ask; lists join</title>
+        <rect x="16" y="36" width="330" height="68" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="181" y="66" text-anchor="middle" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Add Maya?</text>
+        <text x="181" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">identity · fail closed</text>
+        <rect x="374" y="36" width="330" height="68" rx="8" fill="#1a2a22" stroke="#2a4a38"/>
+        <text x="539" y="66" text-anchor="middle" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Frieren joined Show list</text>
+        <text x="539" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">filing · say it once</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: two hub kinds, two doors. Only people get a question.</p>
+  </article>
+
+  <article class="card" id="idea-14">
+    <h3><span class="rank">14</span> Watchlist dies; people do not</h3>
+    <div class="chips">
+      <span class="chip conf">Confidence 68%</span>
+      <span class="chip cx-h">Complexity High</span>
+    </div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Person and list now share one invite shape, and that treats every hub as identity that should live forever. A person does. A watch intention has a half-life. Soft death of superseded claims is written down and deferred; the thing that actually rots is “I meant to watch this” from two years ago. Do not put a dead movie next to Maya. The file stays. Together and For-you stop treating an unwatched title as a living member. People never expire this way.</dd>
+      <dt>Basis</dt>
+      <dd><code>direct:</code> CONCEPTS: one Home card for person, list, and watch list. Soft death of superseded claims is separate and deferred. Watchlist membership is named work you mean to watch.<br /><code>reasoned:</code> Unifying person and list under invite was a shipping cut, not the end state. Intention and identity are not the same object. A Show list that cannot forget is complexity handed back as clutter.</dd>
+      <dt>Rationale</dt>
+      <dd>This is where deferred soft death is product, not cleanup. A two-year-old unwatched title is a memory, not a member.</dd>
+      <dt>Downsides</dt>
+      <dd>Half-life needs a rule you can explain in one sentence, or it feels like the product deleted your taste. “Watched” must not become a checkbox. Do not hide a person because you stopped writing about them.</dd>
+    </dl>
+    <div class="diagram" aria-hidden="true">
+      <svg viewBox="0 0 720 140" width="100%" height="140" role="img">
+        <title>People stay; watch intentions cool</title>
+        <rect x="16" y="36" width="330" height="68" rx="8" fill="#1a2438" stroke="#7c9cff"/>
+        <text x="181" y="66" text-anchor="middle" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">Maya</text>
+        <text x="181" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">identity · stays</text>
+        <rect x="374" y="36" width="330" height="68" rx="8" fill="#171b26" stroke="#2a3347"/>
+        <text x="539" y="66" text-anchor="middle" fill="#e8ecf4" font-size="14" font-family="DM Sans, sans-serif">a title from 2024</text>
+        <text x="539" y="86" text-anchor="middle" fill="#9aa6bd" font-size="12" font-family="DM Sans, sans-serif">intention · cools</text>
+      </svg>
+    </div>
+    <p class="diagram-cap">Sketch: the file stays. The living member list forgets a cold title.</p>
+  </article>
+</section>
+
 <section id="rejection-summary">
   <h2 class="sec">Rejection Summary</h2>
   <table class="rej">
@@ -496,11 +752,45 @@
       <tr><td>X6</td><td>Quality stamp as a campaign</td><td>Overlaps ideas 1 and 2</td></tr>
       <tr><td>X8</td><td>Never edit; clash writes a child</td><td>Old Belief OS ground; the clash rule did not hold up</td></tr>
       <tr><td>—</td><td>Topic split</td><td>Skipped — surprise-me mode</td></tr>
+      <tr><td>U1</td><td>Wait is weather; invite inherits the hero</td><td>Kept as idea 8</td></tr>
+      <tr><td>U2</td><td>Together is the orbit that just grew</td><td>Keeper 1 adjacent; after-Process already has landPeak</td></tr>
+      <tr><td>U3</td><td>Together is a crossing</td><td>Kept as idea 10</td></tr>
+      <tr><td>U5</td><td>Continue lives in the vault</td><td>Kept as idea 9</td></tr>
+      <tr><td>U8</td><td>Continue is for tomorrow’s filing</td><td>Kept as idea 9</td></tr>
+      <tr><td>U10</td><td>One open loop as For-you</td><td>Kept as idea 12</td></tr>
+      <tr><td>U12</td><td>Open-now titles ride in classify</td><td>Kept as idea 12</td></tr>
+      <tr><td>U21</td><td>Classify never names a hub</td><td>Kept as idea 11</td></tr>
+      <tr><td>U22</td><td>Lists join in silence</td><td>Kept as idea 13</td></tr>
+      <tr><td>U24</td><td>Watchlist dies; people do not</td><td>Kept as idea 14</td></tr>
+      <tr><td>U27</td><td>Peer upgrade count on Add {Name}?</td><td>Folded into idea 8</td></tr>
+      <tr><td>U29</td><td>Accept teaches what is not a movie</td><td>Folded into idea 13</td></tr>
+      <tr><td>U30</td><td>Diaspora stays visible after Not now</td><td>Folded into idea 11</td></tr>
+      <tr><td>U4</td><td>Invite is Together with a write button</td><td>Invite is not an orbit without a note; they are already exclusive</td></tr>
+      <tr><td>U6</td><td>Same-day bullets inherit a parent</td><td>Would auto-thread a batch, not Continue’s chosen parent</td></tr>
+      <tr><td>U7</td><td>Continue is the force that files today</td><td>Folded into idea 9</td></tr>
+      <tr><td>U9</td><td>Continue is a day-long prior</td><td>Follow-on to idea 9</td></tr>
+      <tr><td>U11</td><td>Delete the open-loop noun</td><td>Second-brain rule does not support deleting a shipped mark</td></tr>
+      <tr><td>U13</td><td>Guessed inbox day spoken once</td><td>Smaller honesty tell; inbox cluster lost to the constitution fight</td></tr>
+      <tr><td>U14</td><td>Unreadable line becomes an atom</td><td>Unparseable already files; held is a future day</td></tr>
+      <tr><td>U15</td><td>An inferred day is a folder you chose</td><td>Constitution fight about folders; better as a later brainstorm</td></tr>
+      <tr><td>U16</td><td>Unparseable is the only Inbox sentence</td><td>Unparseable is no longer stuck; silencing pending fights keeper 5</td></tr>
+      <tr><td>U17</td><td>A broken stamp is a device lesson</td><td>Companion-side, not a plugin surface</td></tr>
+      <tr><td>U18</td><td>The filing lock is the hero</td><td>#435 already names idle-at-gate; keeper 5 covers the blocked look</td></tr>
+      <tr><td>U19</td><td>An unanswered price is an offer, not a lock</td><td>Inverts settled CONCEPTS; brainstorm of #435, not a new bet</td></tr>
+      <tr><td>U20</td><td>Home has no overlays</td><td>Occupation rule absorbed into idea 8</td></tr>
+      <tr><td>U23</td><td>Superseded claim is not the hero</td><td>Mind-change hero and citator already exist; undefer is a follow-on</td></tr>
+      <tr><td>U25</td><td>Delete the resurface card</td><td>Kills the gentle stream the product sentence names</td></tr>
+      <tr><td>U26</td><td>Managed hub block is the membership index</td><td>Implementation of accept, not a new product bet</td></tr>
+      <tr><td>U28</td><td>Next backfill prefers accepted names</td><td>Compounding half of keeper 7; already decided</td></tr>
+      <tr><td>U31</td><td>Confirm membership when you enter the room</td><td>Restates idea 8’s wait-hides-invite</td></tr>
+      <tr><td>XF</td><td>Occupation Home (lock + offer)</td><td>U18 and U19 cancel</td></tr>
+      <tr><td>XG</td><td>Dead letter + device lesson</td><td>Inherits U16: the dead-letter state is vanishing</td></tr>
+      <tr><td>—</td><td>Topic split (18 Aug)</td><td>Skipped — surprise-me mode</td></tr>
     </tbody>
   </table>
 </section>
 
-<footer class="composition-signal">Composed 2026-08-17T16:10Z, copy simplified 2026-08-17T16:35Z, by ce-ideate from a surprise-me pass over the Obsidian Atoms repo.</footer>
+<footer class="composition-signal">Composed 2026-08-17T16:10Z, copy simplified 2026-08-17T16:35Z, continue-pass 2026-08-18T19:40Z, by ce-ideate from a surprise-me pass over the Obsidian Atoms repo.</footer>
 </div>
 </body>
 </html>
