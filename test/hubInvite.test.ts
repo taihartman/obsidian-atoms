@@ -205,6 +205,33 @@ describe("collectHubAssociationInvites", () => {
     expect(list?.label).toBe("Movies");
     expect(list?.existingNote).toBe(true);
   });
+
+  it("omits list-kind invites when hub projection is off", () => {
+    const invites = collectHubAssociationInvites({
+      atoms: [
+        atom(
+          "Atoms/Want to watch anime Psycho-Pass.md",
+          "Want to watch anime Psycho-Pass",
+          "I want to watch the anime psycho pass",
+        ),
+        atom(
+          "Atoms/a.md",
+          "Bug spray",
+          "pack bug spray for Yosemite packing",
+        ),
+        atom(
+          "Atoms/n.md",
+          "Nichita loves Gingerale",
+          "Nichita loves Gingerale",
+        ),
+      ],
+      vaultTitles: ["Show list", "Camping"],
+      personHubTitles: [],
+      enableHubProjection: false,
+    });
+    expect(invites.filter((i) => i.kind === "list")).toHaveLength(0);
+    expect(invites.filter((i) => i.kind === "person")).toHaveLength(1);
+  });
 });
 
 describe("hubAssociationInviteCopy", () => {
