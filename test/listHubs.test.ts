@@ -36,16 +36,12 @@ describe("titleMatchesCapture", () => {
 });
 
 describe("pickSoftMediaHub", () => {
-  it("picks unique soft hub", () => {
-    expect(pickSoftMediaHub("want to watch Dune", [movies])?.canonicalTitle).toBe(
-      "Movies",
-    );
+  it("does not dump leftover Dune onto a lone Movies hub", () => {
+    expect(pickSoftMediaHub("want to watch Dune", [movies])).toBeNull();
   });
 
-  it("picks Movies for generic watch dump when Movies+Shows exist", () => {
-    expect(
-      pickSoftMediaHub("want to watch Dune", [movies, shows])?.canonicalTitle,
-    ).toBe("Movies");
+  it("does not dump leftover Dune onto Movies when Movies+Shows exist", () => {
+    expect(pickSoftMediaHub("want to watch Dune", [movies, shows])).toBeNull();
   });
 
   it("picks Shows for series cues", () => {
@@ -84,9 +80,9 @@ describe("pickSoftMediaHub", () => {
 });
 
 describe("enrichListHubLinks", () => {
-  it("links unique Movies hub for watch capture", () => {
+  it("does not link leftover Dune to a lone Movies hub", () => {
     const out = enrichListHubLinks("want to watch Dune", baseAtom(), [movies]);
-    expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(false);
   });
 
   it("does not link when zero matches", () => {
@@ -95,12 +91,12 @@ describe("enrichListHubLinks", () => {
     ).toEqual([]);
   });
 
-  it("links Movies when Movies+Shows both exist (generic watch)", () => {
+  it("does not link leftover Dune when Movies+Shows both exist", () => {
     const out = enrichListHubLinks("want to watch Dune", baseAtom(), [
       movies,
       shows,
     ]);
-    expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(false);
     expect(out.links?.some((l) => l.note === "Shows")).toBe(false);
   });
 
@@ -113,9 +109,36 @@ describe("enrichListHubLinks", () => {
     expect(out.links?.some((l) => l.note === "Shows")).toBe(true);
   });
 
-  it("links sole soft hub when media-shaped and only Movies exists", () => {
+  it("does not link a sole Movies hub for leftover Dune", () => {
     const out = enrichListHubLinks("want to watch Dune", baseAtom(), [movies]);
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(false);
+  });
+
+  it("links Movies for a named movie work", () => {
+    const out = enrichListHubLinks(
+      "want to watch the new Dune movie",
+      baseAtom(),
+      [movies, shows],
+    );
     expect(out.links?.some((l) => l.note === "Movies")).toBe(true);
+  });
+
+  it("does not put apricot on Movies", () => {
+    const out = enrichListHubLinks(
+      "Andrew wants some dried apricot for the movie",
+      baseAtom(),
+      [movies, shows],
+    );
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(false);
+  });
+
+  it("does not put Demon Slayer-before-the-movie on Movies", () => {
+    const out = enrichListHubLinks(
+      "I need to watch Demon slayer to watch the movie with Christian and Luke",
+      baseAtom(),
+      [movies, shows],
+    );
+    expect(out.links?.some((l) => l.note === "Movies")).toBe(false);
   });
 });
 
