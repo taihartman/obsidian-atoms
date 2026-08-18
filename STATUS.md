@@ -7,7 +7,7 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #574 | Tai | `cursor/574-reminder-not-a-close-7bce` | (amend: reminder is not a close) | `plus-service/src/mcp/instructions.mjs` | Ask instructions: a reminder is not a close. Draft. |
+| In review | #574 | Tai | `cursor/574-reminder-not-a-close-7bce` | (amend: reminder is not a close) | `plus-service/src/mcp/instructions.mjs` | Ask instructions: a reminder is not a close. plus-service 586/586. world-class-qa skills not installed. Fly deploy residual. |
 | In progress | #571 | Tai | `feat/watchlist-hub-membership` | `docs/plans/2026-08-17-2132-fix-watchlist-hub-membership-plan.md` | `src/pipeline/enrich/media.ts`, `src/pipeline/enrich/listHubs.ts`, `src/pipeline/hubInvite.ts` | Watchlist membership = named work + family on the work. Draft. |
 | In review | #569 | Tai | `cursor/hide-list-invite-when-projection-off-afee` | (amend: hide list invite when projection off) | `src/pipeline/hubInvite.ts`, `src/home/atomsHomeView.ts`, `test/hubInvite.test.ts` | Gate in collect; Home passes the setting. 2160 tests green. world-class-qa skills not installed — no live vault pass. |
 | In progress | #561 | Tai | `feat/561-android-capture-live` | (light: Play live + API 36) | `companion/android/app/build.gradle.kts`, `mobile-install.json`, `src/shared/mobileInstall.ts`, `src/settings/settings.ts`, `www/src/setup.html.tmpl` | Atoms Capture is on Play. Target API 36. Plugin + /setup point Android readers at the app, not "no equivalent yet." |
