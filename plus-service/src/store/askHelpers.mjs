@@ -454,9 +454,22 @@ export function shapeMirrorListItem(pub, rev = null) {
 }
 
 /**
+ * Derived open-now for one public atom against a full-mirror inbound index.
+ * Redeeming children must be visible even when they fail other list filters.
+ * @param {object} pub
+ * @param {Map<string, unknown[]>} inboundIndex
+ */
+function derivedOpenNow(pub, inboundIndex) {
+  return attachLoopFields(pub, revisionStatusFor(pub.title, inboundIndex))
+    .open_now;
+}
+
+/**
  * Filter/sort/paginate public mirror atoms for list_atoms.
  * Default sort: title ASC (back-compat). created/synced default order: desc.
  * Missing created sorts last on created sort.
+ * Optional open_now (boolean) filters on the derived field only:
+ * active loop AND no redeeming child. Absent = no loop-state filter.
  * @param {object[]} pubs
  * @param {object} [opts]
  */
@@ -474,9 +487,20 @@ export function paginateMirrorList(pubs, opts = {}) {
   const after = normalizeCreatedBound(opts.created_after, "start");
   const before = normalizeCreatedBound(opts.created_before, "end");
   const tagFilter = opts.tags;
+  const allPubs = pubs || [];
+  // Index the whole mirror first: a redeeming child may not match tags/dates.
+  const inboundIndex = buildInboundIndex(allPubs);
+  const openNowFilter =
+    typeof opts.open_now === "boolean" ? opts.open_now : undefined;
 
   let missingCreated = 0;
-  let filtered = (pubs || []).filter((p) => {
+  let filtered = allPubs.filter((p) => {
+    if (
+      openNowFilter !== undefined &&
+      derivedOpenNow(p, inboundIndex) !== openNowFilter
+    ) {
+      return false;
+    }
     if (!matchesTagFilter(p.tags, tagFilter)) return false;
     const ck = createdSortKey(p.created);
     if (after || before) {
@@ -521,7 +545,6 @@ export function paginateMirrorList(pubs, opts = {}) {
 
   const total = filtered.length;
   const slice = filtered.slice(offset, offset + limit);
-  const inboundIndex = buildInboundIndex(pubs || []);
   const items = slice.map((pub) =>
     shapeMirrorListItem(pub, revisionStatusFor(pub.title, inboundIndex)),
   );
