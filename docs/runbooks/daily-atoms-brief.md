@@ -37,6 +37,8 @@ When the routine (or the user in a live session) creates an external reminder fo
 
 The "already parked?" check is then one field read: fetch the loop, scan `continued_by` for a child whose title records a reminder or calendar action, skip if found.
 
+**The double-park window.** A parked child queues through the outbox and only lands when Obsidian next opens with Ask + filing on. If the next run fires before that happens, `continued_by` is still empty and the parent looks unparked. So the check has two halves: `continued_by` on the parent, **and** `list_pending` for a queued continue against the same parent. Pending counts as parked.
+
 ## Requirements
 
 1. Atoms plugin installed, Ask mirror on, connected to the user's own Claude account (their connector, their notes).
@@ -65,7 +67,9 @@ Do the following:
 
 7. This run is read-only on loop state. Never call set_loop in this scheduled run — not "active," not any terminal state. Loop marks written by set_loop are treated as confirmed human judgment and stick forever; an unattended run must not mint them. If you read something that looks like a new open loop, mention it in the brief and leave the vault alone. If something looks resolved, note that in the brief; closing is a live-session decision with me.
 
-   The ONE write this run may make, and only when a reminders tool is actually available: for at most one or two items that are genuinely time-shaped for today or tomorrow (a real date or deadline, not a general intention) and not already parked per the continued_by check — create the reminder in my reminders tool, then call continue_atom on that note with a one-line body recording it, e.g. "Set a Thursday morning reminder to call the dentist." Use the default relation. Never use relation redeems, never call set_loop, never mark anything resolved — a reminder is a parking brake, not a close. If either the reminder creation or the continue_atom call fails, skip it silently and continue; don't surface the failure.
+   The ONE write this run may make, and only when a reminders tool is actually available: for at most one or two items that are genuinely time-shaped for today or tomorrow (a real date or deadline, not a general intention) and not already parked — create the reminder in my reminders tool, then call continue_atom on that note with a one-line body recording it, e.g. "Set a Thursday morning reminder to call the dentist." Use the default relation. Never use relation redeems, never call set_loop, never mark anything resolved — a reminder is a parking brake, not a close. If either the reminder creation or the continue_atom call fails, skip it silently and continue; don't surface the failure.
+
+   "Not already parked" has two halves, and both are required before creating any reminder: (1) the parent's continued_by list from fetch_atom, and (2) the list_pending queue — if a queued continue for the same note is still waiting to land, that item is already parked and gets nothing new. A parked child that hasn't landed yet looks exactly like no child at all unless you check the queue, and double-reminding is worse than a morning of silence.
 
 8. CRITICAL — there are two separate jobs here, and completing one does not excuse skipping the other:
 
