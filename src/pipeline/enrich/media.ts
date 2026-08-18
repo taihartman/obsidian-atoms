@@ -50,8 +50,53 @@ function cleanWorkTitle(raw: string): string {
     .replace(/[.!?]+$/g, "")
     .replace(/\s+after\s+.+$/i, "")
     .replace(/\s+on\s+(netflix|hulu|crunchyroll|max|disney\+?).*$/i, "")
+    .replace(/\s+to watch the movie\b.*$/i, "")
+    .replace(/\s+(?:for|at|before)\s+the\s+movie\b.*$/i, "")
+    .replace(/\s+with\s+.+$/i, "")
     .replace(/^["'“”]+|["'“”]+$/g, "")
     .trim();
+}
+
+export type MediaFamily = "movie" | "show";
+
+export type WatchlistWork = {
+  title: string;
+  family: MediaFamily | null;
+};
+
+const MOVIE_ON_WORK = /\b(movie|film)\b/i;
+const SHOW_ON_WORK = /\b(show|series|anime|season|episode|tv)\b/i;
+
+export function workMediaFamily(work: string): MediaFamily | null {
+  const t = (work ?? "").trim();
+  if (!t) return null;
+  const movie = MOVIE_ON_WORK.test(t);
+  const show = SHOW_ON_WORK.test(t);
+  if (movie && show) return null;
+  if (movie) return "movie";
+  if (show) return "show";
+  return null;
+}
+
+function isPastOnlyWatch(text: string): boolean {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  const stillWant =
+    /\b(?:want to watch|should watch|told me to watch|asked me to watch|wants me to watch|recommended)\b/i.test(
+      t,
+    ) || /\b(?:movie|anime|show|series|film)\s*:/i.test(t);
+  if (stillWant) return false;
+  return /\b(?:finished|watched|went to see)\b/i.test(t);
+}
+
+/** Named work the user means to watch. Family is read from the work, not the sentence. */
+export function watchlistWork(captureText: string): WatchlistWork | null {
+  if (isPastOnlyWatch(captureText)) return null;
+  const title = extractWorkTitle(captureText);
+  if (!title) return null;
+  const low = title.trim().toLowerCase();
+  if (!low || low === "it" || low === "the movie") return null;
+  return { title, family: workMediaFamily(title) };
 }
 
 /** Light title-case for multi-word works; keep short all-lowercase anime titles readable. */

@@ -4,6 +4,8 @@ import {
   extractWorkTitle,
   isMediaShaped,
   titleCaseWork,
+  watchlistWork,
+  workMediaFamily,
 } from "../src/pipeline/enrich/media";
 import type { ClassificationResult } from "../src/shared/types";
 import { filterTagsToActive, STRUCTURAL_TAGS } from "../src/pipeline/vocabulary";
@@ -32,6 +34,78 @@ describe("isMediaShaped / extractWorkTitle", () => {
   it("ignores pure preference without watch", () => {
     expect(isMediaShaped("Alex likes periwinkle")).toBe(false);
     expect(extractWorkTitle("Alex likes periwinkle")).toBeNull();
+  });
+});
+
+describe("watchlistWork / workMediaFamily", () => {
+  it("does not extract apricot for the movie", () => {
+    expect(
+      watchlistWork("Andrew wants some dried apricot for the movie"),
+    ).toBeNull();
+  });
+
+  it("does not extract a movie outing already happened", () => {
+    expect(
+      watchlistWork(
+        "Went to see Spiderman with Andrew, got him a dried-fruit nut mix instead of apricots",
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects finished watch as past-only", () => {
+    expect(
+      watchlistWork(
+        "Finished Demon Slayer and watched it with Christian and Luke",
+      ),
+    ).toBeNull();
+  });
+
+  it("strips to-watch-the-movie outing and does not call Demon Slayer a movie", () => {
+    const out = watchlistWork(
+      "I need to watch Demon slayer to watch the movie with Christian and Luke",
+    );
+    expect(out?.title.toLowerCase()).toContain("demon slayer");
+    expect(out?.family).not.toBe("movie");
+  });
+
+  it("strips before-the-movie from Severance", () => {
+    const out = watchlistWork("watch Severance before the movie");
+    expect(out?.title.toLowerCase()).toContain("severance");
+    expect(out?.family).not.toBe("movie");
+  });
+
+  it("reads movie family from Dune movie", () => {
+    const out = watchlistWork("want to watch the new Dune movie");
+    expect(out?.title.toLowerCase()).toContain("dune");
+    expect(out?.family).toBe("movie");
+  });
+
+  it("reads show family from anime Psycho-Pass", () => {
+    const out = watchlistWork("I want to watch the anime psycho pass");
+    expect(out?.family).toBe("show");
+  });
+
+  it("leaves leftover Dune family unknown", () => {
+    const out = watchlistWork("want to watch Dune");
+    expect(out?.title.toLowerCase()).toBe("dune");
+    expect(out?.family).toBeNull();
+  });
+
+  it("leaves Watching My Hero Academia family unknown", () => {
+    const out = watchlistWork("Watching My Hero Academia");
+    expect(out?.title.toLowerCase()).toContain("hero academia");
+    expect(out?.family).toBeNull();
+  });
+
+  it("reads show family from House of the Dragon season", () => {
+    const out = watchlistWork(
+      "want to watch House of the Dragon season 3 with Nichita",
+    );
+    expect(out?.family).toBe("show");
+  });
+
+  it("treats movie and show cues on the work as unknown", () => {
+    expect(workMediaFamily("anime film")).toBeNull();
   });
 });
 
