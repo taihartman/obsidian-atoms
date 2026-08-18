@@ -56,6 +56,8 @@ One of **atom**, **task**, or **noise**. Every verdict still gets a marker so th
 ### Open loop
 A note that records an **intention** (or open commitment), not the finished substance — captured on purpose for future-self. Frontmatter marks it as intention-shaped (`loop_source` inferred or user; user is sticky). **Open-now** is derived: intention mark present and no **redeeming** child. Ordinary continue/detail never closes it. Not a defect, stub, or Home unfinished queue. Parent body and FM stay put on close; substance lives on the redeeming child. Agents must never pitch an open-now loop as a finished asset. Requirements: `docs/plans/2026-08-11-003-feat-open-loops-plan.md`.
 
+An external reminder or calendar entry is a park, not a close: record it as an ordinary continue child. `resolved_elsewhere` means the thing itself happened outside the vault, not that a reminder was set.
+
 ### Dry-run (Preview)
 Classify without writing atoms or markers. Results may open in a card modal; vault stays unchanged.
 
@@ -264,3 +266,4 @@ Content-free is also not the same as harmless: such a call is ungated, so if it 
 - “Linker” remains in some marker HTML comments (`<!--linker-->`) from early naming; product name is **Atoms**.
 - “Processed” means “has a plugin sentinel,” not “became an atom.”
 - Dev “Obsidian MCP” (Local REST) is agent tooling only — not Atoms Ask.
+- “I handled it” after setting a reminder is not `resolved_elsewhere` — that state means the thing itself happened outside the vault.
