@@ -3,7 +3,7 @@
  */
 
 import type { ClassificationResult, ListHubDetail } from "../../shared/types";
-import { isMediaShaped } from "./media";
+import { isMediaShaped, watchlistWork } from "./media";
 import { isJunkLinkReason } from "./linkQuality";
 
 const LIST_SHAPE =
@@ -56,12 +56,13 @@ export function titleMatchesCapture(hay: string, title: string): boolean {
 }
 
 /**
- * When several soft media hubs exist (Movies + Shows), pick by capture cues.
- * Prefer an explicit name hit; else subtype; else Movies as default watch dump.
+ * When several soft media hubs exist (Movies + Shows), pick by named work family.
+ * Prefer an explicit hub-title hit; else movie/show on the extracted work.
  */
 export function pickSoftMediaHub(
   hay: string,
   softHubs: ListHubDetail[],
+  body?: string,
 ): ListHubDetail | null {
   if (!softHubs.length) return null;
 
@@ -71,24 +72,12 @@ export function pickSoftMediaHub(
   if (mentioned.length === 1) return mentioned[0]!;
   if (mentioned.length > 1) return null;
 
-  const showCue = /\b(show|series|anime|season|episode|tv)\b/i.test(hay);
-  const movieCue = /\b(movie|film|cinema)\b/i.test(hay);
-  const ofFamily = (fam: "show" | "movie" | "watch") =>
-    softHubs.filter((h) => mediaHubFamily(h.canonicalTitle) === fam);
-
-  if (showCue && !movieCue) {
-    const shows = ofFamily("show");
-    return shows.length === 1 ? shows[0]! : null;
-  }
-  if (movieCue && !showCue) {
-    const movies = ofFamily("movie");
-    return movies.length === 1 ? movies[0]! : null;
-  }
-  const movies = ofFamily("movie");
-  if (movies.length === 1) return movies[0]!;
-  const watch = ofFamily("watch");
-  if (watch.length === 1) return watch[0]!;
-  return null;
+  const work = watchlistWork(body ?? hay);
+  if (!work?.family) return null;
+  const hits = softHubs.filter(
+    (h) => mediaHubFamily(h.canonicalTitle) === work.family,
+  );
+  return hits.length === 1 ? hits[0]! : null;
 }
 
 /**
@@ -127,7 +116,7 @@ export function enrichListHubLinks(
     const softHubs = listHubs.filter((h) =>
       MEDIA_LIST_HUB_SOFT_TITLES.has(h.canonicalTitle.trim().toLowerCase()),
     );
-    const picked = pickSoftMediaHub(hay, softHubs);
+    const picked = pickSoftMediaHub(hay, softHubs, captureText);
     if (picked) hits.push(picked);
   }
 

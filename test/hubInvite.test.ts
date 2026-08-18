@@ -74,6 +74,28 @@ describe("pickListNamedHub", () => {
       "Movies",
     );
   });
+
+  it("does not invite leftover Dune onto Movies", () => {
+    expect(pickListNamedHub("want to watch Dune", ["Movies"])).toBeNull();
+    expect(
+      pickListNamedHub("want to watch Dune", ["Movie list", "Show list"]),
+    ).toBeNull();
+  });
+
+  it("does not put apricot or Demon Slayer-before-the-movie on Movie list", () => {
+    expect(
+      pickListNamedHub(
+        "Andrew wants some dried apricot for the movie",
+        ["Movie list", "Show list"],
+      ),
+    ).toBeNull();
+    expect(
+      pickListNamedHub(
+        "I need to watch Demon slayer to watch the movie with Christian and Luke",
+        ["Movie list", "Show list"],
+      ),
+    ).not.toBe("Movie list");
+  });
 });
 
 describe("collectHubAssociationInvites", () => {

@@ -9,6 +9,7 @@ import {
 } from "./entityInvite";
 import { suggestEntityHubLabel } from "./enrich/entityLinks";
 import { isListHubShaped, titleMatchesCapture } from "./enrich/listHubs";
+import { watchlistWork } from "./enrich/media";
 import { isJunkLinkReason } from "./enrich/linkQuality";
 import { projectHubMarkdown } from "./hubProjection";
 import { parseHubSections } from "./hubSections";
@@ -51,6 +52,7 @@ export function pairingId(kind: HubAssociationKind, label: string): string {
 export function pickListNamedHub(
   hay: string,
   vaultTitles: string[],
+  body?: string,
 ): string | null {
   const named = vaultTitles
     .map((raw) => ({ raw, trim: raw.trim(), low: raw.trim().toLowerCase() }))
@@ -61,17 +63,10 @@ export function pickListNamedHub(
   if (mentioned.length === 1) return mentioned[0]!.raw;
   if (mentioned.length > 1) return null;
 
-  const showCue = /\b(show|series|anime|season|episode|tv)\b/i.test(hay);
-  const movieCue = /\b(movie|film|cinema)\b/i.test(hay);
-  if (showCue && !movieCue) {
-    const shows = named.filter((e) => listFamily(e.low) === "show");
-    return shows.length === 1 ? shows[0]!.raw : null;
-  }
-  if (movieCue && !showCue) {
-    const movies = named.filter((e) => listFamily(e.low) === "movie");
-    return movies.length === 1 ? movies[0]!.raw : null;
-  }
-  return null;
+  const work = watchlistWork(body ?? hay);
+  if (!work?.family) return null;
+  const hits = named.filter((e) => listFamily(e.low) === work.family);
+  return hits.length === 1 ? hits[0]!.raw : null;
 }
 
 export function hasHardLinkToTitle(content: string, title: string): boolean {
@@ -104,7 +99,7 @@ function collectListPairings(
     const hay = `${body}\n${atom.title}`;
     if (!isListHubShaped(body) && !isListHubShaped(atom.title)) continue;
 
-    const named = pickListNamedHub(hay, vaultTitles);
+    const named = pickListNamedHub(hay, vaultTitles, body);
     const suggested = suggestEntityHubLabel(body) || suggestEntityHubLabel(atom.title);
     const suggestedHit = suggested
       ? vaultTitles.find(
