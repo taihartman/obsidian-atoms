@@ -1291,6 +1291,7 @@ export class AtomsHomeView extends ItemView {
       personHubTitles: [...this.personHubTitles],
       snoozedIds: this.readInviteSnooze(),
       snoozedPersonNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
+      enableHubProjection: this.plugin.settings.enableHubProjection === true,
     });
     this.hubInvite = invites[0] ?? null;
 

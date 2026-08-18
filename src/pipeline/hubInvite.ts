@@ -151,16 +151,21 @@ export function collectHubAssociationInvites(opts: {
   personHubTitles: string[];
   snoozedIds?: Set<string> | string[];
   snoozedPersonNames?: Set<string> | string[];
+  enableHubProjection?: boolean;
 }): HubAssociationCandidate[] {
-  const snoozed = new Set(
-    [...(opts.snoozedIds ?? [])].map((s) => s.trim().toLowerCase()),
-  );
   const people = collectPersonInvites(opts.atoms, {
     personHubTitles: opts.personHubTitles,
     vaultTitles: opts.vaultTitles,
     snoozedNames: opts.snoozedPersonNames,
   }).map(personToAssoc);
 
+  if (opts.enableHubProjection === false) {
+    return people;
+  }
+
+  const snoozed = new Set(
+    [...(opts.snoozedIds ?? [])].map((s) => s.trim().toLowerCase()),
+  );
   const pairings = collectListPairings(opts.atoms, opts.vaultTitles, snoozed);
   const pairingKeys = new Set(pairings.map((p) => p.label.trim().toLowerCase()));
 
