@@ -89,3 +89,115 @@ export function backfillHome(opts: {
   harness.dismiss = () => call("dismissBackfillOffer");
   return harness;
 }
+
+export type HomeOpenFixture =
+  | {
+      kind: "atom";
+      path: string;
+      title: string;
+      body: string;
+      lines: [];
+      alsoAbout: null;
+    }
+  | {
+      kind: "entity-siblings";
+      backPath: string | null;
+      label: string;
+      siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+    }
+  | {
+      kind: "mind-change-pair";
+      thenPath: string;
+      thenBody: string;
+      nowPath: string;
+      nowTitle: string;
+      nowBody: string;
+      relation: "revises";
+      interactionNoted: boolean;
+    };
+
+export interface RenderedHomeHarness {
+  root: HTMLElement;
+  backPaths: string[];
+  setOpen(open: HomeOpenFixture | null): void;
+  render(): void;
+}
+
+/**
+ * Render the real Atoms home view with only the state its DOM pass reads.
+ *
+ * This stays prototype-based like the focused consent and backfill harnesses above: constructing
+ * an ItemView would add workspace lifecycle behavior to a test about render ownership. The real
+ * `AtomsHomeView.render()` and detail Back callbacks still build and redraw the DOM.
+ */
+export function renderedHomeView(): RenderedHomeHarness {
+  const root = document.createElement("div");
+  const backPaths: string[] = [];
+  const view = Object.create(AtomsHomeView.prototype) as Record<string, unknown>;
+
+  Object.assign(view, {
+    app: {
+      loadLocalStorage: () => null,
+      saveLocalStorage: () => {},
+    },
+    plugin: {
+      settings: {
+        atomFolder: "Atoms",
+        captureShortcutInstallUrl: "",
+        enableHubProjection: false,
+      },
+      getAutoRunSnapshot: () => ({
+        enabled: false,
+        egressAcked: false,
+        hasKey: false,
+        inFlight: false,
+      }),
+      getBacklogGatePending: () => 0,
+      getLastCatchupLine: () => null,
+      isEgressNoticePending: () => false,
+      resolveFilingAuth: () => ({ mode: "none" }),
+    },
+    rootEl: root,
+    homeOpen: null,
+    entries: [],
+    skippedEntries: [],
+    unprocessedCount: 0,
+    windowUnprocessedCount: 0,
+    todayUnprocessedCount: 0,
+    dailyNotesLoaded: true,
+    runPhase: "idle",
+    runSummaryText: "",
+    inboxStuck: null,
+    landPeak: null,
+    eligibleUpdateCount: 0,
+    libraryPressDetach: [],
+    shortcutAcked: null,
+    filter: "all",
+    busy: false,
+  });
+
+  const render = () => {
+    (view.render as () => void).call(view);
+  };
+  view.openAtomInHome = async (path: string) => {
+    backPaths.push(path);
+    view.homeOpen = {
+      kind: "atom",
+      path,
+      title: "Origin atom",
+      body: "Origin body",
+      lines: [],
+      alsoAbout: null,
+    } satisfies HomeOpenFixture;
+    render();
+  };
+
+  return {
+    root,
+    backPaths,
+    setOpen: (open) => {
+      view.homeOpen = open;
+    },
+    render,
+  };
+}

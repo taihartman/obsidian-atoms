@@ -2033,12 +2033,6 @@ export class AtomsHomeView extends ItemView {
     if (!root) return;
     root.empty();
 
-    if (this.homeOpen) {
-      const scroll = root.createDiv({ cls: "atoms-home-scroll" });
-      this.renderHomeOpen(scroll);
-      return;
-    }
-
     const firstDay = this.isFirstDay();
     const firstDayCopy = firstDay
       ? firstDaySetupCopy(this.dailyNotesLoaded)
@@ -2103,6 +2097,11 @@ export class AtomsHomeView extends ItemView {
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+
+    if (this.homeOpen) {
+      this.renderHomeOpen(scroll);
+      return;
+    }
 
     // Settings → Atoms is not a surface a phone user opens routinely, so a
     // Settings-only refusal is indistinguishable from silence (U1).
