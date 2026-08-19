@@ -39,10 +39,15 @@ const pairDetail: HomeOpenFixture = {
 };
 
 function expectSharedShell(home: RenderedHomeHarness): void {
+  const header = home.root.querySelector(".atoms-home-header");
+  const scroll = home.root.querySelector(".atoms-home-scroll");
+
   expect({
     headers: home.root.querySelectorAll(".atoms-home-header").length,
     scrolls: home.root.querySelectorAll(".atoms-home-scroll").length,
     title: home.root.querySelector(".atoms-home-title")?.textContent ?? null,
+    subtitles: home.root.querySelectorAll(".atoms-home-subtitle").length,
+    subtitle: home.root.querySelector(".atoms-home-subtitle")?.textContent ?? null,
     moreControls: home.root.querySelectorAll('[aria-label="More"]').length,
     todayControls: home.root.querySelectorAll('[aria-label="Open today\'s note"]').length,
     settingsControls: home.root.querySelectorAll('[aria-label="Settings"]').length,
@@ -50,10 +55,16 @@ function expectSharedShell(home: RenderedHomeHarness): void {
     headers: 1,
     scrolls: 1,
     title: "Atoms",
+    subtitles: 1,
+    subtitle: "Capture starts in your daily note",
     moreControls: 1,
     todayControls: 1,
     settingsControls: 1,
   });
+  expect(header?.parentElement).toBe(home.root);
+  expect(scroll?.parentElement).toBe(home.root);
+  expect(header?.nextElementSibling).toBe(scroll);
+  expect(scroll?.querySelector(".atoms-home-header")).toBeNull();
 }
 
 function pressBack(home: RenderedHomeHarness): void {
@@ -78,14 +89,14 @@ describe("AtomsHomeView shared header shell", () => {
     ["entity siblings", entityDetail(null), ".atoms-home-open-title", "Entity siblings"],
     ["mind-change pair", pairDetail, ".atoms-home-pair-title", "Mind-change detail"],
   ] as const)(
-    "keeps the shared shell and active %s detail across repeated renders",
-    (_name, detail, detailSelector, detailText) => {
+    "keeps the shared shell and active %s detail across repeated refreshes",
+    async (_name, detail, detailSelector, detailText) => {
       const home = renderedHomeView();
       home.setOpen(detail);
 
-      home.render();
-      home.render();
-      home.render();
+      await home.refresh();
+      await home.refresh();
+      await home.refresh();
 
       expectSharedShell(home);
       expect(home.root.querySelector(detailSelector)?.textContent).toBe(detailText);
@@ -110,14 +121,14 @@ describe("AtomsHomeView shared header shell", () => {
 
   it("returns nested entity siblings to its originating atom", () => {
     const home = renderedHomeView();
-    home.setOpen(entityDetail("Atoms/Origin.md"));
+    home.setOpen(entityDetail("Atoms/Origin atom.md"));
     home.render();
 
     pressBack(home);
 
-    expect(home.backPaths).toEqual(["Atoms/Origin.md"]);
     expectSharedShell(home);
     expect(home.root.querySelector(".atoms-home-open-title")?.textContent).toBe("Origin atom");
+    expect(home.root.querySelector(".atoms-home-open-body")?.textContent).toBe("Origin body");
     expect(home.root.querySelectorAll(".atoms-home-back")).toHaveLength(1);
   });
 });

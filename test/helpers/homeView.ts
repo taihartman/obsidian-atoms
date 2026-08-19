@@ -118,21 +118,29 @@ export type HomeOpenFixture =
 
 export interface RenderedHomeHarness {
   root: HTMLElement;
-  backPaths: string[];
   setOpen(open: HomeOpenFixture | null): void;
   render(): void;
+  refresh(): Promise<void>;
 }
 
 /**
  * Render the real Atoms home view with only the state its DOM pass reads.
  *
- * This stays prototype-based like the focused consent and backfill harnesses above: constructing
- * an ItemView would add workspace lifecycle behavior to a test about render ownership. The real
- * `AtomsHomeView.render()` and detail Back callbacks still build and redraw the DOM.
+ * Unlike the focused prototype-based consent and backfill harnesses above, this constructs a real
+ * `AtomsHomeView`. The production `render()`, `refresh()`, atom loader, and detail Back callbacks
+ * still build and redraw the DOM; only `loadData()` is replaced so refresh remains read-only.
  */
 export function renderedHomeView(): RenderedHomeHarness {
   const root = document.createElement("div");
-  const backPaths: string[] = [];
+  const originPath = "Atoms/Origin atom.md";
+  const originContent = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+tags: []
+---
+Origin body
+`;
   const plugin = {
     settings: {
       atomFolder: "Atoms",
@@ -159,32 +167,34 @@ export function renderedHomeView(): RenderedHomeHarness {
     app: {
       loadLocalStorage: () => null,
       saveLocalStorage: () => {},
+      vault: {
+        getMarkdownFiles: () => [],
+      },
     },
+    atomFileInputs: [
+      {
+        path: originPath,
+        content: originContent,
+        mtime: 0,
+      },
+    ],
     rootEl: root,
   });
 
   const render = () => {
     (view.render as () => void).call(view);
   };
-  view.openAtomInHome = async (path: string) => {
-    backPaths.push(path);
-    view.homeOpen = {
-      kind: "atom",
-      path,
-      title: "Origin atom",
-      body: "Origin body",
-      lines: [],
-      alsoAbout: null,
-    } satisfies HomeOpenFixture;
-    render();
+  view.loadData = async () => {};
+  const refresh = async () => {
+    await (view.refresh as () => Promise<void>).call(view);
   };
 
   return {
     root,
-    backPaths,
     setOpen: (open) => {
       view.homeOpen = open;
     },
     render,
+    refresh,
   };
 }
