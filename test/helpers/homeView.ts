@@ -133,47 +133,34 @@ export interface RenderedHomeHarness {
 export function renderedHomeView(): RenderedHomeHarness {
   const root = document.createElement("div");
   const backPaths: string[] = [];
-  const view = Object.create(AtomsHomeView.prototype) as Record<string, unknown>;
+  const plugin = {
+    settings: {
+      atomFolder: "Atoms",
+      captureShortcutInstallUrl: "",
+      enableHubProjection: false,
+    },
+    getAutoRunSnapshot: () => ({
+      enabled: false,
+      egressAcked: false,
+      hasKey: false,
+      inFlight: false,
+    }),
+    getBacklogGatePending: () => 0,
+    getLastCatchupLine: () => null,
+    isEgressNoticePending: () => false,
+    resolveFilingAuth: () => ({ mode: "none" }),
+  };
+  const view = new AtomsHomeView(
+    undefined as never,
+    plugin as never,
+  ) as unknown as Record<string, unknown>;
 
   Object.assign(view, {
     app: {
       loadLocalStorage: () => null,
       saveLocalStorage: () => {},
     },
-    plugin: {
-      settings: {
-        atomFolder: "Atoms",
-        captureShortcutInstallUrl: "",
-        enableHubProjection: false,
-      },
-      getAutoRunSnapshot: () => ({
-        enabled: false,
-        egressAcked: false,
-        hasKey: false,
-        inFlight: false,
-      }),
-      getBacklogGatePending: () => 0,
-      getLastCatchupLine: () => null,
-      isEgressNoticePending: () => false,
-      resolveFilingAuth: () => ({ mode: "none" }),
-    },
     rootEl: root,
-    homeOpen: null,
-    entries: [],
-    skippedEntries: [],
-    unprocessedCount: 0,
-    windowUnprocessedCount: 0,
-    todayUnprocessedCount: 0,
-    dailyNotesLoaded: true,
-    runPhase: "idle",
-    runSummaryText: "",
-    inboxStuck: null,
-    landPeak: null,
-    eligibleUpdateCount: 0,
-    libraryPressDetach: [],
-    shortcutAcked: null,
-    filter: "all",
-    busy: false,
   });
 
   const render = () => {
