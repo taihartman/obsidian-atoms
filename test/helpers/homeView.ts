@@ -89,3 +89,112 @@ export function backfillHome(opts: {
   harness.dismiss = () => call("dismissBackfillOffer");
   return harness;
 }
+
+export type HomeOpenFixture =
+  | {
+      kind: "atom";
+      path: string;
+      title: string;
+      body: string;
+      lines: [];
+      alsoAbout: null;
+    }
+  | {
+      kind: "entity-siblings";
+      backPath: string | null;
+      label: string;
+      siblings: Array<{ path: string; title: string; sourceDate: string | null }>;
+    }
+  | {
+      kind: "mind-change-pair";
+      thenPath: string;
+      thenBody: string;
+      nowPath: string;
+      nowTitle: string;
+      nowBody: string;
+      relation: "revises";
+      interactionNoted: boolean;
+    };
+
+export interface RenderedHomeHarness {
+  root: HTMLElement;
+  setOpen(open: HomeOpenFixture | null): void;
+  render(): void;
+  refresh(): Promise<void>;
+}
+
+/**
+ * Render the real Atoms home view with only the state its DOM pass reads.
+ *
+ * Unlike the focused prototype-based consent and backfill harnesses above, this constructs a real
+ * `AtomsHomeView`. The production `render()`, `refresh()`, atom loader, and detail Back callbacks
+ * still build and redraw the DOM; only `loadData()` is replaced so refresh remains read-only.
+ */
+export function renderedHomeView(): RenderedHomeHarness {
+  const root = document.createElement("div");
+  const originPath = "Atoms/Origin atom.md";
+  const originContent = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+tags: []
+---
+Origin body
+`;
+  const plugin = {
+    settings: {
+      atomFolder: "Atoms",
+      captureShortcutInstallUrl: "",
+      enableHubProjection: false,
+    },
+    getAutoRunSnapshot: () => ({
+      enabled: false,
+      egressAcked: false,
+      hasKey: false,
+      inFlight: false,
+    }),
+    getBacklogGatePending: () => 0,
+    getLastCatchupLine: () => null,
+    isEgressNoticePending: () => false,
+    resolveFilingAuth: () => ({ mode: "none" }),
+  };
+  const view = new AtomsHomeView(
+    undefined as never,
+    plugin as never,
+  ) as unknown as Record<string, unknown>;
+
+  Object.assign(view, {
+    app: {
+      loadLocalStorage: () => null,
+      saveLocalStorage: () => {},
+      vault: {
+        getMarkdownFiles: () => [],
+      },
+    },
+    atomFileInputs: [
+      {
+        path: originPath,
+        content: originContent,
+        mtime: 0,
+      },
+    ],
+    rootEl: root,
+  });
+
+  const render = () => {
+    (view.render as () => void).call(view);
+  };
+  view.loadData = async () => {};
+  const refresh = async () => {
+    await (view.refresh as () => Promise<void>).call(view);
+  };
+
+  return {
+    root,
+    setOpen: (open) => {
+      view.homeOpen = open;
+    },
+    render,
+    refresh,
+  };
+}

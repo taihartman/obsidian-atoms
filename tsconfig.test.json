@@ -27,6 +27,7 @@
 	"extends": "./tsconfig.json",
 	"include": [
 		"src/**/*.ts",
+		"test/atomsHomeView.test.ts",
 		"test/askMirror.test.ts",
 		"test/askMirrorGate.adversarial.test.ts",
 		"test/catchUp.test.ts",
@@ -35,6 +36,7 @@
 		"test/plusSessionInstall.test.ts",
 		"test/settings.test.ts",
 		"test/settingsRows.test.ts",
+		"test/helpers/homeView.ts",
 		"test/helpers/settingsTab.ts",
 		"test/mocks/obsidian.ts",
 		"test/mocks/domAugmentations.ts",
