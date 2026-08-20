@@ -38,3 +38,4 @@ Process treated title collision as success: append `↳ [[existing title]]` unde
 
 - `docs/qa/2026-07-16-process-marker-integrity-investigation.md`
 - Issue #66 / PR #67
+- `docs/solutions/logic-errors/paraphrased-context-title-is-still-foreign.md` — paraphrase of a neighbour, not exact path

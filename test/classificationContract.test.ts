@@ -70,6 +70,7 @@ describe("enrich stage order (named lists)", () => {
       "enrichEntityLinks",
       "improveClassificationLinks",
       "stripSelfReferentialLinks",
+      "repairBorrowedTitle",
       "repairHubSection",
     ]);
     expect([...CLASSIFY_OFFLINE_QUALITY_ORDER]).toEqual([
@@ -82,6 +83,7 @@ describe("enrich stage order (named lists)", () => {
       "enrichEntityLinks",
       "improveClassificationLinks",
       "stripSelfReferentialLinks",
+      "repairBorrowedTitle",
       "repairHubSection",
     ]);
     // Live rescues before people normalize; offline normalizes first.
