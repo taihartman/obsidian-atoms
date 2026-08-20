@@ -30,10 +30,7 @@ import {
   stripSelfReferentialLinks,
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
-import {
-  neighbourTitlesForBorrowCheck,
-  repairBorrowedTitle,
-} from "./enrich/titleCoherence";
+import { repairBorrowedTitle } from "./enrich/titleCoherence";
 import { filterTagsToActive } from "./vocabulary";
 import {
   buildContextPrefixBlock,
@@ -1029,10 +1026,8 @@ export async function classifyCapture(
   result = repairBorrowedTitle(
     capture,
     result,
-    neighbourTitlesForBorrowCheck(
-      context.titles,
-      context.continueParent?.title,
-    ),
+    context.titles ?? [],
+    context.continueParent?.title,
   );
   // Placement after links exist: fill hub_section when unambiguous.
   result = repairHubSection(capture, result, context);
@@ -1048,12 +1043,17 @@ export async function classifyCapture(
 /**
  * Shared post-classify quality pass for fixture / offline paths
  * (write fixtures, backfill) — mirrors classifyCapture enrich chain.
+ * Continue-parent forwarding is optional: live classifyCapture always has
+ * `context.continueParent`; backfill/refresh usually do not. Fixture Process
+ * must pass `ctx.continueParent?.title` so a parent missing from the shortlist
+ * is still a borrow neighbour (same as the live 4th argument).
  */
 export function applyClassificationQuality(
   capture: string,
   result: ClassificationResult,
   opts: {
     titles?: string[];
+    continueParentTitle?: string | null;
     personHubs?: PersonHub[];
     personHubTitles?: string[];
     personHubDetails?: VaultContext["personHubDetails"];
@@ -1078,11 +1078,7 @@ export function applyClassificationQuality(
   r = enrichEntityLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
-  r = repairBorrowedTitle(
-    capture,
-    r,
-    neighbourTitlesForBorrowCheck(titles),
-  );
+  r = repairBorrowedTitle(capture, r, titles, opts.continueParentTitle);
   const details = opts.personHubDetails;
   const listDetails = opts.listHubDetails;
   if (details?.length || listDetails?.length) {

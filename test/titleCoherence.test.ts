@@ -7,8 +7,9 @@ import {
   isTitleBorrowedFromContext,
   neighbourTitlesForBorrowCheck,
   repairBorrowedTitle,
+  titleNeighbourCoverage,
 } from "../src/pipeline/enrich/titleCoherence";
-import { tokens } from "../src/pipeline/shortlist";
+import { markerLineForDecision } from "../src/pipeline/render";
 import type { ClassificationResult } from "../src/shared/types";
 
 const IPHONE = "Liv just got an iPhone 17 Pro";
@@ -27,20 +28,12 @@ function atom(title: string): ClassificationResult {
   };
 }
 
-function coverageAgainst(title: string, neighbour: string): number {
-  const t = new Set(tokens(title));
-  const n = new Set(tokens(neighbour));
-  let shared = 0;
-  for (const x of t) if (n.has(x)) shared += 1;
-  return t.size === 0 ? 0 : shared / t.size;
-}
-
 describe("borrowed-title coverage band", () => {
   it("sits above a weak topical pair and at or below the iPhone/farmers paraphrase", () => {
     const sleepTitle = "Sleep debt doesn't accumulate linearly";
     const sleepNeighbour = "Sleep debt compounds overnight";
-    const farmersCoverage = coverageAgainst(BORROWED_TITLE, FARMERS_TITLE);
-    const sleepCoverage = coverageAgainst(sleepTitle, sleepNeighbour);
+    const farmersCoverage = titleNeighbourCoverage(BORROWED_TITLE, FARMERS_TITLE);
+    const sleepCoverage = titleNeighbourCoverage(sleepTitle, sleepNeighbour);
     expect(farmersCoverage).toBeGreaterThan(sleepCoverage);
     expect(TITLE_CONTEXT_COVERAGE).toBeGreaterThan(sleepCoverage);
     expect(TITLE_CONTEXT_COVERAGE).toBeLessThanOrEqual(farmersCoverage);
@@ -103,8 +96,24 @@ describe("repairBorrowedTitle", () => {
   it("sees a continue parent that is not already in the shortlist", () => {
     const neighbours = neighbourTitlesForBorrowCheck([], FARMERS_TITLE);
     expect(neighbours).toEqual([FARMERS_TITLE]);
-    const out = repairBorrowedTitle(IPHONE, atom(BORROWED_TITLE), neighbours);
+    const out = repairBorrowedTitle(IPHONE, atom(BORROWED_TITLE), [], FARMERS_TITLE);
     expect(out.title).toBe(shortTitleFromCapture(IPHONE));
+  });
+
+  it("does not duplicate a continue parent already in the shortlist", () => {
+    const titles = [FARMERS_TITLE];
+    expect(neighbourTitlesForBorrowCheck(titles, FARMERS_TITLE)).toBe(titles);
+  });
+
+  it("leaves a task verdict untouched", () => {
+    const task: ClassificationResult = {
+      verdict: "task",
+      title: BORROWED_TITLE,
+      tags: [],
+      proposed_tags: [],
+      links: [],
+    };
+    expect(repairBorrowedTitle(IPHONE, task, [FARMERS_TITLE])).toBe(task);
   });
 });
 
@@ -115,6 +124,18 @@ describe("applyClassificationQuality includes borrowed-title repair", () => {
       atom(BORROWED_TITLE),
       { titles: [FARMERS_TITLE] },
     );
+    expect(out.title).toBe(shortTitleFromCapture(IPHONE));
+    expect(markerLineForDecision("atom", out.title ?? "")).toBe(
+      `\t↳ [[${out.title}]] <!--linker-->`,
+    );
+    expect(markerLineForDecision("atom", out.title ?? "")).not.toMatch(/farmers/i);
+  });
+
+  it("rewrites when the only neighbour is a continue parent missing from titles", () => {
+    const out = applyClassificationQuality(IPHONE, atom(BORROWED_TITLE), {
+      titles: [],
+      continueParentTitle: FARMERS_TITLE,
+    });
     expect(out.title).toBe(shortTitleFromCapture(IPHONE));
   });
 });

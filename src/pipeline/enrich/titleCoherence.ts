@@ -6,6 +6,7 @@
 import type { ClassificationResult } from "../../shared/types";
 import { tokens } from "../shortlist";
 import { shortTitleFromCapture } from "./ideaRescue";
+import { titlesMatch } from "./linkQuality";
 
 /**
  * Share this fraction of the proposed title's tokens with a context title
@@ -29,6 +30,13 @@ function sharedCount(a: Set<string>, b: Set<string>): number {
   return n;
 }
 
+/** Stemmed-token coverage of `title` by `neighbour` (production borrow math). */
+export function titleNeighbourCoverage(title: string, neighbour: string): number {
+  const titleToks = tokenSet(title);
+  if (titleToks.size === 0) return 0;
+  return sharedCount(titleToks, tokenSet(neighbour)) / titleToks.size;
+}
+
 /**
  * True when the proposed title is grounded in a context Note title, not in this capture.
  *
@@ -41,7 +49,9 @@ export function isTitleBorrowedFromContext(
   noteTitles: readonly string[],
 ): boolean {
   const titleToks = tokenSet(title);
-  if (titleToks.size === 0 || noteTitles.length === 0) return false;
+  if (titleToks.size < TITLE_CONTEXT_MIN_SHARED || noteTitles.length === 0) {
+    return false;
+  }
   const captureToks = tokenSet(captureText);
   if (sharedCount(titleToks, captureToks) > 0) return false;
 
@@ -50,7 +60,7 @@ export function isTitleBorrowedFromContext(
     if (!n) continue;
     const shared = sharedCount(titleToks, tokenSet(n));
     if (shared < TITLE_CONTEXT_MIN_SHARED) continue;
-    if (shared / titleToks.size >= TITLE_CONTEXT_COVERAGE) return true;
+    if (titleNeighbourCoverage(title, n) >= TITLE_CONTEXT_COVERAGE) return true;
   }
   return false;
 }
@@ -64,13 +74,18 @@ export function repairBorrowedTitle(
   captureText: string,
   result: ClassificationResult,
   noteTitles: readonly string[] = [],
+  continueParentTitle?: string | null,
 ): ClassificationResult {
   if (result.verdict !== "atom") return result;
   const title = (result.title ?? "").trim();
   if (!title) return result;
-  if (!isTitleBorrowedFromContext(title, captureText, noteTitles)) return result;
+  const neighbours = neighbourTitlesForBorrowCheck(
+    noteTitles,
+    continueParentTitle,
+  );
+  if (!isTitleBorrowedFromContext(title, captureText, neighbours)) return result;
   const next = shortTitleFromCapture(captureText).trim();
-  if (!next || next.toLowerCase() === title.toLowerCase()) return result;
+  if (!next || titlesMatch(next, title)) return result;
   return { ...result, title: next };
 }
 
@@ -78,11 +93,9 @@ export function repairBorrowedTitle(
 export function neighbourTitlesForBorrowCheck(
   titles: readonly string[] | undefined,
   continueParentTitle?: string | null,
-): string[] {
-  const out = [...(titles ?? [])];
+): readonly string[] {
   const parent = continueParentTitle?.trim();
-  if (parent && !out.some((t) => t.trim().toLowerCase() === parent.toLowerCase())) {
-    out.push(parent);
-  }
-  return out;
+  if (!parent) return titles ?? [];
+  if (titles?.some((t) => titlesMatch(t, parent))) return titles;
+  return [...(titles ?? []), parent];
 }
