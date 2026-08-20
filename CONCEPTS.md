@@ -92,6 +92,9 @@ A capture that is keepable list/media/preference material (e.g. show or movie to
 ### Resurfacing (stream)
 Zero-guilt home card that re-shows filed atoms for rehearsal (retrieval practice). Cue priority: **on-this-day** (calendar) → **connected** (shared links with recent atoms) → **quiet** (older / less touched). Open / Next; soft throttle; never a review queue.
 
+### Together news
+Calm Home card when an **accepted hub** gained a hard-linked member the user has not been told about. Names the new atom and the hub. Open goes to the hub note. Open and **Not now** both consume that join. Not a directory of the sibling set, and not a standing card merely because an orbit exists. Person hubs are in scope. First-time missing hubs stay **hub association invite**. Catalog of members lives in the **managed hub block**. Plan: `docs/plans/2026-08-20-1043-feat-together-news-hub-catalog-plan.md`.
+
 ### Soft throttle
 Device-local “already shown recently” map so the same atom is not re-picked for several days after Open or Next.
 
