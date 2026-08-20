@@ -562,6 +562,7 @@ function h2FromCache(
 
 /**
  * Titles of list-shaped vault notes (basename) via metadata cache — no body read.
+ * Named list hubs (Show list / Movie list / Watch list) qualify with no H2.
  */
 export function collectListHubTitles(app: App): string[] {
   const out: string[] = [];

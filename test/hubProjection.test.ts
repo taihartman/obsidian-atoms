@@ -73,6 +73,23 @@ describe("projectHubMarkdown", () => {
     expect(r.content).toContain(GENERATED_CLOSE);
   });
 
+  it("lands members in the generated block and leaves person-hub prose outside delimiters", () => {
+    const hub = "# Nichita\n\nHandwritten intro.\n\n## Gift Ideas\n\nA note I wrote.\n";
+    const r = projectHubMarkdown(
+      hub,
+      [{ title: "Wants a PC case", section: "Gift Ideas" }],
+      ["Gift Ideas"],
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const open = r.content.indexOf(GENERATED_OPEN);
+    const close = r.content.indexOf(GENERATED_CLOSE);
+    expect(r.content.slice(0, open)).toContain("Handwritten intro.");
+    expect(r.content.slice(0, open)).toContain("A note I wrote.");
+    expect(r.content.slice(open, close)).toContain("- [[Wants a PC case]]");
+    expect(r.content.slice(close)).not.toContain("Handwritten intro.");
+  });
+
   it("preserves prose above and below existing block", () => {
     const above = "# N\n\nHuman above.\n\n";
     const below = "\nHuman below stays.\n";

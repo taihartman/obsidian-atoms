@@ -61,6 +61,16 @@ import {
 } from "../pipeline/hubInvite";
 import { runHubProjectionForHubs } from "../pipeline/runHubProjection";
 import {
+  collectAcceptedHubs,
+  consumeTogetherNews,
+  localToldStore,
+  pickTogetherNews,
+  stampToldJoins,
+  togetherNewsCopy,
+  type TogetherNewsCard,
+} from "../pipeline/togetherNews";
+import { readFirstFillDone } from "../pipeline/firstCatalogFill";
+import {
   applyHardLinkToAtomContent,
   applyPersonPeerLinksToContents,
   formatPersonNoteMarkdown,
@@ -325,17 +335,17 @@ export class AtomsHomeView extends ItemView {
     | null = null;
   /** Cached person hub titles for Also about exclusivity. */
   private personHubTitles: string[] = [];
+  private personHubs: Array<{ title: string; path: string }> = [];
   /** Pending hub association invite (person or list). */
   private hubInvite: HubAssociationCandidate | null = null;
   private hubInviteBusy = false;
-  /** Surfaceable Together orbit for calm home card. */
-  private togetherCard: {
-    label: string;
-    memberCount: number;
-    peekTitles: string[];
-    /** Full orbit members for Open → title list. */
-    members: Array<{ path: string; title: string; sourceDate: string | null }>;
-  } | null = null;
+  /** Unseen-join Together news. Null after Open/Not now until the next Home open. */
+  private togetherNews: TogetherNewsCard | null = null;
+  private togetherNewsHeldThisVisit = false;
+  /** First catalog fill runs once per Home open, on calm Home only. */
+  private firstFillArmed = false;
+  private firstFillInFlight = false;
+  private firstFillTimer: number | null = null;
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -367,6 +377,8 @@ export class AtomsHomeView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.firstFillArmed = true;
+    this.togetherNewsHeldThisVisit = false;
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass("atoms-home");
@@ -390,6 +402,10 @@ export class AtomsHomeView extends ItemView {
     if (this.refreshTimer != null) {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
+    }
+    if (this.firstFillTimer != null) {
+      window.clearTimeout(this.firstFillTimer);
+      this.firstFillTimer = null;
     }
     // The filing card can pose a consent sheet, and a sheet with no view behind it is still
     // clickable — accepting one armed unattended sends from a screen the user had already closed.
@@ -726,9 +742,11 @@ export class AtomsHomeView extends ItemView {
         path: f.path,
         cache: this.app.metadataCache.getFileCache(f),
       }));
-    this.personHubTitles = discoverPersonHubs(hubFiles).map(
-      (h) => h.canonicalTitle,
-    );
+    this.personHubs = discoverPersonHubs(hubFiles).map((h) => ({
+      title: h.canonicalTitle,
+      path: h.path,
+    }));
+    this.personHubTitles = this.personHubs.map((h) => h.title);
     this.refreshEntitySurfaces();
     const work = countUpdateWorkRemaining(
       inputs.map((i) => ({
@@ -1295,27 +1313,52 @@ export class AtomsHomeView extends ItemView {
     });
     this.hubInvite = invites[0] ?? null;
 
-    // Together card: any surfaceable orbit (hub already exists)
-    this.togetherCard = null;
-    if (!this.hubInvite) {
-      const orbits = buildOrbits(atoms, {
-        vaultTitles,
-        personHubTitles: this.personHubTitles,
+    if (this.togetherNewsHeldThisVisit) {
+      this.togetherNews = null;
+      return;
+    }
+    this.togetherNews = pickTogetherNews({
+      listingOn: this.plugin.settings.enableHubProjection === true,
+      atoms,
+      acceptedHubs: collectAcceptedHubs({
+        files: files.map((f) => ({ path: f.path, basename: f.basename })),
+        personHubs: this.personHubs,
+      }),
+      told: localToldStore(this.app),
+      excludedHubTitles: this.togetherNewsExcludedHubs(),
+    });
+  }
+
+  private togetherNewsExcludedHubs(): string[] {
+    const out: string[] = [];
+    if (this.hubInvite) out.push(this.hubInvite.label);
+    for (const id of this.readInviteSnooze()) {
+      const i = id.indexOf(":");
+      out.push(i >= 0 ? id.slice(i + 1) : id);
+    }
+    for (const name of this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE)) {
+      out.push(name);
+    }
+    return out;
+  }
+
+  private stampTogetherNewsInvite(hubTitle: string, memberPaths: string[]): void {
+    stampToldJoins(localToldStore(this.app), hubTitle, memberPaths);
+  }
+
+  private async runFirstCatalogFill(): Promise<void> {
+    if (this.firstFillInFlight) return;
+    if (readFirstFillDone((k) => this.app.loadLocalStorage(k))) return;
+    this.firstFillInFlight = true;
+    try {
+      const { atoms, acceptedHubs } = this.togetherNewsInputs();
+      const changed = await this.plugin.offerFirstCatalogFill({
+        atoms,
+        acceptedHubs,
       });
-      for (const a of atoms) {
-        const primary = pickPrimaryOrbit(a.path, orbits, {
-          personHubTitles: this.personHubTitles,
-        });
-        if (!primary) continue;
-        const members = sortSiblingRows(primary.orbit.members);
-        this.togetherCard = {
-          label: primary.orbit.label,
-          memberCount: members.length,
-          peekTitles: members.slice(0, 3).map((m) => m.title),
-          members,
-        };
-        break;
-      }
+      if (changed) await this.refresh();
+    } finally {
+      this.firstFillInFlight = false;
     }
   }
 
@@ -1449,6 +1492,7 @@ export class AtomsHomeView extends ItemView {
         if (next !== fresh) await this.app.vault.modify(file, next);
       }
       this.hubInvite = null;
+      this.stampTogetherNewsInvite(linkName, inv.memberPaths);
       new Notice(`Atoms: added to ${linkName}`);
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
@@ -1502,6 +1546,7 @@ export class AtomsHomeView extends ItemView {
         }
       }
       this.hubInvite = null;
+      this.stampTogetherNewsInvite(linkName, [...paths]);
       new Notice(`Atoms: linked to ${linkName}`);
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
@@ -1570,6 +1615,7 @@ export class AtomsHomeView extends ItemView {
         created ? `Atoms: added ${name}` : `Atoms: linked to ${name}`,
       );
       this.hubInvite = null;
+      this.stampTogetherNewsInvite(name, [...paths]);
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
       this.render();
@@ -1632,45 +1678,80 @@ export class AtomsHomeView extends ItemView {
   }
 
   private renderTogetherCard(scroll: HTMLElement): void {
-    const t = this.togetherCard;
+    const t = this.togetherNews;
     if (!t) return;
+    const copy = togetherNewsCopy({
+      newestTitle: t.newestTitle,
+      hubTitle: t.hubTitle,
+    });
     const card = flatCard(scroll, { className: "atoms-home-together-card" });
     card.createEl("p", {
       cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
-      text: "Together",
+      text: copy.kicker,
     });
-    card.createEl("h2", { text: t.label });
-    card.createEl("p", {
-      text: `${t.memberCount} notes. Open to see them all.`,
-    });
-    if (t.peekTitles.length) {
-      const peek = card.createEl("ul", { cls: "atoms-home-entity-invite-peek" });
-      for (const title of t.peekTitles) {
-        peek.createEl("li", { text: title });
-      }
-    }
+    card.createEl("h2", { text: copy.title });
+    card.createEl("p", { text: copy.supporting });
     const actions = actionRow(card);
     button(actions, {
       grade: "primary",
-      label: "Open",
-      onClick: () => {
-        this.homeOpen = {
-          kind: "entity-siblings",
-          backPath: null,
-          label: t.label,
-          siblings: t.members,
-        };
-        this.render();
-      },
+      label: copy.openLabel,
+      onClick: () => void this.onTogetherNewsOpen(t),
     });
     button(actions, {
       grade: "secondary",
-      label: "Not now",
-      onClick: () => {
-        this.togetherCard = null;
-        this.render();
-      },
+      label: copy.notNowLabel,
+      onClick: () => this.onTogetherNewsNotNow(t),
     });
+  }
+
+  private togetherNewsInputs(): {
+    atoms: Array<{
+      path: string;
+      title: string;
+      content: string;
+      sourceDate: string | null;
+    }>;
+    acceptedHubs: ReturnType<typeof collectAcceptedHubs>;
+  } {
+    const files = this.app.vault.getMarkdownFiles();
+    const atoms = this.atomFileInputs
+      .filter((f) => isGeneratedAtomContent(f.content))
+      .map((f) => ({
+        path: f.path,
+        title: titleFromAtomPath(f.path),
+        content: f.content,
+        sourceDate: extractSourceDay(f.content),
+      }));
+    return {
+      atoms,
+      acceptedHubs: collectAcceptedHubs({
+        files: files.map((f) => ({ path: f.path, basename: f.basename })),
+        personHubs: this.personHubs,
+      }),
+    };
+  }
+
+  private consumeTogetherNewsCard(hubTitle: string): void {
+    const { atoms, acceptedHubs } = this.togetherNewsInputs();
+    consumeTogetherNews({
+      hubTitle,
+      atoms,
+      acceptedHubs,
+      told: localToldStore(this.app),
+    });
+    this.togetherNewsHeldThisVisit = true;
+    this.togetherNews = null;
+  }
+
+  private async onTogetherNewsOpen(card: TogetherNewsCard): Promise<void> {
+    this.consumeTogetherNewsCard(card.hubTitle);
+    await this.openPathInVault(card.hubPath);
+    this.render();
+  }
+
+  private onTogetherNewsNotNow(card: TogetherNewsCard): void {
+    this.consumeTogetherNewsCard(card.hubTitle);
+    this.render();
   }
 
   private buildAlsoAboutForPath(path: string): {
@@ -2281,10 +2362,17 @@ export class AtomsHomeView extends ItemView {
     ) {
       if (this.hubInvite) {
         this.renderHubInviteCard(scroll);
-      } else if (this.togetherCard) {
+      } else if (this.togetherNews) {
         this.renderTogetherCard(scroll);
       } else {
         this.renderResurfaceCard(scroll);
+      }
+      if (this.firstFillArmed && !this.hubInvite) {
+        this.firstFillArmed = false;
+        this.firstFillTimer = window.setTimeout(() => {
+          this.firstFillTimer = null;
+          void this.runFirstCatalogFill();
+        }, 0);
       }
     }
 

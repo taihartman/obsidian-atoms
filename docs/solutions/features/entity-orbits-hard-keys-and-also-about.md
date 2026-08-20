@@ -16,12 +16,12 @@ Sporadic captures (packing items, project crumbs) file as separate atoms. Soft l
 1. **Piggyback classify** with `enrichEntityLinks` — exact vault title match only (no contains-resolve).
 2. **Shared soft denylist** (`softKeys.ts`) for orbits and connected resurface.
 3. **Derived orbit index** from **link-prose** wikilinks (not capture body).
-4. **Pull UI:** **Also about {T} · N** when ≥3 members on a real hub title (in-home via Together → siblings). Library row opens the **vault note** directly (2026-07-18 dogfood amend — not the in-home reader).
+4. **Pull UI:** **Also about {T} · N** when ≥3 members on a real hub title (in-home via Also about → siblings). Library row opens the **vault note** directly (2026-07-18 dogfood amend — not the in-home reader).
 
 ## Why not
 
 - Second model pass (Plus cost under auto-run)
-- Home Together push card first (noise; pull is safer)
+- Home Together as a directory of an existing cluster (noise; pull is safer). **Superseded 2026-08-20:** Together is now unseen-join **news** (Open → hub note), not a standing sibling dump. The “do not push Together” lesson still forbids the directory; it does not forbid the ping. Plan: `docs/plans/2026-08-20-1043-feat-together-news-hub-catalog-plan.md`.
 - Append/checkboxes (body sacred / task gravity)
 
 ## Key files

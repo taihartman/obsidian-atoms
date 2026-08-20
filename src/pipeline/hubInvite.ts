@@ -32,6 +32,11 @@ export type HubAssociationCandidate = {
 const LIST_NAMED =
   /^(show list|shows|movie list|movies|films|watch list|watchlist)$/i;
 
+/** Vault notes Atoms may treat as list hubs even with no headings. */
+export function isNamedListHubTitle(title: string): boolean {
+  return LIST_NAMED.test(title.trim());
+}
+
 function listFamily(low: string): "show" | "movie" | "watch" | "other" {
   if (low.startsWith("show")) return "show";
   if (low.startsWith("movie") || low.startsWith("film")) return "movie";
@@ -48,7 +53,6 @@ export function pairingId(kind: HubAssociationKind, label: string): string {
   return `${kind}:${label.trim().toLowerCase()}`;
 }
 
-/** Vault notes Atoms may treat as list hubs even with no headings. */
 export function pickListNamedHub(
   hay: string,
   vaultTitles: string[],
@@ -56,7 +60,7 @@ export function pickListNamedHub(
 ): string | null {
   const named = vaultTitles
     .map((raw) => ({ raw, trim: raw.trim(), low: raw.trim().toLowerCase() }))
-    .filter((e) => e.trim && LIST_NAMED.test(e.low));
+    .filter((e) => e.trim && isNamedListHubTitle(e.trim));
   if (!named.length) return null;
 
   const mentioned = named.filter((e) => titleMatchesCapture(hay, e.trim));

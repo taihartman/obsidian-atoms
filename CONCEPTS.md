@@ -92,11 +92,14 @@ A capture that is keepable list/media/preference material (e.g. show or movie to
 ### Resurfacing (stream)
 Zero-guilt home card that re-shows filed atoms for rehearsal (retrieval practice). Cue priority: **on-this-day** (calendar) → **connected** (shared links with recent atoms) → **quiet** (older / less touched). Open / Next; soft throttle; never a review queue.
 
+### Together news
+Calm Home card when an **accepted hub** gained a hard-linked member the user has not been told about. Names the new atom and the hub. Open goes to the hub note. Open and **Not now** both consume that join. Not a directory of the sibling set, and not a standing card merely because an orbit exists. Person hubs are in scope. First-time missing hubs stay **hub association invite**. Catalog of members lives in the **managed hub block**. Listing stays default-off; the on-ramp is one first-run **hub list preview** on calm Home. Outranks the resurface stream, including **mind-change**, while a join is waiting. Plan: `docs/plans/2026-08-20-1043-feat-together-news-hub-catalog-plan.md`.
+
 ### Soft throttle
 Device-local “already shown recently” map so the same atom is not re-picked for several days after Open or Next.
 
 ### Mind-change (belief rehearsal)
-A For you cue when a hard supersession pair exists (`revises` / `contradicts` in link reasons). Hero shows the older atom’s body snippet first and a quiet “later you wrote…” line to the newer claim. Highest priority when eligible; at most one hero per day; no due queue. Soft death (hiding superseded claims) is separate and deferred.
+A For you cue when a hard supersession pair exists (`revises` / `contradicts` in link reasons). Hero shows the older atom’s body snippet first and a quiet “later you wrote…” line to the newer claim. Highest For-you cue when **Together news** is not waiting; at most one hero per day; no due queue. Soft death (hiding superseded claims) is separate and deferred.
 
 ### Citator ribbon
 One-line subsequent-history chips on Atoms home when an open atom participates in hard supersession edges. Home product chrome only — not injected into the Obsidian editor.
@@ -166,13 +169,13 @@ One Home card after Process/Update whenever a high-confidence atom↔hub pairing
 Plugin link-prose between generated atoms that share the same high-confidence missing person (or later project) label before a hub note exists. On invite accept, peers and soft bucket links **upgrade** to the new hub. Soft buckets are never identity peers.
 
 ### Qualifying hub
-A vault note that may receive a **managed hub block** when Hub projection is on: a **person hub**, or a non-person note outside the list-path safety denylist that is hard-linked from atom link-prose, has ≥1 `##`, and meets the non-person write brake (≥2 members, matching `hub-section`, or existing managed delimiters). Hand-authored list notes (e.g. Movies) need no marker field. Dailies, `Atoms/`, templates/archive never qualify. Classify may see a broader set of headed notes for first-link formation; that set is not the same as write targets.
+A vault note that may receive a **managed hub block** when Hub projection is on: a **person hub**, a named list hub (Show list / Movie list / Watch list, even with no `##`), or another non-person note outside the list-path safety denylist that is hard-linked from atom link-prose, has ≥1 `##`, and meets the non-person write brake (≥2 members, matching `hub-section`, or existing managed delimiters). Hand-authored list notes (e.g. Movies) need no marker field. Dailies, `Atoms/`, templates/archive never qualify. Classify may see a broader set of headed notes for first-link formation; that set is not the same as write targets.
 
 ### Managed hub block
-Plugin-owned region at the end of a **qualifying hub** note, delimited by `<!-- atoms:generated v=1 -->` … `<!-- /atoms:generated -->`. Lists hard-linked atoms under H2 headings the user already wrote (or **Unsorted**). Human prose outside the delimiters is never rewritten. Membership comes from atom link-prose hard links to the hub, not a separate `hub:` field. Optional atom frontmatter `hub-section` (schema `hub_section`) places under a matching H2 **per linked hub**; invalid/missing → Unsorted on that hub. Opt-in via Settings (**List atoms on hub notes**, default off). Soft entity keys still do not alone light Also about orbits; a real titled hub note can still be hard-linked and projected. Not Home citator chrome. If Ask mirror is enabled, updated hub bodies sync vault→cloud like other linked hubs.
+Plugin-owned region at the end of a **qualifying hub** note, delimited by `<!-- atoms:generated v=1 -->` … `<!-- /atoms:generated -->`. Lists hard-linked atoms under H2 headings the user already wrote (or **Unsorted**). Human prose outside the delimiters is never rewritten. Membership comes from atom link-prose hard links to the hub, not a separate `hub:` field. Optional atom frontmatter `hub-section` (schema `hub_section`) places under a matching H2 **per linked hub**; invalid/missing → Unsorted on that hub. Opt-in via Settings (**List atoms on hub notes**, default off). Existing vaults get one first-run **hub list preview** on calm Home that turns listing on. Soft entity keys still do not alone light Also about orbits; a real titled hub note can still be hard-linked and projected. Not Home citator chrome. If Ask mirror is enabled, updated hub bodies sync vault→cloud like other linked hubs.
 
 ### Hub list preview
-Calm modal before a bulk hub-list write (turning the setting on, or **Refresh hub lists**). Dry-run of which hubs would change and counts by heading; **Include Unsorted** is pass-only. **Update lists** writes; **Not now** skips the bulk fill but leaves the setting on so Process still projects. Everyday Process/Update does not open the preview.
+Calm modal before a bulk hub-list write (first calm Home on-ramp, turning the setting on, or **Refresh hub lists**). Dry-run of which hubs would change and counts by heading; **Include Unsorted** is pass-only. **Update lists** writes; **Not now** skips the bulk fill but leaves the setting on so Process still projects. First-run **Not now** also marks current members told so they are not **Together news**. Refresh **Not now** does not. Everyday Process/Update does not open the preview.
 
 ## Ask (pull recall + optional write)
 

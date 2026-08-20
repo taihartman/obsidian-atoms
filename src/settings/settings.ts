@@ -3680,7 +3680,9 @@ export class AtomsSettingTab extends PluginSettingTab {
         name: "Refresh hub lists",
         desc: "Preview which hub notes would get atom lists, then update them.",
         label: "Preview…",
-        onClick: () => this.plugin.openHubListPreview("refresh"),
+        onClick: () => {
+          void this.plugin.openHubListPreview("refresh");
+        },
       });
     }
   }

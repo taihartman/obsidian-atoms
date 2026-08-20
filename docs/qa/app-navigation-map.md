@@ -20,7 +20,7 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 - **Entrypoint:** Ribbon library icon, or command `atoms:open-home`, or open leaf type `atoms-home`.
 - **How to reach:** Command palette → “Open home” (plugin name shown beside it).
-- **Source:** `src/atomsHomeView.ts`, `src/atomsHomeData.ts`.
+- **Source:** `src/home/atomsHomeView.ts`, `src/home/atomsHomeData.ts`.
 - **Fixture:** Seeded past unprocessed for wait card; atoms in `Atoms/` for library / For you.
 - **Notes:** One hero: Ready / automatic filing / resurface when calm. Progress + **land peak** after Process/Update/auto-run (home open). Land peak freezes resurface, wait card, and Update strip until Done.
 
@@ -122,6 +122,14 @@ The only prose left on the main screen is the version line under the heading and
 - **QA:** Handwritten list note (no `##`) + generated watch/show atom without a hard link. Wait card (`unprocessedCount > 0`) hides this card even when `hubInvite` is collected.
 - **Do not:** Plant pre-linked atoms to force the card.
 
+### Together news (Home)
+
+- **When:** Home calm (`runPhase === idle`, no wait card, no land peak, no hub invite). Listing on. An accepted hub has a hard-linked member not in the device-local told-set.
+- **UI:** Together kicker, title = newest atom, supporting line = hub title. **Open** / **Not now**. No count, no peek list. Open opens the hub note in the vault.
+- **Source:** `src/pipeline/togetherNews.ts`, `renderTogetherCard` in `src/home/atomsHomeView.ts`.
+- **QA:** Process a new hard link onto Show list (or a person hub) after listing is on; do not seed hubs to force the card.
+- **Do not:** Expect a directory of existing siblings. First catalog fill is the hub-list preview on first calm Home, not this card.
+
 ### Resurface (cue card)
 
 - **When:** Home calm (`runPhase === idle`, no past wait card), not first-day setup; not under land peak.
@@ -151,7 +159,7 @@ obsidian command id=atoms:process-unprocessed
 
 ### For you / mind-change
 
-- Entrypoint: Atoms home “For you” when calm (no wait card).
+- Entrypoint: Atoms home “For you” when calm (no wait card). Hidden while Together news is waiting.
 - Source: `src/resurface.ts`, `renderMindChangeCard` in `atomsHomeView.ts`.
 - Fixture: Mind-change pair.
 - Notes: Max one mind-change hero per calendar day (`atoms-mind-change-day-v1`).

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
+  isNamedListHubTitle,
   pairingId,
   pickListNamedHub,
   seedHubListMarkdown,
@@ -18,6 +19,17 @@ generated-by: linker
 ${extraFm}---
 ${body}
 `,
+});
+
+describe("isNamedListHubTitle", () => {
+  it("matches Show list, Movie list, Watch list spellings", () => {
+    expect(isNamedListHubTitle("Show list")).toBe(true);
+    expect(isNamedListHubTitle("shows")).toBe(true);
+    expect(isNamedListHubTitle("Movie list")).toBe(true);
+    expect(isNamedListHubTitle("Watch list")).toBe(true);
+    expect(isNamedListHubTitle("Nichita")).toBe(false);
+    expect(isNamedListHubTitle("Camping")).toBe(false);
+  });
 });
 
 describe("pickListNamedHub", () => {

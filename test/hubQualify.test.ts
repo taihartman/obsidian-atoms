@@ -72,7 +72,7 @@ describe("shouldWriteNonPersonHub", () => {
 });
 
 describe("isListHubCandidate", () => {
-  it("requires safety-ok path and ≥1 H2", () => {
+  it("requires safety-ok path and ≥1 H2 for ordinary notes", () => {
     expect(
       isListHubCandidate({
         path: "Movies.md",
@@ -81,7 +81,7 @@ describe("isListHubCandidate", () => {
     ).toBe(true);
     expect(
       isListHubCandidate({
-        path: "Movies.md",
+        path: "Camping.md",
         sections: [],
       }),
     ).toBe(false);
@@ -101,5 +101,32 @@ describe("isListHubCandidate", () => {
         content,
       }),
     ).toBe(true);
+  });
+
+  it("accepts headingless named list hubs", () => {
+    expect(
+      isListHubCandidate({ path: "Show list.md", sections: [] }),
+    ).toBe(true);
+    expect(
+      isListHubCandidate({ path: "Movie list.md", sections: [] }),
+    ).toBe(true);
+    expect(
+      isListHubCandidate({ path: "Watch list.md", content: "# Watch list\n" }),
+    ).toBe(true);
+  });
+
+  it("still excludes headingless daily and Atoms notes", () => {
+    expect(
+      isListHubCandidate({ path: "Daily/2026-08-20.md", sections: [] }),
+    ).toBe(false);
+    expect(
+      isListHubCandidate({
+        path: "Daily/Show list.md",
+        sections: [],
+      }),
+    ).toBe(false);
+    expect(
+      isListHubCandidate({ path: "Atoms/Show list.md", sections: [] }),
+    ).toBe(false);
   });
 });
