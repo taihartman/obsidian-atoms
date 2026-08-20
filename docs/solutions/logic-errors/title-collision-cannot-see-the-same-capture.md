@@ -30,7 +30,7 @@ tags:
 
 ## Problem
 
-Having a personal API key **and** a Plus session looks like dual-engine filing. One Process does not call both engines: `resolveFilingAuth` prefers a live Plus session and ignores the key. The duplicate is two independent filers.
+Having a personal API key **and** a Plus session looks like dual-engine filing. One Process does not call both engines: `resolveFilingAuth` prefers Plus while it can classify and uses the stored key only after Plus is exhausted. The duplicate is two independent filers.
 
 Plus session, API key, and auto-run are all device-local. The usual setup is desktop still holding the key and phone signed into Plus. Both scan the same unmarked capture before Sync delivers the marker. Collision only keyed on **title**. The two classifies almost always pick different titles for the same verbatim body, so `planWrite` creates a second file.
 
@@ -59,5 +59,6 @@ Both devices can still write two files if neither the atom nor the marker has sy
 ## See also
 
 - Issue #586 / PR #587
+- `docs/solutions/logic-errors/exhausted-plus-ignored-a-stored-key.md` — same credentials; key files only after Plus cannot
 - `docs/solutions/logic-errors/collision-foreign-marker-integrity.md` — same title, foreign body
 - `docs/qa/2026-07-15-feat-invisible-filing-autorun-world-class-qa.md` — multi-device auto-run race left untested
