@@ -69,6 +69,7 @@ import {
   togetherNewsCopy,
   type TogetherNewsCard,
 } from "../pipeline/togetherNews";
+import { readFirstFillDone } from "../pipeline/firstCatalogFill";
 import {
   applyHardLinkToAtomContent,
   applyPersonPeerLinksToContents,
@@ -344,6 +345,7 @@ export class AtomsHomeView extends ItemView {
   /** First catalog fill runs once per Home open, on calm Home only. */
   private firstFillArmed = false;
   private firstFillInFlight = false;
+  private firstFillTimer: number | null = null;
 
   /** Live Preview/Process progress (not cleared by library refresh). */
   private runPhase: RunPhase = "idle";
@@ -400,6 +402,10 @@ export class AtomsHomeView extends ItemView {
     if (this.refreshTimer != null) {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
+    }
+    if (this.firstFillTimer != null) {
+      window.clearTimeout(this.firstFillTimer);
+      this.firstFillTimer = null;
     }
     // The filing card can pose a consent sheet, and a sheet with no view behind it is still
     // clickable — accepting one armed unattended sends from a screen the user had already closed.
@@ -1342,6 +1348,7 @@ export class AtomsHomeView extends ItemView {
 
   private async runFirstCatalogFill(): Promise<void> {
     if (this.firstFillInFlight) return;
+    if (readFirstFillDone((k) => this.app.loadLocalStorage(k))) return;
     this.firstFillInFlight = true;
     try {
       const { atoms, acceptedHubs } = this.togetherNewsInputs();
@@ -2362,7 +2369,10 @@ export class AtomsHomeView extends ItemView {
       }
       if (this.firstFillArmed && !this.hubInvite) {
         this.firstFillArmed = false;
-        window.setTimeout(() => void this.runFirstCatalogFill(), 0);
+        this.firstFillTimer = window.setTimeout(() => {
+          this.firstFillTimer = null;
+          void this.runFirstCatalogFill();
+        }, 0);
       }
     }
 

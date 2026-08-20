@@ -2218,7 +2218,7 @@ export default class AtomsPlugin extends Plugin {
       return true;
     }
 
-    const outcome = await this.openHubListPreview("first-fill");
+    const outcome = await this.openHubListPreview("first-fill", built);
     seed();
     return outcome === "confirm" || outcome === "dismiss" || outcome === "empty";
   }
@@ -2228,9 +2228,12 @@ export default class AtomsPlugin extends Plugin {
    */
   async openHubListPreview(
     source: "toggle-on" | "refresh" | "first-fill",
+    prepared?: import("../pipeline/runHubProjection").FullHubProjectionBuild,
   ): Promise<"confirm" | "dismiss" | "empty" | "blocked"> {
     if (this.settings.enableHubProjection !== true) return "blocked";
-    const preparing = new Notice("Atoms: preparing hub list preview…", 0);
+    const preparing = prepared
+      ? null
+      : new Notice("Atoms: preparing hub list preview…", 0);
     try {
       const {
         buildFullHubProjectionPlan,
@@ -2245,14 +2248,16 @@ export default class AtomsPlugin extends Plugin {
         "../settings/hubListPreviewModal"
       );
 
-      const built = await buildFullHubProjectionPlan({
-        app: this.app,
-        enabled: true,
-        atomFolder: this.settings.atomFolder,
-        personHubDetails: this.contextProvider?.buildContext()
-          .personHubDetails,
-      });
-      preparing.hide();
+      const built =
+        prepared ??
+        (await buildFullHubProjectionPlan({
+          app: this.app,
+          enabled: true,
+          atomFolder: this.settings.atomFolder,
+          personHubDetails: this.contextProvider?.buildContext()
+            .personHubDetails,
+        }));
+      preparing?.hide();
 
       const withU = summarizeHubProjectionPlan(built.plan);
       const withoutU = summarizeHubProjectionPlan(
@@ -2283,7 +2288,7 @@ export default class AtomsPlugin extends Plugin {
       noticeHubProjectionErrors(applied.errors, 2);
       return "confirm";
     } catch {
-      preparing.hide();
+      preparing?.hide();
       new Notice("Atoms: could not refresh hub lists", 6000);
       return "blocked";
     }

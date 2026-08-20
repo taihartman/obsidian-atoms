@@ -20,7 +20,7 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 - **Entrypoint:** Ribbon library icon, or command `atoms:open-home`, or open leaf type `atoms-home`.
 - **How to reach:** Command palette → “Open home” (plugin name shown beside it).
-- **Source:** `src/atomsHomeView.ts`, `src/atomsHomeData.ts`.
+- **Source:** `src/home/atomsHomeView.ts`, `src/home/atomsHomeData.ts`.
 - **Fixture:** Seeded past unprocessed for wait card; atoms in `Atoms/` for library / For you.
 - **Notes:** One hero: Ready / automatic filing / resurface when calm. Progress + **land peak** after Process/Update/auto-run (home open). Land peak freezes resurface, wait card, and Update strip until Done.
 

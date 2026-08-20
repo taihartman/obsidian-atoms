@@ -1,11 +1,10 @@
 /**
  * Together news picker: one unseen join onto an accepted hub, plus a
- * durable told-set. Home chrome lives in U4; this module is the data.
+ * durable told-set.
  */
 
-import { membershipKeysForAtom } from "./entityOrbitIndex";
-import { isNamedListHubTitle } from "./hubInvite";
-import { pathInSafetyDenylist } from "./hubQualify";
+import { membershipKeysForAtom, normalizeOrbitId } from "./entityOrbitIndex";
+import { isListHubCandidate } from "./hubQualify";
 import { isDailyBasenameKey } from "./softKeys";
 
 export const LS_TOGETHER_NEWS_TOLD = "atoms-together-news-told-v1";
@@ -37,7 +36,7 @@ export type TogetherNewsCard = {
 };
 
 export function joinId(hubTitle: string, memberPath: string): string {
-  return `${hubTitle.trim().toLowerCase()}::${memberPath}`;
+  return `${normalizeOrbitId(hubTitle)}::${memberPath}`;
 }
 
 export function togetherNewsCopy(opts: {
@@ -66,17 +65,16 @@ export function collectAcceptedHubs(opts: {
   const out: AcceptedHub[] = [];
   const seen = new Set<string>();
   for (const p of opts.personHubs) {
-    const low = p.title.trim().toLowerCase();
+    const low = normalizeOrbitId(p.title);
     if (!low || seen.has(low)) continue;
     seen.add(low);
     out.push({ title: p.title.trim(), path: p.path, kind: "person" });
   }
   for (const f of opts.files) {
-    if (pathInSafetyDenylist(f.path)) continue;
+    if (!isListHubCandidate({ path: f.path })) continue;
     const title = f.basename.trim();
-    if (!isNamedListHubTitle(title)) continue;
-    const low = title.toLowerCase();
-    if (seen.has(low)) continue;
+    const low = normalizeOrbitId(title);
+    if (!low || seen.has(low)) continue;
     seen.add(low);
     out.push({ title, path: f.path, kind: "list" });
   }
@@ -102,7 +100,7 @@ function writeTold(store: ToldStore, ids: Iterable<string>): void {
 function hubByTitle(hubs: AcceptedHub[]): Map<string, AcceptedHub> {
   const map = new Map<string, AcceptedHub>();
   for (const h of hubs) {
-    map.set(h.title.trim().toLowerCase(), h);
+    map.set(normalizeOrbitId(h.title), h);
   }
   return map;
 }
@@ -124,7 +122,7 @@ function currentJoins(
   for (const atom of atoms) {
     for (const key of membershipKeysForAtom(atom.content)) {
       if (isDailyBasenameKey(key)) continue;
-      const hub = hubs.get(key.trim().toLowerCase());
+      const hub = hubs.get(normalizeOrbitId(key));
       if (!hub) continue;
       const id = joinId(hub.title, atom.path);
       if (seen.has(id)) continue;
@@ -141,7 +139,7 @@ function currentJoins(
 }
 
 function excludedSet(titles: string[]): Set<string> {
-  return new Set(titles.map((t) => t.trim().toLowerCase()).filter(Boolean));
+  return new Set(titles.map((t) => normalizeOrbitId(t)).filter(Boolean));
 }
 
 function newerJoin(a: Join, b: Join): Join {
@@ -160,18 +158,15 @@ export function pickTogetherNews(opts: {
 }): TogetherNewsCard | null {
   if (!opts.listingOn) return null;
   const joins = currentJoins(opts.atoms, opts.acceptedHubs);
-  let told = readTold(opts.told);
+  const told = readTold(opts.told);
   if (told == null) {
-    writeTold(
-      opts.told,
-      joins.map((j) => joinId(j.hub.title, j.memberPath)),
-    );
+    seedToldForAllCurrent(opts);
     return null;
   }
   const blocked = excludedSet(opts.excludedHubTitles);
   let best: Join | null = null;
   for (const j of joins) {
-    if (blocked.has(j.hub.title.trim().toLowerCase())) continue;
+    if (blocked.has(normalizeOrbitId(j.hub.title))) continue;
     if (told.has(joinId(j.hub.title, j.memberPath))) continue;
     best = best ? newerJoin(best, j) : j;
   }
@@ -191,13 +186,14 @@ export function consumeTogetherNews(opts: {
   acceptedHubs: AcceptedHub[];
   told: ToldStore;
 }): void {
-  const want = opts.hubTitle.trim().toLowerCase();
-  const told = readTold(opts.told) ?? new Set<string>();
-  for (const j of currentJoins(opts.atoms, opts.acceptedHubs)) {
-    if (j.hub.title.trim().toLowerCase() !== want) continue;
-    told.add(joinId(j.hub.title, j.memberPath));
-  }
-  writeTold(opts.told, told);
+  const want = normalizeOrbitId(opts.hubTitle);
+  stampToldJoins(
+    opts.told,
+    opts.hubTitle,
+    currentJoins(opts.atoms, opts.acceptedHubs)
+      .filter((j) => normalizeOrbitId(j.hub.title) === want)
+      .map((j) => j.memberPath),
+  );
 }
 
 export function seedToldForAllCurrent(opts: {
