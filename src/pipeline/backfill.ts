@@ -17,9 +17,11 @@ import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import { PLUS_PRICING, topUpPriceLabel } from "../shared/plusPricing";
 import {
   applyWrite,
+  dailyNoteBasename,
   displayTitleForAtom,
   listAtomPaths,
   planWrite,
+  type AtomCaptureIdentity,
 } from "./render";
 import type {
   Capture,
@@ -671,6 +673,7 @@ export async function applyBackfillResults(opts: {
 }): Promise<ApplyBackfillReport> {
   const byId = new Map(opts.work.map((w) => [w.customId, w]));
   const existingAtoms = listAtomPaths(opts.app, opts.atomFolder);
+  const createdIdentities: AtomCaptureIdentity[] = [];
   const dailyCache = new Map<string, string>();
   let applied = 0;
   let failed = 0;
@@ -720,6 +723,9 @@ export async function applyBackfillResults(opts: {
       dailyDate: item.note.date,
       atomFolder: opts.atomFolder,
       existingAtomPaths: existingAtoms,
+      existingAtomIdentities: opts.run
+        ? opts.run.atomCaptureIdentities()
+        : createdIdentities,
     });
     if (
       plan.action.kind === "create_atom" ||
@@ -755,14 +761,26 @@ export async function applyBackfillResults(opts: {
     if (wr.markerAppended) markersAppended += 1;
     if (wr.atomCreated) {
       atomPathsTouched.push(wr.atomCreated);
+      const sourceDaily = dailyNoteBasename(item.note.path);
+      const title = displayTitleForAtom(result.title);
       // Only newly created atoms: a collision skip means the file was already in the corpus.
-      opts.run?.addWrittenAtom({
-        path: wr.atomCreated,
-        title: displayTitleForAtom(result.title),
-        body: item.capture.text,
-        tags: result.tags,
-        links: result.links,
-      });
+      if (opts.run) {
+        opts.run.addWrittenAtom({
+          path: wr.atomCreated,
+          title,
+          body: item.capture.text,
+          tags: result.tags,
+          links: result.links,
+          sourceDaily,
+        });
+      } else {
+        createdIdentities.push({
+          path: wr.atomCreated,
+          title,
+          body: item.capture.text,
+          sourceDaily,
+        });
+      }
     } else if (wr.atomUpdated) atomPathsTouched.push(wr.atomUpdated);
     else if (wr.atomSkippedCollision) atomPathsTouched.push(wr.atomSkippedCollision);
   }

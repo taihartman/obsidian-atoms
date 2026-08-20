@@ -18,7 +18,10 @@ import {
   EXPANSION_SLOTS,
   type LinkGraph,
 } from "./expand";
-import { formatLinkProse } from "./render";
+import {
+  formatLinkProse,
+  type AtomCaptureIdentity,
+} from "./render";
 import {
   eligibleTags,
   normalizeTag,
@@ -641,6 +644,7 @@ export class ContextRun implements ContextProvider {
     body: string;
     tags?: string[];
     links?: string[];
+    sourceDaily?: string | null;
     /** Drop these paths when replacing (refresh rename: old path + new path). */
     replacePaths?: readonly string[];
   }): void {
@@ -651,6 +655,7 @@ export class ContextRun implements ContextProvider {
       tags: atom.tags ?? [],
       links: atom.links ?? [],
       isAtom: true,
+      sourceDaily: atom.sourceDaily ?? null,
     };
     if (!this.corpus) return;
     if (atom.replacePaths?.length) {
@@ -675,6 +680,7 @@ export class ContextRun implements ContextProvider {
     body: string;
     tags?: string[] | null;
     links?: ClassificationLink[] | null;
+    sourceDaily?: string | null;
     /** When set, replace any prior entries for these paths (refresh refile / rename). */
     replacePaths?: readonly string[];
   }): void {
@@ -685,8 +691,33 @@ export class ContextRun implements ContextProvider {
       body: atom.body,
       tags: atom.tags ?? [],
       links: prose ? [prose] : [],
+      sourceDaily: atom.sourceDaily,
       replacePaths: atom.replacePaths,
     });
+  }
+
+  /**
+   * Linker-generated atoms in this run's corpus, one per path.
+   *
+   * Write uses this to refuse a second file when a later classify (or another
+   * device's already-synced atom) named the same capture differently.
+   */
+  atomCaptureIdentities(): AtomCaptureIdentity[] {
+    const corpus = this.corpus;
+    if (!corpus) return [];
+    const seen = new Set<string>();
+    const out: AtomCaptureIdentity[] = [];
+    for (const n of corpus.notes) {
+      if (!n.isAtom || seen.has(n.path)) continue;
+      seen.add(n.path);
+      out.push({
+        path: n.path,
+        title: titleFromPath(n.path),
+        body: n.body,
+        sourceDaily: n.sourceDaily ?? null,
+      });
+    }
+    return out;
   }
 
   /** Release the corpus. Idempotent; scoring afterwards is a caller bug and throws. */

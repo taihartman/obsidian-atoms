@@ -237,6 +237,14 @@ body with an inline #preference tag
     expect(note.body).toContain("prose tail");
   });
 
+  it("records the source daily on linker-generated atoms", async () => {
+    const { app } = fakeApp([atom("Sleep debt plateaus", "sleep debt seems to plateau")]);
+    const corpus = await buildCandidateCorpus(app, { atomFolder: "Atoms" });
+    expect(byTitle(corpus.notes, "Sleep debt plateaus")?.sourceDaily).toBe(
+      "2026-07-01",
+    );
+  });
+
   it("accepts a mid-run atom without re-reading the vault (KTD4a)", async () => {
     const { app, reads } = fakeApp([atom("Seeded", "sleep debt seems to plateau")]);
 
