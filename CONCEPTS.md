@@ -21,6 +21,9 @@ A single top-level daily-note bullet (plus indented continuations) that may be c
 ### Marker (sentinel)
 A plugin-owned line **after** a capture’s extent that proves the capture was processed. Atom markers use a ↳ wikilink plus an HTML comment; task and noise use comment-only forms. Wikilinks *inside* capture text are not markers.
 
+### Capture identity
+The pair that means "this capture was already filed": whitespace-normalized body plus the source daily. Title is not identity — Plus and BYOK (or two devices) routinely name the same verbatim body differently, and title-only collision then mints a second atom. The same wording on a later day is a new capture. Markers remain the processed sentinel; identity is how a later classify reuses the atom when the marker has not arrived or the title changed.
+
 ### Atom
 A flat note in the configured atom folder: declarative title, reason-bearing links, tags, and a verbatim capture body. Placement is never folder-intelligent in v1.
 
