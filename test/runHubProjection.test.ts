@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyHubProjectionPlan,
+  collectListHubTitles,
   hubTitlesFromAtomContents,
   planHubProjection,
+  resolveListHubsFromVault,
 } from "../src/pipeline/runHubProjection";
+import { fakeVault } from "./helpers/pipelineVault";
 import { GENERATED_CLOSE, GENERATED_OPEN } from "../src/pipeline/hubSections";
 import {
   normalizeHubSection,
@@ -143,6 +147,66 @@ describe("hubTitlesFromAtomContents", () => {
       ["Movies", "Alex"],
     );
     expect(titles).toEqual(["Movies"]);
+  });
+});
+
+describe("headingless named list hubs", () => {
+  const atom = (title: string) => ({
+    title,
+    content: `---\n---\nbody\n\nbelongs with [[Show list]] (watchlist).\n`,
+  });
+  const four = [
+    atom("Psycho-Pass"),
+    atom("Frieren"),
+    atom("Demon Slayer"),
+    atom("Dune show"),
+  ];
+
+  it("resolves a headingless empty Show list as a write candidate", () => {
+    const hubs = resolveListHubsFromVault({
+      files: [{ path: "Show list.md", content: "# Show list\n" }],
+      titlesLower: new Set(["show list"]),
+    });
+    expect(hubs.get("show list")?.kind).toBe("list");
+  });
+
+  it("plans and applies the four hard-linked titles into the managed block", async () => {
+    const vault = fakeVault({ "Show list.md": "# Show list\n" });
+    const hubs = resolveListHubsFromVault({
+      files: [{ path: "Show list.md", content: vault.read("Show list.md")! }],
+      titlesLower: new Set(["show list"]),
+    });
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Show list"],
+      atoms: four,
+      hubs,
+    });
+    expect(plan.errors).toEqual([]);
+    expect(plan.skipped).toEqual([]);
+    expect(plan.writes).toHaveLength(1);
+    expect(plan.writes[0]!.changed).toBe(true);
+    for (const a of four) {
+      expect(plan.writes[0]!.next).toContain(`- [[${a.title}]]`);
+    }
+    const applied = await applyHubProjectionPlan(vault.app, plan);
+    expect(applied.wrote).toBe(1);
+    const body = vault.read("Show list.md")!;
+    expect(body).toContain("# Show list");
+    expect(body).toContain(GENERATED_OPEN);
+    expect(body).toContain("- [[Psycho-Pass]]");
+    expect(body).toContain("- [[Frieren]]");
+    expect(body).toContain("- [[Demon Slayer]]");
+    expect(body).toContain("- [[Dune show]]");
+    expect(body).toContain(GENERATED_CLOSE);
+  });
+
+  it("collectListHubTitles includes headingless Show list and skips a headingless daily", () => {
+    const vault = fakeVault({
+      "Show list.md": "# Show list\n",
+      "Daily/2026-08-20.md": "today\n",
+    });
+    expect(collectListHubTitles(vault.app)).toEqual(["Show list"]);
   });
 });
 

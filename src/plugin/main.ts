@@ -2150,10 +2150,86 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * Preview hub list bulk update (toggle-on or Refresh), then write on confirm.
+   * One first-run catalog fill on calm Home. Turns listing on, then either
+   * stamps done (empty plan) or opens the existing hub-list preview.
+   * Returns true when listing or hub notes may have changed.
    */
-  async openHubListPreview(_source: "toggle-on" | "refresh"): Promise<void> {
-    if (this.settings.enableHubProjection !== true) return;
+  async offerFirstCatalogFill(opts: {
+    atoms: Array<{
+      path: string;
+      title: string;
+      content: string;
+      sourceDate: string | null;
+    }>;
+    acceptedHubs: Array<{
+      title: string;
+      path: string;
+      kind: "person" | "list";
+    }>;
+  }): Promise<boolean> {
+    const { decideFirstFill, readFirstFillDone, writeFirstFillDone } =
+      await import("../pipeline/firstCatalogFill");
+    const { seedToldForAllCurrent, localToldStore } = await import(
+      "../pipeline/togetherNews"
+    );
+    const load = (key: string): unknown => this.app.loadLocalStorage(key);
+    const save = (key: string, value: unknown) =>
+      this.app.saveLocalStorage(key, value);
+    if (readFirstFillDone(load)) return false;
+    if (this.settings.enableHubProjection === true) {
+      writeFirstFillDone(save);
+      return false;
+    }
+
+    const { buildFullHubProjectionPlan } = await import(
+      "../pipeline/runHubProjection"
+    );
+    const { summarizeHubProjectionPlan } = await import(
+      "../pipeline/hubListPreview"
+    );
+    const built = await buildFullHubProjectionPlan({
+      app: this.app,
+      enabled: true,
+      atomFolder: this.settings.atomFolder,
+      personHubDetails: this.contextProvider?.buildContext().personHubDetails,
+    });
+    const withU = summarizeHubProjectionPlan(built.plan);
+    const action = decideFirstFill({
+      firstFillDone: false,
+      listingOn: false,
+      acceptedHubCount: opts.acceptedHubs.length,
+      previewHasRows: !withU.empty,
+    });
+    if (action === "noop") return false;
+
+    this.settings.enableHubProjection = true;
+    this.settings.hubProjectionListDisclosureSeen = true;
+    await this.saveSettings();
+    writeFirstFillDone(save);
+    const seed = () =>
+      seedToldForAllCurrent({
+        atoms: opts.atoms,
+        acceptedHubs: opts.acceptedHubs,
+        told: localToldStore(this.app),
+      });
+
+    if (action === "stamp-empty") {
+      seed();
+      return true;
+    }
+
+    const outcome = await this.openHubListPreview("first-fill");
+    seed();
+    return outcome === "confirm" || outcome === "dismiss" || outcome === "empty";
+  }
+
+  /**
+   * Preview hub list bulk update (toggle-on, Refresh, or first-fill), then write on confirm.
+   */
+  async openHubListPreview(
+    source: "toggle-on" | "refresh" | "first-fill",
+  ): Promise<"confirm" | "dismiss" | "empty" | "blocked"> {
+    if (this.settings.enableHubProjection !== true) return "blocked";
     const preparing = new Notice("Atoms: preparing hub list preview…", 0);
     try {
       const {
@@ -2183,8 +2259,10 @@ export default class AtomsPlugin extends Plugin {
         filterPlanIncludeUnsorted(built.plan, false),
       );
 
+      if (withU.empty && source === "first-fill") return "empty";
+
       const result = await openHubListPreviewModal(this.app, withU, withoutU);
-      if (result.action !== "confirm") return;
+      if (result.action !== "confirm") return "dismiss";
 
       const plan = filterPlanIncludeUnsorted(
         built.plan,
@@ -2203,9 +2281,11 @@ export default class AtomsPlugin extends Plugin {
         10000,
       );
       noticeHubProjectionErrors(applied.errors, 2);
+      return "confirm";
     } catch {
       preparing.hide();
       new Notice("Atoms: could not refresh hub lists", 6000);
+      return "blocked";
     }
   }
 

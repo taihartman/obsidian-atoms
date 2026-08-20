@@ -54,6 +54,36 @@ describe("summarizeHubProjectionPlan", () => {
     });
     expect(sum.empty).toBe(true);
   });
+
+  it("includes a headingless Show list with members", () => {
+    const atoms = ["Psycho-Pass", "Frieren", "Demon Slayer", "Dune show"].map(
+      (title) => ({
+        title,
+        content: `---\n---\nbody\n\nbelongs with [[Show list]] (watchlist).\n`,
+      }),
+    );
+    const plan = planHubProjection({
+      enabled: true,
+      touchedHubTitles: ["Show list"],
+      atoms,
+      hubs: new Map([
+        [
+          "show list",
+          {
+            title: "Show list",
+            path: "Show list.md",
+            content: "# Show list\n",
+            sections: [],
+            kind: "list",
+          },
+        ],
+      ]),
+    });
+    const sum = summarizeHubProjectionPlan(plan);
+    expect(sum.empty).toBe(false);
+    expect(sum.rows[0]!.hubTitle).toBe("Show list");
+    expect(sum.rows[0]!.total).toBe(4);
+  });
 });
 
 describe("filterPlanIncludeUnsorted", () => {

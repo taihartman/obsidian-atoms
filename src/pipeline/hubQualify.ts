@@ -12,6 +12,7 @@ import {
   pathInDenylistFolder,
   PERSON_HUB_DENY_FOLDER_PARTS,
 } from "./enrich/people";
+import { isNamedListHubTitle } from "./hubInvite";
 
 /** Shared safety deny for projection list path + classify list targets. */
 export const SAFETY_DENY_FOLDER_PARTS = [
@@ -65,9 +66,14 @@ export function hubHasGeneratedDelimiters(content: string): boolean {
   return c.includes(GENERATED_OPEN) && c.includes(GENERATED_CLOSE);
 }
 
+function titleFromPath(path: string): string {
+  return (path.split("/").pop() ?? path).replace(/\.md$/i, "");
+}
+
 /**
- * Non-person list hub candidate: outside safety deny and has ≥1 human H2
- * (or sections already parsed).
+ * Non-person list hub candidate: outside safety deny, and either a named
+ * list hub (Show list / Movie list / Watch list) or has ≥1 human H2
+ * (or generated delimiters already present).
  */
 export function isListHubCandidate(opts: {
   path: string;
@@ -75,6 +81,7 @@ export function isListHubCandidate(opts: {
   content?: string;
 }): boolean {
   if (pathInSafetyDenylist(opts.path)) return false;
+  if (isNamedListHubTitle(titleFromPath(opts.path))) return true;
   const sections =
     opts.sections ??
     (opts.content != null ? parseHubSections(opts.content) : []);
