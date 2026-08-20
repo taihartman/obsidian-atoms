@@ -178,6 +178,108 @@ describe("runWritePath — behaviour outside context selection (R9)", () => {
     expect(ran.scanned).toBe(1);
     expect(ran.atomsCreated).toBe(1);
   });
+
+  it("does not mint a second atom when the same capture already exists under another title", async () => {
+    const body = "the tandem brake cable snapped on the descent";
+    const existing = [
+      "---",
+      "created: 2026-07-01T12:00:00",
+      'source: "[[2026-07-01]]"',
+      "generated-by: linker",
+      "tags: []",
+      "---",
+      "",
+      body,
+      "",
+    ].join("\n");
+    const v = fakeVault({
+      "Daily/2026-07-01.md": `- ${body}\n`,
+      "Atoms/Tandem brake cable snapped.md": existing,
+    });
+    stubDailyNotes([{ path: "Daily/2026-07-01.md", date: "2026-07-01" }]);
+    const classify = fakeClassify([
+      atomResult("Brake cable failed on that descent"),
+    ]);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(report.atomsCreated).toBe(0);
+    expect(report.markersAppended).toBe(1);
+    expect(v.read("Atoms/Brake cable failed on that descent.md")).toBeUndefined();
+    expect(v.read("Daily/2026-07-01.md")).toContain(
+      "\t↳ [[Tandem brake cable snapped]] <!--linker-->",
+    );
+  });
+
+  it("files two identical bullets in one daily as one atom", async () => {
+    const body = "said the same thing twice";
+    const v = fakeVault({
+      "Daily/2026-07-01.md": `- ${body}\n- ${body}\n`,
+    });
+    stubDailyNotes([{ path: "Daily/2026-07-01.md", date: "2026-07-01" }]);
+    const classify = fakeClassify([
+      atomResult("First wording"),
+      atomResult("Second wording"),
+    ]);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(report.atomsCreated).toBe(1);
+    expect(report.markersAppended).toBe(2);
+    expect(v.read("Atoms/Second wording.md")).toBeUndefined();
+    const daily = v.read("Daily/2026-07-01.md")!;
+    expect(daily.match(/\[\[First wording\]\]/g)?.length).toBe(2);
+  });
+
+  it("still files the same wording when it comes from a later daily", async () => {
+    const body = "tired again";
+    const monday = [
+      "---",
+      "created: 2026-07-14T12:00:00",
+      'source: "[[2026-07-14]]"',
+      "generated-by: linker",
+      "tags: []",
+      "---",
+      "",
+      body,
+      "",
+    ].join("\n");
+    const v = fakeVault({
+      "Daily/2026-07-15.md": `- ${body}\n`,
+      "Atoms/Tired again on Monday.md": monday,
+    });
+    stubDailyNotes([{ path: "Daily/2026-07-15.md", date: "2026-07-15" }]);
+    const classify = fakeClassify([atomResult("Tired again on Tuesday")]);
+
+    const report = await runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "k",
+      model: "claude-sonnet-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { request: classify.request as never },
+    });
+
+    expect(report.atomsCreated).toBe(1);
+    expect(v.read("Atoms/Tired again on Tuesday.md")).toContain(body);
+  });
 });
 
 describe("runWritePath — filing window (KTD2)", () => {

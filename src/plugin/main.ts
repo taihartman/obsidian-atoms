@@ -2532,8 +2532,8 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
-   * BYOK vs Atoms Plus session (U1). Plus preferred when entitlement active/trialing/exhausted.
-   * Session token is device-local — never data.json.
+   * BYOK vs Atoms Plus session (U1). Plus preferred while it can classify;
+   * a stored key files only after Plus is exhausted. Session token is device-local — never data.json.
    */
   resolveFilingAuth(): FilingAuth {
     return resolveFilingAuth({

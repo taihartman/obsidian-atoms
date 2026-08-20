@@ -316,6 +316,70 @@ describe("planWrite collision (protect existing)", () => {
       expect(plan.action.content).toContain('source: "[[2026-07-14]]"');
     }
   });
+
+  it("reuses the existing atom when the same capture already filed under another title", () => {
+    const body = "the tandem brake cable snapped on the descent";
+    const existingPath = atomPathForTitle("Atoms", "Tandem brake cable snapped");
+    const plan = planWrite({
+      result: {
+        verdict: "atom",
+        title: "Brake cable failed on that descent",
+        tags: ["idea"],
+        proposed_tags: [],
+        links: [],
+      },
+      capture: capture(body),
+      dailyPath: "Daily/2026-07-14.md",
+      dailyDate: "2026-07-14",
+      atomFolder: "Atoms",
+      existingAtomPaths: new Set(),
+      existingAtomIdentities: [
+        {
+          path: existingPath,
+          title: "Tandem brake cable snapped",
+          body,
+          sourceDaily: "2026-07-14",
+        },
+      ],
+    });
+    expect(plan.action.kind).toBe("skip_existing_atom");
+    if (plan.action.kind === "skip_existing_atom") {
+      expect(plan.action.path).toBe(existingPath);
+      expect(plan.action.title).toBe("Tandem brake cable snapped");
+    }
+    expect(plan.markerLine).toContain("[[Tandem brake cable snapped]]");
+    expect(plan.markerLine).not.toContain("Brake cable failed");
+  });
+
+  it("still creates when the same wording came from a different daily", () => {
+    const body = "tired again";
+    const plan = planWrite({
+      result: {
+        verdict: "atom",
+        title: "Tired again on Tuesday",
+        tags: ["observation"],
+        proposed_tags: [],
+        links: [],
+      },
+      capture: capture(body),
+      dailyPath: "Daily/2026-07-15.md",
+      dailyDate: "2026-07-15",
+      atomFolder: "Atoms",
+      existingAtomPaths: new Set(),
+      existingAtomIdentities: [
+        {
+          path: "Atoms/Tired again on Monday.md",
+          title: "Tired again on Monday",
+          body,
+          sourceDaily: "2026-07-14",
+        },
+      ],
+    });
+    expect(plan.action.kind).toBe("create_atom");
+    if (plan.action.kind === "create_atom") {
+      expect(plan.action.path).toBe("Atoms/Tired again on Tuesday.md");
+    }
+  });
 });
 
 describe("resolveCreatedField", () => {

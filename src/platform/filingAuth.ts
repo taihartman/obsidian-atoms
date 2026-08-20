@@ -115,9 +115,10 @@ export const LS_PLUS_AWAITING_CHECKOUT = "atoms-plus-awaiting-checkout";
 export const LS_PLUS_SIGNIN_PENDING = "atoms-plus-signin-pending";
 
 /**
- * Prefer Plus when session is present and entitlement is active/trialing.
- * Exhausted Plus still returns mode "plus" so UX can show wait/top-up (not BYOK pitch).
- * Inactive/unknown without usable session falls through to BYOK or none.
+ * Prefer Plus while it can classify. A stored key files only after Plus cannot
+ * (spent meter or ended period — the server reports both as `exhausted`).
+ * Exhausted without a key stays plus so wait / top-up copy never becomes a BYOK pitch.
+ * Inactive without a usable session falls through to BYOK or none.
  */
 export function resolveFilingAuth(input: {
   byokApiKey: string | null;
@@ -139,12 +140,10 @@ export function resolveFilingAuth(input: {
     // `unknown` is kept alongside the live statuses because a token with an
     // unread entitlement should still resolve to plus, so the client can go
     // refresh it rather than falling through to BYOK.
-    if (
-      status === "active" ||
-      status === "trialing" ||
-      status === "exhausted" ||
-      status === "unknown"
-    ) {
+    const plusPreferred =
+      status === "active" || status === "trialing" || status === "unknown";
+    // Exhausted without a key stays plus so wait/top-up never becomes a pitch.
+    if (plusPreferred || (status === "exhausted" && !key)) {
       return {
         mode: "plus",
         sessionToken: token,

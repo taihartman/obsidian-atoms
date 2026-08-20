@@ -21,6 +21,9 @@ A single top-level daily-note bullet (plus indented continuations) that may be c
 ### Marker (sentinel)
 A plugin-owned line **after** a capture’s extent that proves the capture was processed. Atom markers use a ↳ wikilink plus an HTML comment; task and noise use comment-only forms. Wikilinks *inside* capture text are not markers.
 
+### Capture identity
+The pair that means "this capture was already filed": whitespace-normalized body plus the source daily. Title is not identity — Plus and BYOK (or two devices) routinely name the same verbatim body differently, and title-only collision then mints a second atom. The same wording on a later day is a new capture. Markers remain the processed sentinel; identity is how a later classify reuses the atom when the marker has not arrived or the title changed.
+
 ### Atom
 A flat note in the configured atom folder: declarative title, reason-bearing links, tags, and a verbatim capture body. Placement is never folder-intelligent in v1.
 
@@ -237,6 +240,8 @@ Device-local flag marking "this device opened Checkout and has not yet seen enti
 ### Ended period vs spent meter
 Two unrelated situations the service reports with the same exhausted status: the billing or trial **period ended** (no allotment is coming back without a new subscription), and this period's **filing allotment is spent** (it refills on the next billing date). One status name, opposite remedies — Subscribe against a lapse, wait or top up against a spent meter.
 *Avoid:* treating "exhausted" as a single state.
+
+A stored personal API key is a **fallback** when Plus cannot classify (spent meter or ended period). Account rows still describe the Plus relationship; File names the engine that is actually filing. Exhausted without a key stays on Plus so wait / top-up copy never becomes a BYOK pitch. One Process still fires one engine.
 
 The distinction is not recoverable from the status alone; it takes the status **and** the period end date together, and only a service-confirmed status may be read as a lapse. A period end date alone cannot decide it, because on a recurring plan that date is a *renewal* — a device that has not refreshed through one holds a past date for a perfectly current subscriber. Learning: `docs/solutions/logic-errors/a-device-may-not-assert-an-entitlement-the-server-has-not-confirmed.md`.
 

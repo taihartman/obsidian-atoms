@@ -106,6 +106,7 @@ import {
   plusIsExhausted,
   plusLapse,
   readPlusSession,
+  resolveFilingAuth,
   recordPendingSignIn,
   setAwaitingCheckout,
 
@@ -222,6 +223,11 @@ export interface AccountRowDescriptor {
  * still means "finish your trial" even when a BYOK key is present and `resolveFilingAuth`
  * therefore reports `byok`.
  *
+ * Account rows describe the Plus relationship, not the filing engine. When a stored key
+ * files because Plus cannot classify (spent meter or ended period), `resolveFilingAuth`
+ * reports `byok`. Project Plus from the session with no key so lapse / exhausted / active
+ * still read from the account, not as signed out.
+ *
  * An ended *period* outranks a spent *meter* (#442). They arrive as the same server `status`,
  * `exhausted`, but they are different situations wanting opposite offers: a spent meter refills
  * on the next billing date, while an ended period has no next billing date at all.
@@ -238,7 +244,13 @@ export function deriveAccountState(
   session: PlusSession | null,
   now: number = Date.now(),
 ): AccountState {
-  const lapse = plusLapse(auth, now);
+  // Filing may be `byok` while Plus is still the account — project the relationship
+  // from the session alone so a usage fallback does not look like a sign-out.
+  const plusView =
+    auth.mode === "plus"
+      ? auth
+      : resolveFilingAuth({ byokApiKey: null, plusSession: session });
+  const lapse = plusLapse(plusView, now);
   if (lapse) {
     return {
       kind: "periodEnded",
@@ -246,9 +258,9 @@ export function deriveAccountState(
       endedOn: lapse.endedOn,
     };
   }
-  if (plusIsExhausted(auth)) return { kind: "exhausted" };
-  if (auth.mode === "plus") {
-    return { kind: "active", status: auth.status, remaining: auth.remaining };
+  if (plusIsExhausted(plusView)) return { kind: "exhausted" };
+  if (plusView.mode === "plus") {
+    return { kind: "active", status: plusView.status, remaining: plusView.remaining };
   }
   if (hasPlusSetupSession(session) && session?.status === "inactive") {
     if (session.setupKind === "subscribe") {
@@ -2466,9 +2478,18 @@ export class AtomsSettingTab extends PluginSettingTab {
    * state already names the engine and the condition it is in ("Plus · 12 filings left", "Trial
    * ended"), so it borrows `accountRowDescriptor` rather than keeping a second table of those
    * words (KTD7).
+   *
+   * One exception: when the key is covering a spent or ended Plus period, File names the
+   * engine that is actually filing. The Plus row still owns the account condition.
    */
   private engineAnswer(filing: FilingAuth): string {
     const state = this.accountState(filing);
+    if (
+      filing.mode === "byok" &&
+      (state.kind === "exhausted" || state.kind === "periodEnded")
+    ) {
+      return "Your own key";
+    }
     if (state.kind !== "signedOut") return accountRowDescriptor(state).name;
     return filing.mode === "none" ? "Not set up" : "Your own key";
   }

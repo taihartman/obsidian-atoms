@@ -8,6 +8,7 @@ import { logShortlistDiagnostics, type MetadataContextProvider } from "./context
 import { getPastDailyNotesWithUnmarkedCaptures } from "./daily";
 import {
   applyWrite,
+  dailyNoteBasename,
   displayTitleForAtom,
   listAtomPaths,
   planWrite,
@@ -298,6 +299,7 @@ export async function runWritePath(
         dailyDate: note.date,
         atomFolder: opts.atomFolder,
         existingAtomPaths: existingAtoms,
+        existingAtomIdentities: run.atomCaptureIdentities(),
       });
 
       if (
@@ -372,6 +374,7 @@ export async function runWritePath(
           body: capture.text,
           tags: result.tags,
           links: result.links,
+          sourceDaily: dailyNoteBasename(note.path),
         });
       }
 

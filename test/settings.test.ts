@@ -772,6 +772,27 @@ describe("account row", () => {
       expect(row.name).toBe("Monthly limit reached");
       expect(row.desc).toMatch(/next billing date/);
     });
+
+    it("keeps Plus account state when a stored key is covering a spent meter", () => {
+      const capped: PlusSession = {
+        ...lapsedTrial,
+        plan: "monthly",
+        periodEnd: "2026-09-10T00:00:00.000Z",
+      };
+      expect(
+        deriveAccountState({ mode: "byok", apiKey: "sk-test" }, capped, T0),
+      ).toEqual({ kind: "exhausted" });
+    });
+
+    it("keeps a lapse as the account when a stored key is covering the ended period", () => {
+      expect(
+        deriveAccountState({ mode: "byok", apiKey: "sk-test" }, lapsedTrial, T0),
+      ).toEqual({
+        kind: "periodEnded",
+        lapseKind: "trial",
+        endedOn: "2026-08-10T14:52:03.632Z",
+      });
+    });
   });
 });
 
@@ -4658,6 +4679,26 @@ describe("Capture and File groups (U3)", () => {
       open(tab, "Filing");
       // The row there is the noun; the state is its description, asserted in the account-row suite.
       expect(destinationNames(tab)).toContain("Atoms Plus");
+    });
+
+    it("names the key as the engine when it is covering a spent Plus meter", () => {
+      const exhausted: PlusSession = {
+        ...FILING_SESSION,
+        status: "exhausted",
+        remaining: 0,
+      };
+      const { tab } = settingTab({
+        session: exhausted,
+        auth: { mode: "byok", apiKey: "sk-test" },
+      });
+      tab.display();
+
+      expect(answer(tab)).toContain("Your own key");
+      expect(answer(tab)).not.toContain("Monthly limit reached");
+      open(tab, "Filing");
+      expect(row(tab, "Atoms Plus").textContent ?? "").toContain(
+        "Monthly limit reached",
+      );
     });
   });
 

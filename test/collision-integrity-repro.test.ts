@@ -3,6 +3,7 @@ import { parseCaptures, unprocessedCaptures } from "../src/pipeline/parse";
 import {
   applyWrite,
   captureTextsMatch,
+  findAtomForSameCapture,
   insertMarkerAfterCapture,
   markerLineForDecision,
   planWrite,
@@ -29,6 +30,35 @@ describe("captureTextsMatch", () => {
   it("normalizes whitespace", () => {
     expect(captureTextsMatch("a  b\n c", "a b c")).toBe(true);
     expect(captureTextsMatch("a", "b")).toBe(false);
+  });
+});
+
+describe("findAtomForSameCapture", () => {
+  const existing = [
+    {
+      path: "Atoms/Plus title.md",
+      title: "Plus title",
+      body: "one thought from the daily",
+      sourceDaily: "2026-07-16",
+    },
+  ];
+
+  it("matches the same body on the same daily under whitespace normalize", () => {
+    const hit = findAtomForSameCapture(
+      "one  thought\nfrom the daily",
+      "2026-07-16",
+      existing,
+    );
+    expect(hit?.path).toBe("Atoms/Plus title.md");
+  });
+
+  it("does not match a different daily or a different body", () => {
+    expect(
+      findAtomForSameCapture("one thought from the daily", "2026-07-17", existing),
+    ).toBeNull();
+    expect(
+      findAtomForSameCapture("a different thought", "2026-07-16", existing),
+    ).toBeNull();
   });
 });
 

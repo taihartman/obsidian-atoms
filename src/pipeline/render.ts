@@ -200,6 +200,46 @@ export function atomPathForTitle(atomFolder: string, title: string): string {
   return `${folder}/${filename}.md`;
 }
 
+/** Daily note basename without `.md` — the `source: "[[…]]"` spelling. */
+export function dailyNoteBasename(path: string): string {
+  return path.replace(/\.md$/i, "").split("/").pop() || path;
+}
+
+/**
+ * An already-filed atom, enough to recognize the same capture under a new title.
+ *
+ * Title-path collision (#66) cannot see this: Plus and BYOK almost always name
+ * the same verbatim body differently, so a second filer mints a second file.
+ */
+export type AtomCaptureIdentity = {
+  path: string;
+  title: string;
+  body: string;
+  /** Daily basename from `source: [[…]]`. Null when the atom has no source stamp. */
+  sourceDaily: string | null;
+};
+
+/**
+ * The atom that already holds this capture from this daily, if any.
+ *
+ * Body is whitespace-normalized. Source daily is required on both sides so
+ * the same wording on a later day stays a new atom.
+ */
+export function findAtomForSameCapture(
+  captureText: string,
+  sourceDaily: string,
+  existing: Iterable<AtomCaptureIdentity>,
+): AtomCaptureIdentity | null {
+  const body = normalizeCaptureText(captureText);
+  const day = sourceDaily.trim();
+  if (!body || !day) return null;
+  for (const atom of existing) {
+    if (!atom.sourceDaily || atom.sourceDaily !== day) continue;
+    if (normalizeCaptureText(atom.body) === body) return atom;
+  }
+  return null;
+}
+
 /**
  * Frontmatter: created, source (wikilink), generated-by, tags,
  * plus quality stamps (atoms-quality, quality-updated).
@@ -222,10 +262,7 @@ export function buildAtomMarkdown(opts: {
   const { result, captureText, created, sourceDailyPath } = opts;
   const title = result.title.trim();
   const { alias } = sanitizeFilename(title);
-  const sourceName = sourceDailyPath
-    .replace(/\.md$/i, "")
-    .split("/")
-    .pop()!;
+  const sourceName = dailyNoteBasename(sourceDailyPath);
 
   const tags = (result.tags ?? []).map((t) => t.replace(/^#/, ""));
   const fm: string[] = ["---", `created: ${created}`];
@@ -528,6 +565,12 @@ export function planWrite(opts: {
   atomFolder: string;
   /** Existing paths in atom folder (normalized). */
   existingAtomPaths: Set<string>;
+  /**
+   * Linker-generated atoms already in the vault (or written earlier this run).
+   * When the model picks a new title for a capture this daily already filed,
+   * reuse that atom instead of minting a second file.
+   */
+  existingAtomIdentities?: Iterable<AtomCaptureIdentity>;
 }): PlannedWrite {
   const { result, capture, dailyPath, atomFolder, existingAtomPaths } = opts;
   const resultForWrite = result;
@@ -553,6 +596,21 @@ export function planWrite(opts: {
       dailyPath,
       capture,
       action: { kind: "skip_existing_atom", path, title: safeTitle },
+      result: resultForWrite,
+    };
+  }
+
+  const twin = findAtomForSameCapture(
+    capture.text,
+    dailyNoteBasename(dailyPath),
+    opts.existingAtomIdentities ?? [],
+  );
+  if (twin) {
+    return {
+      markerLine: markerLineForDecision("atom", twin.title),
+      dailyPath,
+      capture,
+      action: { kind: "skip_existing_atom", path: twin.path, title: twin.title },
       result: resultForWrite,
     };
   }

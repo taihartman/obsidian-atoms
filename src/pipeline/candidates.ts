@@ -23,7 +23,12 @@ import {
 } from "./context";
 import { isLinkerGenerated } from "./atomQuality";
 import { extractLinkProseRegion } from "./parseLinkProse";
-import { bodyAfterFrontmatter, extractCaptureBody } from "./refreshAtoms";
+import {
+  bodyAfterFrontmatter,
+  extractCaptureBody,
+  parseImmutableFrontmatter,
+  sourceDailyBasename,
+} from "./refreshAtoms";
 import { clampAtomFolder } from "./render";
 import { Bm25Index, type ScoreableNote } from "./shortlist";
 
@@ -56,6 +61,11 @@ export interface CandidateNote extends ScoreableNote {
   /** The model's own reason-bearing link prose (atoms only) — weighted ×3 by `shortlist.ts`. */
   links: string[];
   isAtom: boolean;
+  /**
+   * Daily basename this atom was filed from (`source: [[…]]`), when known.
+   * Used to recognize the same capture under a new title; not scored.
+   */
+  sourceDaily?: string | null;
 }
 
 /**
@@ -160,9 +170,20 @@ export async function buildCandidateCorpus(
       : bodyAfterFrontmatter(raw).trim().slice(0, NON_ATOM_BODY_CHARS);
     const prose = isAtom ? extractLinkProseRegion(raw) : "";
     const links = prose ? [prose] : [];
+    const sourceDaily = isAtom
+      ? sourceDailyBasename(parseImmutableFrontmatter(raw).sourceWikilink)
+      : null;
 
     for (const title of linkTitles(file.path, cache?.frontmatter)) {
-      corpus.add({ path: file.path, title, body, tags, links, isAtom });
+      corpus.add({
+        path: file.path,
+        title,
+        body,
+        tags,
+        links,
+        isAtom,
+        sourceDaily,
+      });
     }
   }
 

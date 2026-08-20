@@ -58,9 +58,17 @@ describe("resolveFilingAuth", () => {
     }
   });
 
-  it("plus exhausted still mode plus (wait/top-up path)", () => {
+  it("exhausted Plus falls through to a stored key", () => {
     const auth = resolveFilingAuth({
       byokApiKey: "sk-test",
+      plusSession: { ...activeSession, status: "exhausted", remaining: 0 },
+    });
+    expect(auth).toEqual({ mode: "byok", apiKey: "sk-test" });
+  });
+
+  it("exhausted Plus without a key stays plus (wait/top-up, no BYOK pitch)", () => {
+    const auth = resolveFilingAuth({
+      byokApiKey: null,
       plusSession: { ...activeSession, status: "exhausted", remaining: 0 },
     });
     expect(auth.mode).toBe("plus");
@@ -69,6 +77,15 @@ describe("resolveFilingAuth", () => {
       expect(plusIsExhausted(auth)).toBe(true);
       expect(plusCanClassify(auth)).toBe(false);
     }
+  });
+
+  it("unknown status still prefers Plus over a stored key", () => {
+    const auth = resolveFilingAuth({
+      byokApiKey: "sk-test",
+      plusSession: { ...activeSession, status: "unknown" },
+    });
+    expect(auth.mode).toBe("plus");
+    expect(plusCanClassify(auth)).toBe(true);
   });
 
   it("trialing can classify", () => {
