@@ -239,6 +239,7 @@ export async function runWritePath(
           opts.fixtureResults[i]!,
           {
             titles: ctx.titles ?? [],
+            continueParentTitle: ctx.continueParent?.title,
             personHubs: hubs,
             personHubTitles: ctx.personHubs ?? [],
             personHubDetails: ctx.personHubDetails,

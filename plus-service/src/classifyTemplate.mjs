@@ -87,7 +87,8 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 ## title
 - Required non-empty string iff verdict is atom.
 - Empty string for task and noise.
-- Prefer short claims; never use the entire capture as the title when it is long.`;
+- Prefer short claims; never use the entire capture as the title when it is long.
+- The atom title must be about this capture. A Note title that is related belongs in links[], never as this atom's title — including a paraphrase of that Note title.`;
 
 export const CLASSIFICATION_SCHEMA = {
   type: "object",

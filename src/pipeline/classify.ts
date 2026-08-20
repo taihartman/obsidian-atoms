@@ -30,6 +30,7 @@ import {
   stripSelfReferentialLinks,
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
+import { repairBorrowedTitle } from "./enrich/titleCoherence";
 import { filterTagsToActive } from "./vocabulary";
 import {
   buildContextPrefixBlock,
@@ -83,6 +84,7 @@ export const CLASSIFICATION_PARITY_PHRASES = [
   "The body is sacred and is written elsewhere, verbatim.",
   "task: **soft-retired / almost never**",
   "Continue parent (when present)",
+  "The atom title must be about this capture",
 ] as const;
 
 /**
@@ -100,6 +102,7 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
   "enrichEntityLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
+  "repairBorrowedTitle",
   "repairHubSection",
 ] as const;
 
@@ -118,6 +121,7 @@ export const CLASSIFY_OFFLINE_QUALITY_ORDER = [
   "enrichEntityLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
+  "repairBorrowedTitle",
   "repairHubSection",
 ] as const;
 
@@ -285,7 +289,8 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 ## title
 - Required non-empty string iff verdict is atom.
 - Empty string for task and noise.
-- Prefer short claims; never use the entire capture as the title when it is long.`;
+- Prefer short claims; never use the entire capture as the title when it is long.
+- The atom title must be about this capture. A Note title that is related belongs in links[], never as this atom's title — including a paraphrase of that Note title.`;
 
 /**
  * The whole vault-context message as one string: block A, then the note titles.
@@ -1017,6 +1022,13 @@ export async function classifyCapture(
   result = improveClassificationLinks(capture, result);
   // Never self-link / self-duplicate the atom title in graph prose.
   result = stripSelfReferentialLinks(result);
+  // A neighbour's title is a link target, not this atom's name.
+  result = repairBorrowedTitle(
+    capture,
+    result,
+    context.titles ?? [],
+    context.continueParent?.title,
+  );
   // Placement after links exist: fill hub_section when unambiguous.
   result = repairHubSection(capture, result, context);
 
@@ -1031,12 +1043,17 @@ export async function classifyCapture(
 /**
  * Shared post-classify quality pass for fixture / offline paths
  * (write fixtures, backfill) — mirrors classifyCapture enrich chain.
+ * Continue-parent forwarding is optional: live classifyCapture always has
+ * `context.continueParent`; backfill/refresh usually do not. Fixture Process
+ * must pass `ctx.continueParent?.title` so a parent missing from the shortlist
+ * is still a borrow neighbour (same as the live 4th argument).
  */
 export function applyClassificationQuality(
   capture: string,
   result: ClassificationResult,
   opts: {
     titles?: string[];
+    continueParentTitle?: string | null;
     personHubs?: PersonHub[];
     personHubTitles?: string[];
     personHubDetails?: VaultContext["personHubDetails"];
@@ -1061,6 +1078,7 @@ export function applyClassificationQuality(
   r = enrichEntityLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
+  r = repairBorrowedTitle(capture, r, titles, opts.continueParentTitle);
   const details = opts.personHubDetails;
   const listDetails = opts.listHubDetails;
   if (details?.length || listDetails?.length) {

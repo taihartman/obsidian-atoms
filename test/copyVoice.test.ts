@@ -62,7 +62,7 @@ const EXEMPT_REGIONS: ReadonlyArray<{
     file: "src/pipeline/classify.ts",
     start: "export const CLASSIFICATION_PARITY_PHRASES = [",
     end: "] as const;",
-    spanLines: 8,
+    spanLines: 9,
     reason:
       "The parity freeze itself. Every entry is a phrase that must match plus-service " +
       "classifyTemplate.mjs byte-for-byte; the list exists precisely so the words cannot drift. " +
@@ -82,7 +82,7 @@ const EXEMPT_REGIONS: ReadonlyArray<{
     file: "src/pipeline/classify.ts",
     start: "export const SYSTEM_PROMPT = `",
     end: "`;",
-    spanLines: 88,
+    spanLines: 89,
     reason:
       "Prompt text, not product copy — no user reads it. Also frozen in practice: " +
       '"people[] — who is named, and how" is in CLASSIFICATION_PARITY_PHRASES, which must match ' +
