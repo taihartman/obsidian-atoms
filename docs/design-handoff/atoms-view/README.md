@@ -6,6 +6,7 @@
 - `first-day.html` — setup + shortcut  
 - **`home-v2.html`** — For you · one hero · typed chips (person/work, max 2) — **settled; implemented 0.5.2**  
 - **`update-linking.html`** — quality upgrade path: home strip → review sheet → done (draft; not implemented)
+- **`update-notes-weekly-waves.html`** — Plus-sustainable Update notes: weekly 15-note waves, first-wave “what’s new,” confirm always names the change (draft)
 - **`person-hub-invite.html`** — **Add {Name}?** people-only invite (settled product; not implemented)
 - **`land-then-remember.html`** — **Land, then remember**: post-write peak (Process / Update / auto-run), 0·1·many counts, Done dismiss, named connected or silence, bridge tap, light theme (draft; not implemented)
 - **`soft-unfreeze-reconsider.html`** — **Reconsider capture** (#100): cursor on skipped line → classify once → Now → Proposed sheet → Apply (draft; not implemented)
@@ -90,6 +91,8 @@ When older atoms were filed under a weaker pipeline, home may show a **secondary
 - Stamps: `atoms-quality` + `quality-updated` in frontmatter  
 
 Mock: `update-linking.html` (v3). Plan: `docs/plans/2026-07-16-015-feat-atoms-quality-stamp-and-improve-plan.md`.
+
+Plus pacing (draft): `update-notes-weekly-waves.html`. Home offers one 15-note wave about once a week. The first wave after a quality change names what’s new. Confirm always repeats the reason and the Plus cost. Not now snoozes the slot, not the version. Force stays the existing command.
 
 ## Open only at implement time
 
