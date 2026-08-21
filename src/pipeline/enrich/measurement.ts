@@ -7,6 +7,8 @@
  */
 
 import type { ClassificationResult } from "../../shared/types";
+import { normalizeCaptureText } from "../render";
+import { exactVaultTitle } from "./entityLinks";
 import { shortTitleFromCapture } from "./ideaRescue";
 
 /** Errand openers: "pay $1200 rent tomorrow" is a chore, not a reading. */
@@ -40,7 +42,9 @@ const BARE_ODOMETER_RE = /^\d[\d,]{2,}(?:\.\d+)?\s*(?:miles|mi|km)$/i;
 
 /**
  * Reading-value shapes. The 3+ digit floor on the bare "at N" arm keeps times
- * ("at 3") and places ("at 5th") out; the lookahead drops "at 230pm".
+ * ("at 3") and places ("at 5th") out; the lookahead drops "at 230pm". The
+ * weighed-in arm is NOT subsumed by arm 1: it accepts sub-100 values
+ * ("weighed in at 98") that the digit floor refuses.
  */
 const VALUE_RES: readonly RegExp[] = [
   /\bat\s+\d[\d,]{2,}(?:\.\d+)?\b(?!\s*(?:am|pm)\b)/i,
@@ -49,42 +53,14 @@ const VALUE_RES: readonly RegExp[] = [
   /\bweighed(?:\s+in)?\s+at\s+\d/i,
 ];
 
-function scrubbed(captureText: string): string {
-  return (captureText ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(ACTIVITY_DISTANCE_RE, " ");
-}
-
-function hasThing(t: string): boolean {
-  THING_RE.lastIndex = 0;
-  return THING_RE.test(t) || WEIGH_IN_RE.test(t) || BARE_ODOMETER_RE.test(t);
-}
-
-/** High-precision: a short capture reading a durable thing's number. */
-export function isMeasurementReading(captureText: string): boolean {
-  const t = scrubbed(captureText);
-  if (!t || t.length > 200) return false;
-  if (CHORE_LEAD_RE.test(t)) return false;
-  if (!hasThing(t)) return false;
-  return VALUE_RES.some((re) => re.test(t));
-}
-
 function normalizeThing(raw: string): string {
   if (/^(odometer|mileage|vehicle)$/.test(raw)) return "car";
   if (/^(scale|weight)$/.test(raw)) return "weight";
   return raw;
 }
 
-/**
- * Every measured thing a text names, normalized, with no reading-value
- * requirement. The loop side of a close offer uses this: "come back into QGS
- * automotive" mentions the car without reading its number.
- */
-export function measuredThingMentions(text: string): Set<string> {
+function mentionsIn(t: string): Set<string> {
   const out = new Set<string>();
-  const t = text ?? "";
-  THING_RE.lastIndex = 0;
   for (const m of t.matchAll(THING_RE)) {
     out.add(normalizeThing(m[1]!.toLowerCase()));
   }
@@ -93,24 +69,63 @@ export function measuredThingMentions(text: string): Set<string> {
   return out;
 }
 
+function scrubbed(captureText: string): string {
+  return normalizeCaptureText(captureText).replace(ACTIVITY_DISTANCE_RE, " ");
+}
+
+/**
+ * One scrub + one recognition pass shared by the reading predicates: null
+ * when the capture is not a reading, otherwise the normalized things it names.
+ */
+function readingMentions(captureText: string): Set<string> | null {
+  const t = scrubbed(captureText ?? "");
+  if (!t || t.length > 200) return null;
+  if (CHORE_LEAD_RE.test(t)) return null;
+  const mentions = mentionsIn(t);
+  if (!mentions.size) return null;
+  return VALUE_RES.some((re) => re.test(t)) ? mentions : null;
+}
+
+/** High-precision: a short capture reading a durable thing's number. */
+export function isMeasurementReading(captureText: string): boolean {
+  return readingMentions(captureText) !== null;
+}
+
+/**
+ * Every measured thing a text names, normalized, with no reading-value
+ * requirement. The loop side of a close offer uses this: "come back into QGS
+ * automotive" mentions the car without reading its number.
+ */
+export function measuredThingMentions(text: string): Set<string> {
+  return mentionsIn(text ?? "");
+}
+
+/** Concrete nouns win over derived keys: "My miles in my car" keys the car. */
+const KEY_PRIORITY = [
+  "car",
+  "truck",
+  "bike",
+  "motorcycle",
+  "rent",
+  "meter",
+  "weight",
+] as const;
+
 /**
  * The measured thing behind a reading, normalized so two captures about the
- * same series share a key. Concrete nouns win over generic units: "My miles in
- * my car" keys on the car, not the miles. Null when not a reading.
+ * same series share a key. Null when not a reading.
  */
 export function measuredThingKey(captureText: string): string | null {
-  if (!isMeasurementReading(captureText)) return null;
-  const t = scrubbed(captureText);
-  const found = measuredThingMentions(t);
-  for (const concrete of ["car", "truck", "bike", "motorcycle", "rent", "meter"]) {
-    if (found.has(concrete)) return concrete;
+  const mentions = readingMentions(captureText);
+  if (!mentions) return null;
+  for (const k of KEY_PRIORITY) {
+    if (mentions.has(k)) return k;
   }
-  return found.has("weight") ? "weight" : null;
+  return null;
 }
 
 /** Hub title offered when a series proves itself (invite copy owns phrasing). */
 export function measuredThingHubTitle(key: string): string {
-  if (key === "weight") return "My weight";
   return `My ${key}`;
 }
 
@@ -132,16 +147,15 @@ export function enrichMeasurementLinks(
   if (result.verdict !== "atom") return result;
   const key = measuredThingKey(captureText);
   if (!key) return result;
-  const want = measuredThingHubTitle(key).toLowerCase();
-  const hub = noteTitles.find((t) => t.trim().toLowerCase() === want);
+  const hub = exactVaultTitle(measuredThingHubTitle(key), noteTitles);
   if (!hub) return result;
   const links = result.links ?? [];
-  if (links.some((l) => (l.note ?? "").trim().toLowerCase() === want)) {
+  if (links.some((l) => (l.note ?? "").trim().toLowerCase() === hub.toLowerCase())) {
     return result;
   }
   return {
     ...result,
-    links: [...links, { note: hub.trim(), reason: seriesLinkReason(hub) }],
+    links: [...links, { note: hub, reason: seriesLinkReason(hub) }],
   };
 }
 

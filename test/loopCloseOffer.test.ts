@@ -3,7 +3,7 @@ import {
   applyRedeemsLink,
   collectLoopCloseOffers,
   loopClosePairId,
-} from "../src/plugin/openLoops";
+} from "../src/pipeline/openLoopState";
 
 const loopAtom = (over: Partial<{ path: string; body: string; created: string }> = {}) => {
   const body =
@@ -57,7 +57,7 @@ describe("collectLoopCloseOffers", () => {
     const loop = loopAtom();
     const reading = readingAtom();
     const offers = collectLoopCloseOffers([loop, reading], {
-      told: [loopClosePairId(loop.path, reading.path)],
+      told: new Set([loopClosePairId(loop.path, reading.path)]),
     });
     expect(offers).toEqual([]);
   });
@@ -123,7 +123,7 @@ describe("collectLoopCloseOffers", () => {
     });
     const newest = readingAtom();
     const offers = collectLoopCloseOffers([loop, older, newest], {
-      told: [loopClosePairId(loop.path, newest.path)],
+      told: new Set([loopClosePairId(loop.path, newest.path)]),
     });
     expect(offers).toEqual([]);
   });

@@ -42,13 +42,13 @@ import {
   type FilingHeroCopy,
   type InboxStuckSummary,
 } from "./atomsHomeData";
-import { seriesLinkReason } from "../pipeline/enrich/measurement";
 import {
   applyRedeemsLink,
   collectLoopCloseOffers,
+  loopCloseCardCopy,
   loopClosePairId,
   type LoopCloseOffer,
-} from "../plugin/openLoops";
+} from "../pipeline/openLoopState";
 import { buildOrbits } from "../pipeline/entityOrbitIndex";
 import {
   pickPrimaryOrbit,
@@ -61,7 +61,7 @@ import {
 import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
-  listLinkReason,
+  hubInviteLinkReason,
   pairingId,
   seedHubListMarkdown,
   type HubAssociationCandidate,
@@ -232,6 +232,8 @@ const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
+/** A decline is permanent for the pair, not a snooze (#589 KD4). */
+const LOOP_CLOSE_TOLD_DAYS = 36500;
 
 type FilterMode = "all" | "linked" | "skipped";
 
@@ -1324,8 +1326,9 @@ export class AtomsHomeView extends ItemView {
     this.hubInvite = invites[0] ?? null;
 
     this.loopCloseOffer =
-      collectLoopCloseOffers(atoms, { told: this.readLoopCloseTold() })[0] ??
-      null;
+      collectLoopCloseOffers(atoms, {
+        told: this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
+      })[0] ?? null;
 
     if (this.togetherNewsHeldThisVisit) {
       this.togetherNews = null;
@@ -1376,32 +1379,9 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
-  private readLoopCloseTold(): Set<string> {
-    try {
-      const raw = this.app.loadLocalStorage(LS_LOOP_CLOSE_TOLD) as
-        | string
-        | null;
-      const obj = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      return new Set(Object.keys(obj));
-    } catch {
-      return new Set();
-    }
-  }
-
+  /** Told is permanent per pair; the shared snooze map with a far horizon. */
   private stampLoopCloseTold(pairId: string): void {
-    try {
-      const raw = this.app.loadLocalStorage(LS_LOOP_CLOSE_TOLD) as
-        | string
-        | null;
-      const obj = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      obj[pairId] = true;
-      this.app.saveLocalStorage(LS_LOOP_CLOSE_TOLD, JSON.stringify(obj));
-    } catch {
-      this.app.saveLocalStorage(
-        LS_LOOP_CLOSE_TOLD,
-        JSON.stringify({ [pairId]: true }),
-      );
-    }
+    this.writeSnooze(LS_LOOP_CLOSE_TOLD, pairId, LOOP_CLOSE_TOLD_DAYS);
   }
 
   /**
@@ -1411,28 +1391,29 @@ export class AtomsHomeView extends ItemView {
   private renderLoopCloseCard(scroll: HTMLElement): void {
     const offer = this.loopCloseOffer;
     if (!offer) return;
+    const copy = loopCloseCardCopy();
     const card = flatCard(scroll, { className: "atoms-home-loop-close" });
     card.createEl("p", {
       cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
-      text: "Loops",
+      text: copy.kicker,
     });
-    card.createEl("h2", { text: "Does this close a loop?" });
+    card.createEl("h2", { text: copy.title });
     const then = card.createDiv({ cls: "atoms-home-loop-close-leg" });
-    then.createEl("p", { cls: "atoms-home-card-eyebrow", text: "Then" });
-    then.createEl("p", { text: offer.loopBody });
+    then.createEl("p", { cls: "atoms-home-card-eyebrow", text: copy.thenLabel });
+    claimQuote(then, { text: offer.loopBody, maxLines: 8 });
     const now = card.createDiv({ cls: "atoms-home-loop-close-leg" });
-    now.createEl("p", { cls: "atoms-home-card-eyebrow", text: "Now" });
-    now.createEl("p", { text: offer.readingBody });
+    now.createEl("p", { cls: "atoms-home-card-eyebrow", text: copy.nowLabel });
+    claimQuote(now, { text: offer.readingBody, maxLines: 8 });
     const actions = actionRow(card);
     button(actions, {
       grade: "primary",
-      label: this.loopCloseBusy ? "Closing…" : "Close it",
+      label: this.loopCloseBusy ? copy.closeBusyLabel : copy.closeLabel,
       disabled: this.loopCloseBusy,
       onClick: () => void this.onAcceptLoopClose(offer),
     });
     button(actions, {
       grade: "secondary",
-      label: "Keep it open",
+      label: copy.keepLabel,
       disabled: this.loopCloseBusy,
       onClick: () => this.onDeclineLoopClose(offer),
     });
@@ -1449,12 +1430,12 @@ export class AtomsHomeView extends ItemView {
         return;
       }
       const content = await this.app.vault.read(file);
+      if (!isGeneratedAtomContent(content)) return;
       const next = applyRedeemsLink(content, offer.loopTitle);
       if (next) await this.app.vault.modify(file, next);
       this.stampLoopCloseTold(
         loopClosePairId(offer.loopPath, offer.readingPath),
       );
-      this.loopCloseOffer = null;
       new Notice("Atoms: loop closed");
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
@@ -1600,7 +1581,7 @@ export class AtomsHomeView extends ItemView {
         await this.upgradeAtomToHub(
           memberPath,
           linkName,
-          inv.measured ? seriesLinkReason(linkName) : listLinkReason(linkName),
+          hubInviteLinkReason(inv, linkName),
         );
       }
       if (this.plugin.settings.enableHubProjection === true) {
@@ -1641,12 +1622,7 @@ export class AtomsHomeView extends ItemView {
     this.hubInviteBusy = true;
     this.render();
     try {
-      const reason =
-        inv.kind === "person"
-          ? `about [[${linkName}]]`
-          : inv.measured
-            ? seriesLinkReason(linkName)
-            : listLinkReason(linkName);
+      const reason = hubInviteLinkReason(inv, linkName);
       const paths =
         inv.kind === "person" ? this.upgradePathSet(inv) : new Set(inv.memberPaths);
       for (const memberPath of paths) {

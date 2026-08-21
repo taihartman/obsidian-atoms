@@ -32,7 +32,7 @@ import {
   parseOpenLoopFm,
   type OpenLoopFm,
 } from "../shared/openLoop";
-import { looksLikeOpenLoop } from "./openLoopHeuristic";
+import { inferredLoopFm } from "./openLoopHeuristic";
 import {
   improveClassificationLinks,
   isJunkLinkReason,
@@ -197,11 +197,7 @@ export function buildRefreshedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec) fm.push(`hub-section: ${JSON.stringify(hubSec)}`);
-  const loopFm =
-    openLoop ??
-    (looksLikeOpenLoop(opts.captureText, opts.title)
-      ? { state: "active" as const, source: "inferred" as const }
-      : null);
+  const loopFm = inferredLoopFm(openLoop, opts.captureText, opts.title);
   if (loopFm) fm.push(...formatOpenLoopFmLines(loopFm));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
@@ -403,11 +399,7 @@ export function buildPolishedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec2) fm.push(`hub-section: ${JSON.stringify(hubSec2)}`);
-  const loopFm =
-    openLoop ??
-    (looksLikeOpenLoop(opts.captureText, opts.title)
-      ? { state: "active" as const, source: "inferred" as const }
-      : null);
+  const loopFm = inferredLoopFm(openLoop, opts.captureText, opts.title);
   if (loopFm) fm.push(...formatOpenLoopFmLines(loopFm));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);

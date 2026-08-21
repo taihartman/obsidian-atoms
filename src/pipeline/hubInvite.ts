@@ -11,6 +11,7 @@ import { suggestEntityHubLabel } from "./enrich/entityLinks";
 import {
   measuredThingHubTitle,
   measuredThingKey,
+  seriesLinkReason,
 } from "./enrich/measurement";
 import { isListHubShaped, titleMatchesCapture } from "./enrich/listHubs";
 import { watchlistWork } from "./enrich/media";
@@ -97,27 +98,26 @@ export function hasHardLinkToTitle(content: string, title: string): boolean {
   return false;
 }
 
-function collectListPairings(
+/**
+ * One grouping engine for the list-flavoured invite collectors: pick decides
+ * the label (null skips the atom); hard-link and snooze rules are shared so
+ * the collectors cannot drift on them.
+ */
+function groupInviteCandidates(
   atoms: AtomInviteInput[],
-  vaultTitles: string[],
   snoozed: Set<string>,
+  pick: (
+    atom: AtomInviteInput,
+    body: string,
+  ) => { label: string; existingNote: boolean; measured?: boolean } | null,
 ): HubAssociationCandidate[] {
   const groups = new Map<string, HubAssociationCandidate>();
 
   for (const atom of atoms) {
     const body = captureBody(atom.content);
-    const hay = `${body}\n${atom.title}`;
-    if (!isListHubShaped(body) && !isListHubShaped(atom.title)) continue;
-
-    const named = pickListNamedHub(hay, vaultTitles, body);
-    const suggested = suggestEntityHubLabel(body) || suggestEntityHubLabel(atom.title);
-    const suggestedHit = suggested
-      ? vaultTitles.find(
-          (t) => t.trim().toLowerCase() === suggested.trim().toLowerCase(),
-        )
-      : undefined;
-    const label = named ?? suggestedHit;
-    if (!label) continue;
+    const picked = pick(atom, body);
+    if (!picked) continue;
+    const label = picked.label;
     if (hasHardLinkToTitle(atom.content, label)) continue;
     const id = pairingId("list", label);
     if (snoozed.has(id) || snoozed.has(label.trim().toLowerCase())) continue;
@@ -128,7 +128,8 @@ function collectListPairings(
       label: label.trim() || label,
       memberPaths: [],
       memberTitles: [],
-      existingNote: true,
+      existingNote: picked.existingNote,
+      ...(picked.measured ? { measured: true } : {}),
     };
     if (!g.memberPaths.includes(atom.path)) {
       g.memberPaths.push(atom.path);
@@ -138,6 +139,27 @@ function collectListPairings(
   }
 
   return [...groups.values()];
+}
+
+function collectListPairings(
+  atoms: AtomInviteInput[],
+  vaultTitles: string[],
+  snoozed: Set<string>,
+): HubAssociationCandidate[] {
+  return groupInviteCandidates(atoms, snoozed, (atom, body) => {
+    const hay = `${body}\n${atom.title}`;
+    if (!isListHubShaped(body) && !isListHubShaped(atom.title)) return null;
+    const named = pickListNamedHub(hay, vaultTitles, body);
+    const suggested =
+      suggestEntityHubLabel(body) || suggestEntityHubLabel(atom.title);
+    const suggestedHit = suggested
+      ? vaultTitles.find(
+          (t) => t.trim().toLowerCase() === suggested.trim().toLowerCase(),
+        )
+      : undefined;
+    const label = named ?? suggestedHit;
+    return label ? { label, existingNote: true } : null;
+  });
 }
 
 /**
@@ -151,38 +173,16 @@ function collectMeasuredThingInvites(
   vaultTitles: string[],
   snoozed: Set<string>,
 ): HubAssociationCandidate[] {
-  const groups = new Map<string, HubAssociationCandidate>();
-
-  for (const atom of atoms) {
-    const body = captureBody(atom.content);
-    const key = measuredThingKey(body) ?? measuredThingKey(atom.title);
-    if (!key) continue;
-    const label = measuredThingHubTitle(key);
-    const existing = vaultTitles.find(
-      (t) => t.trim().toLowerCase() === label.toLowerCase(),
-    );
-    if (hasHardLinkToTitle(atom.content, existing ?? label)) continue;
-    const id = pairingId("list", label);
-    if (snoozed.has(id) || snoozed.has(label.toLowerCase())) continue;
-
-    const g = groups.get(key) ?? {
-      kind: "list" as const,
-      label: existing?.trim() || label,
-      memberPaths: [],
-      memberTitles: [],
-      existingNote: !!existing,
-      measured: true,
-    };
-    if (!g.memberPaths.includes(atom.path)) {
-      g.memberPaths.push(atom.path);
-      g.memberTitles.push(atom.title);
-    }
-    groups.set(key, g);
-  }
-
-  return [...groups.values()].filter(
-    (g) => g.memberPaths.length >= (g.existingNote ? 1 : 2),
+  const byLower = new Map(
+    vaultTitles.map((t) => [t.trim().toLowerCase(), t.trim()] as const),
   );
+  return groupInviteCandidates(atoms, snoozed, (atom, body) => {
+    const key = measuredThingKey(body) ?? measuredThingKey(atom.title);
+    if (!key) return null;
+    const label = measuredThingHubTitle(key);
+    const existing = byLower.get(label.toLowerCase());
+    return { label: existing ?? label, existingNote: !!existing, measured: true };
+  }).filter((g) => g.memberPaths.length >= (g.existingNote ? 1 : 2));
 }
 
 function personToAssoc(p: PersonInviteCandidate): HubAssociationCandidate {
@@ -358,4 +358,13 @@ export function seedHubListMarkdown(
 
 export function listLinkReason(label: string): string {
   return `belongs with [[${label.trim()}]]`;
+}
+
+/** Link reason for an invite accept — the flavour decision lives here, not in the view. */
+export function hubInviteLinkReason(
+  inv: { kind: HubAssociationKind; measured?: boolean },
+  linkName: string,
+): string {
+  if (inv.kind === "person") return `about [[${linkName}]]`;
+  return inv.measured ? seriesLinkReason(linkName) : listLinkReason(linkName);
 }

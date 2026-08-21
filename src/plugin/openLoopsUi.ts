@@ -13,7 +13,7 @@ import {
   isOpenNowContent,
   isProposalCandidate,
   openLoopMeta,
-} from "./openLoops";
+} from "../pipeline/openLoopState";
 import { clampAtomFolder, listAtomPaths } from "../pipeline/render";
 import type { OpenLoopFm } from "../shared/openLoop";
 

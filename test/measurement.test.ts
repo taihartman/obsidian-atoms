@@ -7,8 +7,8 @@ import {
   rescueMeasurementReading,
   seriesLinkReason,
 } from "../src/pipeline/enrich/measurement";
-import { applyClassificationQuality } from "../src/pipeline/classify";
-import { forceKeepAtomResult } from "../src/pipeline/reconsider";
+import { buildVaultContext } from "../src/pipeline/context";
+import { keepAsNoteResult } from "../src/pipeline/reconsider";
 import type { ClassificationResult } from "../src/shared/types";
 
 /** The live pair that spawned #589, verbatim. */
@@ -35,6 +35,9 @@ describe("isMeasurementReading", () => {
     expect(isMeasurementReading("Weighed in at 178 this morning")).toBe(true);
     expect(isMeasurementReading("Rent is $1450 now")).toBe(true);
     expect(isMeasurementReading("73150 miles")).toBe(true);
+    // Sub-100 weigh-ins ride the weighed-in arm; the bare "at N" arm's
+    // 3-digit floor would refuse them.
+    expect(isMeasurementReading("Weighed in at 98 today")).toBe(true);
   });
 
   it("never promotes chores that carry a quantity", () => {
@@ -178,21 +181,19 @@ describe("rescueMeasurementReading", () => {
 });
 
 describe("Keep as note runs the enrichment chain (#589 KD6 / AE8)", () => {
+  const ctx = (titles: string[]) =>
+    buildVaultContext({ titles, vaultTags: [], activeVocabulary: [] });
+
   it("a forced keep with a same-thread hub in context is never an island", () => {
-    const kept = applyClassificationQuality(
-      READING_73089,
-      forceKeepAtomResult(READING_73089),
-      { titles: ["My car", "Alex"] },
-    );
+    const kept = keepAsNoteResult(READING_73089, ctx(["My car", "Alex"]));
     expect(kept.verdict).toBe("atom");
     expect(kept.links?.some((l) => l.note === "My car")).toBe(true);
   });
 
   it("a forced keep with no matching titles stays a clean atom", () => {
-    const kept = applyClassificationQuality(
+    const kept = keepAsNoteResult(
       "some stray thought worth keeping",
-      forceKeepAtomResult("some stray thought worth keeping"),
-      { titles: ["My car"] },
+      ctx(["My car"]),
     );
     expect(kept.verdict).toBe("atom");
     expect(kept.links ?? []).toEqual([]);

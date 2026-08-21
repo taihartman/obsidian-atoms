@@ -80,6 +80,49 @@ contains a wikilink still parses as link prose across the whole
 parse/format-roundtrip family (refresh, invites) — the region convention's
 known ambiguity, not introduced here.
 
+## Simplify pass (4 parallel cleanup agents: reuse / simplification / efficiency / altitude)
+
+Applied (behavior-preserving unless noted):
+
+- **Altitude:** pure loop logic moved out of the shell — `plugin/openLoops.ts` →
+  `pipeline/openLoopState.ts`, removing the `home → plugin` value import the
+  architecture doc forbids. Keep-as-note composition moved into
+  `pipeline/reconsider.ts` (`keepAsNoteResult`); main.ts is one call again, and
+  the override now forwards `continueParentTitle` like every other quality-chain
+  caller (small behavior improvement). Loop-inference policy has one home
+  (`inferredLoopFm` beside the recognizer); both refresh builders call it.
+- **Reuse:** the redeems write is an `upgradeReason` option on
+  `applyHardLinkToAtomContent` — one home for the body-safety rule;
+  loop-close told rides the existing snooze map (permanent horizon) instead of
+  a third localStorage shape; card bodies render through `claimQuote`
+  (8-line clamp, shared styling); `exactVaultTitle` replaces two hand-rolled
+  title lookups; `normalizeCaptureText` replaces an inline copy; the accept
+  path gained the `isGeneratedAtomContent` guard its peers have.
+- **Simplification:** one grouping engine for the list-flavoured invite
+  collectors (kills the ~35-line clone and its snooze-normalization drift);
+  `hubInviteLinkReason` owns the person/series/list reason choice (the view's
+  two ternaries gone); loop-close card copy is a pure function like every
+  other card's; dead `readingTitle` field, no-op hub-title branch,
+  unreachable guards, and the `_stamp` strip removed.
+- **Efficiency:** `collectLoopCloseOffers` early-exits before the full-content
+  redeem scan when no loop is open (the common case), derives each row once,
+  and skips readings no loop wants; `measuredThingKey`/`isMeasurementReading`
+  share one scrub+scan (`readingMentions`) instead of doubling the priciest
+  regexes; the measured invite collector resolves hub labels against a
+  prebuilt lowercase map instead of scanning all vault titles per atom.
+- **Robustness from reuse review:** created-stamp parsing now tolerates
+  space-separated times and timezone suffixes (previously those atoms were
+  silently excluded from offers); pair ids are lowercased for the shared map.
+
+Skipped, with reasons: unifying `CHORE_LEAD_RE` with ideaRescue's `CHORE_RE`
+(intentionally different shapes, both tested); sharing the four private
+`hasLinkTo` copies across enrichers and a repo-wide `qualityOptsFromContext`
+(outside this diff); a data-table rewrite of `hubAssociationInviteCopy`
+(explicit copy blocks are this file's house style); `mindChangePairKey` reuse
+for pair ids (it sorts; loop/reading roles are directional); folding
+`render.ts`/`askOutbox.ts` loop inference into the new helper (their guards
+differ deliberately; candidates for a follow-up).
+
 ## Adversarial pass (what I tried to break)
 
 - Chore-with-quantity leakage through the rescue: blocked by chore-lead,

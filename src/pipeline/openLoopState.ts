@@ -1,19 +1,18 @@
 /**
- * Open-loops Browse / Review pure helpers (no Home chrome).
+ * Open-loop state helpers: Browse / Review gating and the loop-close offer
+ * (#589). Pure — no Obsidian imports; consumed by plugin/openLoopsUi and home.
  */
 import {
   measuredThingKey,
   measuredThingMentions,
-} from "../pipeline/enrich/measurement";
-import { looksLikeOpenLoop } from "../pipeline/openLoopHeuristic";
+} from "./enrich/measurement";
+import { looksLikeOpenLoop } from "./openLoopHeuristic";
 import {
   extractLinkProseRegion,
   parseLinkProse,
-} from "../pipeline/parseLinkProse";
-import { applyHardLinkToAtomContent } from "../pipeline/personInvite";
-import { extractCaptureBody } from "../pipeline/refreshAtoms";
-import { formatLinkProse } from "../pipeline/render";
-import { relationReasonProse } from "../shared/relationReason";
+} from "./parseLinkProse";
+import { applyHardLinkToAtomContent } from "./personInvite";
+import { extractCaptureBody } from "./refreshAtoms";
 import {
   REDEEMS_RELATION,
   applyOpenLoopFm,
@@ -23,6 +22,7 @@ import {
   parseOpenLoopFm,
   type OpenLoopFm,
 } from "../shared/openLoop";
+import { relationReasonProse } from "../shared/relationReason";
 
 export { applyOpenLoopFm };
 
@@ -103,18 +103,52 @@ export type LoopCloseOffer = {
   loopTitle: string;
   loopBody: string;
   readingPath: string;
-  readingTitle: string;
   readingBody: string;
 };
 
 export function loopClosePairId(loopPath: string, readingPath: string): string {
-  return `${loopPath}::${readingPath}`;
+  return `${loopPath}::${readingPath}`.toLowerCase();
 }
 
-function createdStamp(content: string): string | null {
-  const fm = frontmatterBlock(content);
-  const m = fm.match(/^created:\s*["']?([0-9][0-9T:-]*)/m);
-  return m?.[1] ?? null;
+/** Card copy, pure so tests can pin it like every other Home card's. */
+export function loopCloseCardCopy(): {
+  kicker: string;
+  title: string;
+  thenLabel: string;
+  nowLabel: string;
+  closeLabel: string;
+  closeBusyLabel: string;
+  keepLabel: string;
+} {
+  return {
+    kicker: "Loops",
+    title: "Does this close a loop?",
+    thenLabel: "Then",
+    nowLabel: "Now",
+    closeLabel: "Close it",
+    closeBusyLabel: "Closing…",
+    keepLabel: "Keep it open",
+  };
+}
+
+/**
+ * Day + stamp from the created frontmatter line. Day granularity drives
+ * ordering against loops (stamps mix date-only and date-time forms); the
+ * finer stamp only picks the newest among qualifying readings. Tolerates
+ * "T" or space separators and trailing timezone text.
+ */
+const CREATED_RE = /^created:\s*["']?(\d{4}-\d{2}-\d{2})(?:[T ]([0-9:]+))?/m;
+
+function createdStamp(
+  content: string,
+): { day: string; stamp: string } | null {
+  const m = frontmatterBlock(content).match(CREATED_RE);
+  if (!m?.[1]) return null;
+  return { day: m[1], stamp: m[2] ? `${m[1]}T${m[2]}` : m[1] };
+}
+
+function byStampDesc(a: { stamp: string }, b: { stamp: string }): number {
+  return a.stamp < b.stamp ? 1 : a.stamp > b.stamp ? -1 : 0;
 }
 
 /**
@@ -122,12 +156,9 @@ function createdStamp(content: string): string | null {
  * prior reading with an ordinary series reason, so the common case is an
  * existing link to the loop title: upgrade its reason in place (a title-dedup
  * append would silently write nothing and leave the loop open forever).
- *
- * The trailing region is only *replaced* when it actually parses to links.
- * A trailing paragraph of capture text also splits off as a "prose region",
- * and rewriting it would destroy verbatim body (non-negotiable #1) — that
- * case appends a fresh link block below instead, touching nothing.
- * Null when the content already redeems or nothing changed.
+ * Null when the content already redeems or nothing changed. Body-safety
+ * (never rewriting a trailing capture paragraph) lives in
+ * applyHardLinkToAtomContent, the one home for that rule.
  */
 export function applyRedeemsLink(
   content: string,
@@ -135,92 +166,86 @@ export function applyRedeemsLink(
 ): string | null {
   const want = loopTitle.trim().toLowerCase();
   if (!want) return null;
-  const prose = extractLinkProseRegion(content);
-  const links = parseLinkProse(prose);
-  const existing = links.find((l) => l.note.trim().toLowerCase() === want);
-  if (existing && prose) {
-    if (linksIncludeRedeems([existing])) return null;
-    const next = links.map((l) =>
-      l === existing
-        ? { note: l.note, reason: relationReasonProse(REDEEMS_RELATION, l.note) }
-        : l,
-    );
-    const out = content.replace(prose, formatLinkProse(next));
-    return out === content ? null : out;
-  }
+  const existing = parseLinkProse(extractLinkProseRegion(content)).find(
+    (l) => l.note.trim().toLowerCase() === want,
+  );
+  if (existing && linksIncludeRedeems([existing])) return null;
   return applyHardLinkToAtomContent(
     content,
     loopTitle,
     relationReasonProse(REDEEMS_RELATION, loopTitle),
+    { upgradeReason: true },
   );
 }
 
 export function collectLoopCloseOffers(
   rows: { path: string; title: string; content: string }[],
-  opts: { told?: Set<string> | string[] } = {},
+  opts: { told?: Set<string> } = {},
 ): LoopCloseOffer[] {
-  const told = new Set([...(opts.told ?? [])]);
+  const told = opts.told ?? new Set<string>();
+
+  // Open loops first: the frontmatter parse is cheap, and an empty result
+  // skips the full-content redeem scan and reading passes entirely.
+  const open = rows.filter((r) => isOpenNowContent(r.content));
+  if (!open.length) return [];
+
   const redeemed = collectRedeemedParentKeys(rows);
-  const loops = rows
-    .filter(
-      (r) =>
-        isOpenNowContent(r.content) &&
-        !redeemed.has(r.title.trim().toLowerCase()),
-    )
+  const loops = open
+    .filter((r) => !redeemed.has(r.title.trim().toLowerCase()))
     .map((r) => {
       const body = extractCaptureBody(r.content).trim();
       return {
         row: r,
         body,
         mentions: measuredThingMentions(body),
-        // Day granularity: created stamps mix date-only and date-time forms,
-        // and a raw string compare would call a same-day later reading older.
-        day: createdStamp(r.content)?.slice(0, 10) ?? null,
+        created: createdStamp(r.content),
       };
     })
-    .filter((l) => l.day !== null);
+    .filter((l) => l.created !== null && l.mentions.size > 0);
   if (!loops.length) return [];
 
-  const readings = rows
-    .map((r) => {
-      const body = extractCaptureBody(r.content).trim();
-      return {
-        row: r,
-        body,
-        key: measuredThingKey(body),
-        stamp: createdStamp(r.content),
-      };
-    })
-    .filter((r) => r.key && r.stamp)
-    .sort((a, b) => (a.stamp! < b.stamp! ? 1 : a.stamp! > b.stamp! ? -1 : 0));
+  const wanted = new Set(loops.flatMap((l) => [...l.mentions]));
+  const readings: {
+    row: { path: string; title: string; content: string };
+    body: string;
+    key: string;
+    day: string;
+    stamp: string;
+  }[] = [];
+  for (const r of rows) {
+    const body = extractCaptureBody(r.content).trim();
+    const key = measuredThingKey(body);
+    if (!key || !wanted.has(key)) continue;
+    const created = createdStamp(r.content);
+    if (!created) continue;
+    readings.push({ row: r, body, key, ...created });
+  }
+  readings.sort(byStampDesc);
 
   // One offer per loop, against the NEWEST qualifying reading only. A told
   // (declined) newest pair silences the loop entirely — an older reading must
   // never re-ask the question with staler evidence. A future reading is a new
   // pair, so new evidence may ask again.
-  const offers: (LoopCloseOffer & { stamp: string })[] = [];
+  const paired: { offer: LoopCloseOffer; stamp: string }[] = [];
   for (const loop of loops) {
     const newest = readings.find(
       (rd) =>
         rd.row.path !== loop.row.path &&
-        loop.mentions.has(rd.key!) &&
-        rd.stamp!.slice(0, 10) >= loop.day!,
+        loop.mentions.has(rd.key) &&
+        rd.day >= loop.created!.day,
     );
     if (!newest) continue;
     if (told.has(loopClosePairId(loop.row.path, newest.row.path))) continue;
-    offers.push({
-      loopPath: loop.row.path,
-      loopTitle: loop.row.title,
-      loopBody: loop.body,
-      readingPath: newest.row.path,
-      readingTitle: newest.row.title,
-      readingBody: newest.body,
-      stamp: newest.stamp!,
+    paired.push({
+      stamp: newest.stamp,
+      offer: {
+        loopPath: loop.row.path,
+        loopTitle: loop.row.title,
+        loopBody: loop.body,
+        readingPath: newest.row.path,
+        readingBody: newest.body,
+      },
     });
   }
-  return offers
-    .sort((a, b) => (a.stamp < b.stamp ? 1 : a.stamp > b.stamp ? -1 : 0))
-    .map(({ stamp: _stamp, ...offer }) => offer);
+  return paired.sort(byStampDesc).map((p) => p.offer);
 }
-
-

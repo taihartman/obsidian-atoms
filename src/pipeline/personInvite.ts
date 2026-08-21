@@ -561,7 +561,7 @@ export function applyHardLinkToAtomContent(
   content: string,
   note: string,
   reason: string,
-  opts: { dropSoft?: boolean } = {},
+  opts: { dropSoft?: boolean; upgradeReason?: boolean } = {},
 ): string | null {
   const want = note.trim();
   if (!want) return null;
@@ -574,9 +574,14 @@ export function applyHardLinkToAtomContent(
       return n !== "people" && !isSoftEntityKey(n);
     });
   }
-  const has = next.some(
-    (l) => l.note.trim().toLowerCase() === want.toLowerCase(),
-  );
+  let has = false;
+  next = next.map((l) => {
+    if (l.note.trim().toLowerCase() !== want.toLowerCase()) return l;
+    has = true;
+    // upgradeReason: an existing link to this note gets the new reason in
+    // place (redeems writes need this; a dedup skip would write nothing).
+    return opts.upgradeReason ? { note: l.note, reason } : l;
+  });
   if (!has) next = [...next, { note: want, reason }];
   const newProse = formatLinkProse(next);
   // Replace the region only when it really is a link block. A trailing
