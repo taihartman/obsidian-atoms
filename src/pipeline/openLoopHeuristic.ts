@@ -23,6 +23,12 @@ const STRONG_INTENT: RegExp[] = [
   /\bleave (this )?for later\b/,
   /\bcapture (this )?later\b/,
   /\bwrite (this )?up later\b/,
+  // Return / completion intents (#589): a stated trip back is unfinished
+  // business. Intent lead required so past tense ("came back") never opens.
+  /\b(?:need to|have to|got to|gotta|should|will|i'll|going to|gonna)\b[^.\n]{0,60}?\b(?:come|go|head) back\b/,
+  /\bcome back (?:in|into|to)\b/,
+  /\b(?:bring|take) (?:it|this|that|the \w+|my \w+) back\b/,
+  /\breturn (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) to\b/,
 ];
 
 /** True when body is predominantly an intention / IOU, not substance. */

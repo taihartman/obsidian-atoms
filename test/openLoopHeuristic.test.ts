@@ -37,6 +37,33 @@ describe("looksLikeOpenLoop", () => {
     expect(looksLikeOpenLoop("buy milk", "Milk")).toBe(false);
   });
 
+  it("hits the #589 return-intent shape verbatim", () => {
+    expect(
+      looksLikeOpenLoop(
+        "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive",
+        "Car at 73042 miles, needs a return to QGS automotive",
+      ),
+    ).toBe(true);
+  });
+
+  it("hits bring-back and return-to intents", () => {
+    expect(
+      looksLikeOpenLoop("Bring the car back in once it hits 73100", ""),
+    ).toBe(true);
+    expect(
+      looksLikeOpenLoop("Return the library books to the Main St branch", ""),
+    ).toBe(true);
+  });
+
+  it("past-tense returns never open a loop", () => {
+    expect(
+      looksLikeOpenLoop("Took the car in, came back by lunch. All fixed.", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop("Come back from vacation feeling rested for once", ""),
+    ).toBe(false);
+  });
+
   it("rejects finished short notes with idea/newsletter titles", () => {
     expect(
       looksLikeOpenLoop(
