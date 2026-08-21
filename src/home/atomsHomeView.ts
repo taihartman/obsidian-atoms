@@ -34,6 +34,7 @@ import {
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
+  updateNotesQuotedN,
   updateNotesStripCopy,
   waitingSubtitle,
   type AtomLibraryEntry,
@@ -118,7 +119,6 @@ import {
   type BackfillDaily,
   type BackfillPeriod,
 } from "../pipeline/backfillOffer";
-import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
   formatAskMirrorServerCount,
@@ -2816,14 +2816,7 @@ export class AtomsHomeView extends ItemView {
   }
 
   private renderUpdateNotesStrip(scroll: HTMLElement): void {
-    const refileBatch = Math.min(
-      this.updateRefileCount,
-      UPDATE_NOTES_BATCH_LIMIT,
-    );
-    const copy = updateNotesStripCopy(
-      this.eligibleUpdateCount,
-      UPDATE_NOTES_BATCH_LIMIT,
-    );
+    const copy = updateNotesStripCopy();
     const card = flatCard(scroll, { className: "atoms-home-update-notes" });
     card.createEl("h2", { text: copy.title });
     card.createEl("p", { text: copy.body });
@@ -2834,11 +2827,7 @@ export class AtomsHomeView extends ItemView {
       grade: "primary",
       label: this.busy ? "…" : copy.button,
       disabled: this.busy,
-      onClick: () =>
-        this.confirmUpdateNotes({
-          refileBatch,
-          polishable: this.updatePolishableCount,
-        }),
+      onClick: () => this.confirmUpdateNotes(),
     });
     button(actions, {
       grade: "quiet",
@@ -2999,21 +2988,14 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  private confirmUpdateNotes(opts: {
-    refileBatch: number;
-    polishable: number;
-  }): void {
-    const auth = this.plugin.resolveFilingAuth();
-    const billing =
-      auth.mode === "plus" && auth.status !== "exhausted"
-        ? "plus"
-        : auth.mode === "byok"
-          ? "byok"
-          : "none";
+  private confirmUpdateNotes(): void {
+    const n = updateNotesQuotedN(this.updateRefileCount);
+    const billing = filingPathFromAuth(this.plugin.resolveFilingAuth());
+    const copy = updateNotesConfirmCopy({ n, billing });
     const modal = new Modal(this.app);
-    modal.titleEl.setText("Filing got smarter");
+    modal.titleEl.setText(copy.title);
     modal.contentEl.createEl("p", {
-      text: updateNotesConfirmCopy({ ...opts, billing }),
+      text: copy.body,
     });
     new Setting(modal.contentEl)
       .addButton((b) =>

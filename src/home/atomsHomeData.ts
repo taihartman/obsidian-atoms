@@ -4,6 +4,8 @@
 
 import {
   CURRENT_ATOMS_QUALITY,
+  CURRENT_ATOMS_QUALITY_ANSWER,
+  CURRENT_ATOMS_QUALITY_REASON,
   isEligibleForUpdate,
 } from "../pipeline/atomQuality";
 import {
@@ -519,95 +521,90 @@ export function countUpdateWorkRemaining(
   return { refile, polishable, total: refile + polishable };
 }
 
-/**
- * Why refile is capped per tap — keep strip + confirm in lockstep with
- * `UPDATE_NOTES_BATCH_LIMIT` (cost + phone run length).
- */
-export function updateNotesBatchWhy(
+/** Quoted confirm N: min(refile debt, batch cap). */
+export function updateNotesQuotedN(
+  refileCount: number,
   batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
-): string {
-  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable. Tap again for the rest.`;
+): number {
+  return Math.min(Math.max(0, refileCount), Math.max(1, batchLimit));
 }
 
-/** Strip copy for Update notes (product strings). */
+/** Strip copy for Update notes. Body is this quality's reason, never a count. */
 export function updateNotesStripCopy(
-  eligibleCount: number,
-  batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
+  reason: string = CURRENT_ATOMS_QUALITY_REASON,
 ): {
   title: string;
   body: string;
   button: string;
 } {
-  const n = Math.max(0, eligibleCount);
-  const cap = Math.max(1, batchLimit);
-  const why = updateNotesBatchWhy(cap);
   return {
-    title: "Filing got smarter",
-    body:
-      n === 0
-        ? "Older notes can use the new linking."
-        : n === 1
-          ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
-          : n > cap
-            ? n >= 50
-              ? `Older notes can use the new linking. We’ll start with the ones that matter most. ${why}`
-              : `${n} older notes can use the new linking. ${why}`
-            : `Update ${n} older notes this pass? Titles and links may improve. Your original text stays the same.`,
+    title: "Update notes",
+    body: reason,
     button: "Update",
   };
 }
 
-/** How AI refile will be billed — must match `resolveClassifyAuth` preference. */
-export type UpdateNotesBilling = "plus" | "byok" | "none";
-
-export type UpdateConfirmOpts = {
-  /** AI refile slots this pass (≤ batch limit). */
-  refileBatch: number;
-  /** Free polish candidates (may exceed batch). */
-  polishable: number;
-  /**
-   * Who pays for AI refile. Polish-only ignores this.
-   * Defaults to `none` so callers must pass the real path — never imply a key by accident.
-   */
-  billing?: UpdateNotesBilling;
-};
-
-/** One trailing sentence naming the real cost path (refile only). */
-export function updateNotesBillingLine(billing: UpdateNotesBilling): string {
-  if (billing === "plus") {
-    return "Uses Atoms Plus (counts toward your monthly filings).";
-  }
-  if (billing === "byok") {
-    return "Uses your Anthropic API key.";
-  }
-  return "Sign in to Atoms Plus or add an API key in Settings first.";
+/** Settings File-group value: short quality answer, or current. */
+export function updateNotesSettingsAnswer(
+  refileCount: number,
+  answer: string = CURRENT_ATOMS_QUALITY_ANSWER,
+): string {
+  return refileCount > 0 ? answer : "Up to date";
 }
 
-export function updateNotesConfirmCopy(
-  batchCountOrOpts: number | UpdateConfirmOpts,
-): string {
-  if (typeof batchCountOrOpts === "number") {
-    const n = Math.max(0, batchCountOrOpts);
-    return `Update ${n} note${n === 1 ? "" : "s"} this pass to the newer filing quality? Titles and links may change. Your original capture text will not. ${updateNotesBatchWhy()} ${updateNotesBillingLine("none")}`;
+/**
+ * Confirm billing path. Same cases as `FilingPathKind` so Home/Settings can
+ * pass `filingPathFromAuth` without remapping exhausted Plus onto none.
+ */
+export type UpdateNotesBilling =
+  | "plus_active"
+  | "plus_exhausted"
+  | "plus_lapsed"
+  | "byok"
+  | "none";
+
+const UPDATE_NOTES_SACRED =
+  "Titles and links may change. Your original capture text will not.";
+
+function updateNotesNoun(n: number): string {
+  return n === 1 ? "note" : "notes";
+}
+
+/** Spend-only confirm chrome. Does not repeat the quality reason. */
+export function updateNotesConfirmCopy(opts: {
+  n: number;
+  billing: UpdateNotesBilling;
+}): { title: string; body: string } {
+  const n = Math.max(0, opts.n);
+  const title =
+    n <= 0 ? "Update notes?" : `Update ${n} ${updateNotesNoun(n)}?`;
+  switch (opts.billing) {
+    case "plus_active":
+      return {
+        title,
+        body: `Uses Atoms Plus (${n} of this month’s filings). ${UPDATE_NOTES_SACRED}`,
+      };
+    case "plus_exhausted":
+      return {
+        title,
+        body: "This month’s included Atoms Plus filings are used up.",
+      };
+    case "plus_lapsed":
+      return {
+        title,
+        body: "Your Atoms Plus period ended. Subscribe in Settings.",
+      };
+    case "byok":
+      return {
+        title,
+        body: `Uses your Anthropic API key. ${UPDATE_NOTES_SACRED}`,
+      };
+    case "none":
+      return {
+        title,
+        body: "Sign in to Atoms Plus or add an API key in Settings first.",
+      };
   }
-  const refile = Math.max(0, batchCountOrOpts.refileBatch);
-  const polish = Math.max(0, batchCountOrOpts.polishable);
-  const billing = batchCountOrOpts.billing ?? "none";
-  if (refile <= 0 && polish <= 0) {
-    return "Nothing needs a refresh right now.";
-  }
-  if (refile <= 0) {
-    return polish === 1
-      ? "Clean up link wording on 1 note? Free, no API call. Your original capture text will not change."
-      : `Clean up link wording on older notes (about ${polish})? Free, no API call. Your original capture text will not change.`;
-  }
-  const cost = updateNotesBillingLine(billing);
-  const batch =
-    refile >= UPDATE_NOTES_BATCH_LIMIT ? ` ${updateNotesBatchWhy()}` : "";
-  if (polish <= 0) {
-    return `Update up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing? Titles and links may change. Your original capture text will not.${batch} ${cost}`;
-  }
-  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing. Titles and links may change. Your original capture text will not.${batch} ${cost}`;
 }
 
 /** True when this device will file past captures without a Process tap. */

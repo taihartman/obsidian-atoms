@@ -9,6 +9,16 @@ import type { ClassificationPerson, PersonRole } from "../shared/types";
 // 9: measurement series (#589) — readings re-title, series links, loop inference.
 export const CURRENT_ATOMS_QUALITY = 9;
 
+/**
+ * Home news body for this CURRENT. Replace both strings in the same bump.
+ * Confirm never repeats this sentence.
+ */
+export const CURRENT_ATOMS_QUALITY_REASON =
+  "Readings of the same thing can link now. Your original text stays.";
+
+/** Settings File-group value while refile debt remains. */
+export const CURRENT_ATOMS_QUALITY_ANSWER = "Readings can link";
+
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const QUALITY_RE = /^atoms-quality:\s*(\d+)\s*$/m;
 

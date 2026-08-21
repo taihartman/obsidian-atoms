@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CURRENT_ATOMS_QUALITY,
+  CURRENT_ATOMS_QUALITY_ANSWER,
+  CURRENT_ATOMS_QUALITY_REASON,
   isEligibleForUpdate,
   isLinkerGenerated,
   parseAtomsQuality,
@@ -42,6 +44,14 @@ body
 `;
 
 describe("atomQuality", () => {
+  it("ships a Home reason and Settings answer next to CURRENT", () => {
+    expect(CURRENT_ATOMS_QUALITY).toBe(9);
+    expect(CURRENT_ATOMS_QUALITY_REASON).toBe(
+      "Readings of the same thing can link now. Your original text stays.",
+    );
+    expect(CURRENT_ATOMS_QUALITY_ANSWER).toBe("Readings can link");
+  });
+
   it("unstamped linker atoms are quality 0 and eligible", () => {
     expect(isLinkerGenerated(legacy)).toBe(true);
     expect(parseAtomsQuality(legacy)).toBe(0);
