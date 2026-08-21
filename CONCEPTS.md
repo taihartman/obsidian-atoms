@@ -70,6 +70,12 @@ Classify without writing atoms or markers. Results may open in a card modal; vau
 ### Process (write path)
 Classify, create atoms when warranted, append markers for all three verdicts. Multi-capture runs must tolerate line drift (bottom-up order, re-locate, already-has-marker).
 
+### Update notes
+User-initiated Process-parity refresh of older linker-generated atoms whose `atoms-quality` is below CURRENT. Never auto-runs. AI refile spends the same Plus filings meter as filing. Each confirm refreshes at most fifteen notes. Home offers it once per quality bump; further waves live in Settings. Plan: `docs/plans/2026-08-21-002-feat-update-notes-once-settings-plan.md`.
+
+### Quality reason
+The one user-facing sentence that ships with a `CURRENT_ATOMS_QUALITY` bump. Home news uses the full sentence. The Settings File-group row uses a short answer in the value slot. Confirm never repeats it.
+
 ### Auto-run
 Device-local gated background process of captures inside the filing window. Must stay silent—no per-item progress UI or toast spam. Stamps last-run day only after past work in the window is drained (not on failed attempts); same-day re-entry allowed while unprocessed work remains inside the window. Never includes today's daily.
 
