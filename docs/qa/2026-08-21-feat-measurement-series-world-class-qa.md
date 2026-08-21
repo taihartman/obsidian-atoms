@@ -1,10 +1,13 @@
 # World-class QA — Measurement series (#589) — 2026-08-21
 
-**Status: BLOCKED for merge-ready.** The automated half ran in full and is
-green; the live-vault half cannot run in this environment (remote session, no
-Obsidian, no CLI, no vault). This report states exactly what was proven and
-what remains. Per `docs/qa/README.md`, a code-read is not world-class QA and
-this report does not claim it is.
+**Status: owner-merged with the live evidence gate unmet** (same call as
+#580/#581): the automated half ran in full and is green; the live-vault half
+cannot run in the authoring environment (remote session, no Obsidian, no CLI,
+no vault). The owner explicitly chose to merge on that basis. The live gaps
+below remain open post-merge: throwaway-vault Process smoke, Home card
+screenshots, the owner's Update notes run on the real pair (AE6), and the Fly
+deploy for Plus prompt parity. Per `docs/qa/README.md`, a code-read is not
+world-class QA and this report does not claim it is.
 
 ## Environment
 
