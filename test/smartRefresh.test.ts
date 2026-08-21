@@ -182,20 +182,39 @@ describe("rankRefileCandidates", () => {
   });
 
   it("at equal source day, newer created wins", () => {
+    // Later path on the *older* created stamp, so path sort cannot fake the win.
     const morning = rankItem({
-      path: "Atoms/Morning.md",
-      title: "Morning",
+      path: "Atoms/Alpha.md",
+      title: "Alpha",
       source: "2026-06-01",
       created: "2026-06-01T08:00:00",
     });
     const evening = rankItem({
-      path: "Atoms/Evening.md",
-      title: "Evening",
+      path: "Atoms/Zulu.md",
+      title: "Zulu",
       source: "2026-06-01",
       created: "2026-06-01T20:00:00",
     });
     const ranked = rankRefileCandidates([morning, evening], 1);
-    expect(ranked[0]!.path).toBe("Atoms/Evening.md");
+    expect(ranked[0]!.path).toBe("Atoms/Zulu.md");
+    const swapped = rankRefileCandidates(
+      [
+        rankItem({
+          path: "Atoms/Alpha.md",
+          title: "Alpha",
+          source: "2026-06-01",
+          created: "2026-06-01T20:00:00",
+        }),
+        rankItem({
+          path: "Atoms/Zulu.md",
+          title: "Zulu",
+          source: "2026-06-01",
+          created: "2026-06-01T08:00:00",
+        }),
+      ],
+      1,
+    );
+    expect(swapped[0]!.path).toBe("Atoms/Alpha.md");
   });
 
   it("day-only created still ranks when source is missing", () => {

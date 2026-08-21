@@ -6,6 +6,7 @@ import {
 import { Modal } from "../mocks/obsidian";
 import {
   LS_PLUS_SESSION,
+  projectPlusIdentityAuth,
   serializePlusSession,
   type FilingAuth,
   type PlusSession,
@@ -110,6 +111,12 @@ export function settingTab(opts: SettingTabOptions = {}): {
     manifest: { version: "9.9.9" },
     settings,
     resolveFilingAuth: () => opts.auth ?? { mode: "none" },
+    resolveUpdateNotesAuth: () =>
+      projectPlusIdentityAuth({
+        byokApiKey:
+          opts.apiKey ?? (opts.auth?.mode === "byok" ? opts.auth.apiKey : null),
+        plusSession: opts.session ?? null,
+      }),
     getApiKey: () => opts.apiKey ?? null,
     filingPassInFlight: () => false,
     // The Proxy's no-op fallback returns `undefined`, and these two are handed to

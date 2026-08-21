@@ -105,8 +105,8 @@ import {
   parsePlusPlan,
   plusIsExhausted,
   plusLapse,
+  projectPlusIdentityAuth,
   readPlusSession,
-  resolveFilingAuth,
   recordPendingSignIn,
   setAwaitingCheckout,
 
@@ -254,7 +254,10 @@ export function deriveAccountState(
   const plusView =
     auth.mode === "plus"
       ? auth
-      : resolveFilingAuth({ byokApiKey: null, plusSession: session });
+      : projectPlusIdentityAuth({
+          byokApiKey: auth.mode === "byok" ? auth.apiKey : null,
+          plusSession: session,
+        });
   const lapse = plusLapse(plusView, now);
   if (lapse) {
     return {
@@ -2512,7 +2515,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     openUpdateNotesConfirm({
       app: this.app,
       n: refileCount,
-      billing: filingPathFromAuth(this.plugin.resolveFilingAuth()),
+      billing: filingPathFromAuth(this.plugin.resolveUpdateNotesAuth()),
       onConfirm: (limit) => {
         void this.plugin.runUpdateNotes({ limit });
       },

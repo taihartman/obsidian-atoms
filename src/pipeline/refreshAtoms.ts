@@ -444,6 +444,12 @@ export function isPolishableContent(content: string, title: string): boolean {
   return planLocalPolish({ path: "", title, content }) !== null;
 }
 
+function createdStampMs(fm: string): number | null {
+  const created = fm.match(/^created:\s*(.+)$/m)?.[1];
+  if (!created) return null;
+  return parseLocalStampMs(created.trim().replace(/^["']|["']$/g, ""));
+}
+
 /**
  * Recency for Update notes ranking: source daily day, else `created`.
  * Missing stamps are null — never today, never file mtime.
@@ -458,9 +464,22 @@ export function refileRecencyMs(content: string): number | null {
       ? parseLocalStampMs(sourceName.slice(0, 10))
       : null;
   if (sourceMs != null) return sourceMs;
-  const created = fm.match(/^created:\s*(.+)$/m)?.[1];
-  if (!created) return null;
-  return parseLocalStampMs(created.trim().replace(/^["']|["']$/g, ""));
+  return createdStampMs(fm);
+}
+
+/** `created` stamp only — the within-day key after source day (R12 / U2). */
+export function refileCreatedMs(content: string): number | null {
+  const fm = frontmatterBlock(content);
+  if (!fm) return null;
+  return createdStampMs(fm);
+}
+
+/** Newer first; missing stamps sort last. `null` means the two values are equal. */
+function newerStampFirst(a: number | null, b: number | null): number | null {
+  if (a === b) return null;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b - a;
 }
 
 export function refileScore(opts: {
@@ -491,14 +510,14 @@ export function rankRefileCandidates(
     .map((i) => ({
       item: i,
       recency: refileRecencyMs(i.content),
+      created: refileCreatedMs(i.content),
       score: refileScore({ quality: i.quality, stats: i.stats }),
     }));
   ranked.sort((a, b) => {
-    if (a.recency !== b.recency) {
-      if (a.recency == null) return 1;
-      if (b.recency == null) return -1;
-      return b.recency - a.recency;
-    }
+    const byRecency = newerStampFirst(a.recency, b.recency);
+    if (byRecency != null) return byRecency;
+    const byCreated = newerStampFirst(a.created, b.created);
+    if (byCreated != null) return byCreated;
     if (b.score !== a.score) return b.score - a.score;
     return a.item.path.localeCompare(b.item.path);
   });

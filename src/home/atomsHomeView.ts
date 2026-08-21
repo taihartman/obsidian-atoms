@@ -2975,7 +2975,7 @@ export class AtomsHomeView extends ItemView {
     openUpdateNotesConfirm({
       app: this.app,
       n: this.updateRefileCount,
-      billing: filingPathFromAuth(this.plugin.resolveFilingAuth()),
+      billing: filingPathFromAuth(this.plugin.resolveUpdateNotesAuth()),
       onConfirm: (limit) => {
         void this.plugin.runUpdateNotes({ limit });
       },

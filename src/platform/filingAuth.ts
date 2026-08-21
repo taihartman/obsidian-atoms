@@ -165,6 +165,27 @@ export function resolveFilingAuth(input: {
   return { mode: "none" };
 }
 
+/**
+ * Update notes billing and classify. Plus identity outranks a leftover API key.
+ *
+ * `resolveFilingAuth` is the filing *engine*: exhausted Plus falls through to a
+ * stored key so Process can keep working. Update notes confirm copy is the
+ * account, not the engine — a subscriber with a leftover key must still see
+ * spent-meter / ended-period Plus, and the run must not spend that key.
+ * Process keeps `resolveFilingAuth`.
+ */
+export function projectPlusIdentityAuth(input: {
+  byokApiKey: string | null;
+  plusSession: PlusSession | null;
+}): FilingAuth {
+  const plusView = resolveFilingAuth({
+    byokApiKey: null,
+    plusSession: input.plusSession,
+  });
+  if (plusView.mode === "plus") return plusView;
+  return resolveFilingAuth(input);
+}
+
 /** True when managed classify is allowed (not exhausted/inactive). */
 export function plusCanClassify(auth: FilingAuth): boolean {
   if (auth.mode !== "plus") return false;

@@ -3694,7 +3694,6 @@ function utilityFooter(tab: AtomsSettingTab): string {
 
 function filingTab(opts: SettingTabOptions = {}) {
   return settingTab({
-    ...opts,
     session: FILING_SESSION,
     auth: {
       mode: "plus",
@@ -3704,6 +3703,7 @@ function filingTab(opts: SettingTabOptions = {}) {
       remaining: 12,
       periodEnd: FILING_SESSION.periodEnd,
     },
+    ...opts,
   });
 }
 
@@ -5100,6 +5100,20 @@ describe("Capture and File groups (U3)", () => {
     expect(sheetButtons()).toEqual(["Cancel", "Update"]);
     pressSheet("Update");
     expect(limits).toEqual([{ limit: 3 }]);
+  });
+
+  it("leftover API key on spent Plus still quotes spent-meter Plus, not the key", () => {
+    const { tab } = filingTab({
+      session: { ...FILING_SESSION, status: "exhausted", remaining: 0 },
+      apiKey: "sk-test",
+      auth: { mode: "byok", apiKey: "sk-test" },
+      files: debtFiles(3),
+    });
+    tab.display();
+    open(tab, "Update notes");
+    const copy = updateNotesConfirmCopy({ n: 3, billing: "plus_exhausted" });
+    expect(sheetText()).toContain(copy.body);
+    expect(sheetText()).not.toMatch(/Anthropic/);
   });
 
   it("does not run when the confirm is cancelled", () => {

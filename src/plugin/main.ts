@@ -144,6 +144,7 @@ import {
 } from "../platform/resume";
 import {
   plusNeedsPeriodRefresh,
+  projectPlusIdentityAuth,
   readPlusSession,
   resolveFilingAuth,
   writePlusSession,
@@ -632,7 +633,9 @@ export default class AtomsPlugin extends Plugin {
       : this.getApiKey() || "polish-only";
     let plusDeps: import("../pipeline/classify").ClassifyDeps["plus"];
     if (needsApi && !usingFixtures) {
-      const classifyAuth = await this.requireClassifyAuth();
+      const classifyAuth = await this.requireClassifyAuth(
+        this.resolveUpdateNotesAuth(),
+      );
       if (!classifyAuth) return;
       apiKey = classifyAuth.apiKey || "plus";
       plusDeps = classifyAuth.plus;
@@ -2557,6 +2560,17 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * Update notes confirm + classify. Plus identity outranks a leftover API key.
+   * Process still uses `resolveFilingAuth` (engine fallback).
+   */
+  resolveUpdateNotesAuth(): FilingAuth {
+    return projectPlusIdentityAuth({
+      byokApiKey: this.getApiKey(),
+      plusSession: readPlusSession(this.app),
+    });
+  }
+
+  /**
    * One quiet `/v1/me` when the stored period ended after the last confirmed refresh (#442).
    *
    * This is the half of #442 that is not copy. Nothing announces an expiry — the only automatic
@@ -2633,10 +2647,11 @@ export default class AtomsPlugin extends Plugin {
    * BYOK or Plus credentials for Process/Preview/Update/auto-run (U3).
    * Returns null after Notice when blocked.
    */
-  private async requireClassifyAuth(): Promise<
+  private async requireClassifyAuth(
+    auth: FilingAuth = this.resolveFilingAuth(),
+  ): Promise<
     import("../platform/classifyAuth").ClassifyAuthOk | null
   > {
-    const auth = this.resolveFilingAuth();
     const resolved = await resolveClassifyAuth(auth, {
       verifyBase: (i) => this.runPlusBaseGate(i),
       plusBaseUrl: this.settings.plusBaseUrl,
