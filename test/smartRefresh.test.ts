@@ -5,8 +5,9 @@ import {
   extractCaptureBody,
   planLocalPolish,
   rankRefileCandidates,
-  refileScore,
+  refileRecencyMs,
   type EligibleAtom,
+  type LinkStats,
 } from "../src/pipeline/refreshAtoms";
 import { parseAtomsQuality } from "../src/pipeline/atomQuality";
 import { isWeakLinkReason } from "../src/pipeline/enrich/linkQuality";
@@ -59,61 +60,208 @@ describe("planLocalPolish", () => {
   });
 });
 
-describe("rankRefileCandidates", () => {
-  it("prefers empty-link over older strong-linked", () => {
-    const vault = new Set(["alex", "old"]);
-    const empty: EligibleAtom & {
-      stats: ReturnType<typeof computeLinkStats>;
-      mtime: number;
-    } = {
-      path: "Atoms/Empty.md",
-      title: "Empty",
-      content: weakAtom("Empty", 0, ""),
-      quality: 0,
-      mtime: 100,
-      stats: { linkCount: 0, weakOrJunkCount: 0, brokenCount: 0 },
-    };
-    // fix empty content - no link prose
-    empty.content = `---
-created: 2026-07-01
+describe("refileRecencyMs", () => {
+  it("uses the source daily day, not missing created as today", () => {
+    const content = `---
+source: "[[2026-03-08]]"
 generated-by: linker
 atoms-quality: 0
 tags: []
 ---
-just a capture with no links
+capture
 `;
-    empty.stats = computeLinkStats(empty.content, vault);
+    const ms = refileRecencyMs(content);
+    expect(ms).toBe(new Date(2026, 2, 8, 12, 0, 0, 0).getTime());
+  });
 
-    const strong: EligibleAtom & {
-      stats: ReturnType<typeof computeLinkStats>;
-      mtime: number;
-    } = {
+  it("falls back to created when source is missing", () => {
+    const content = `---
+created: 2026-04-02T09:15:00
+generated-by: linker
+atoms-quality: 0
+tags: []
+---
+capture
+`;
+    expect(refileRecencyMs(content)).toBe(
+      new Date(2026, 3, 2, 9, 15, 0, 0).getTime(),
+    );
+  });
+
+  it("does not treat a missing created field as today", () => {
+    const content = `---
+generated-by: linker
+atoms-quality: 0
+tags: []
+---
+capture
+`;
+    expect(refileRecencyMs(content)).toBeNull();
+  });
+});
+
+function rankItem(opts: {
+  path: string;
+  title: string;
+  source?: string;
+  created?: string;
+  quality?: number;
+  prose?: string;
+  mtime?: number;
+}): EligibleAtom & { stats: LinkStats; mtime: number } {
+  const quality = opts.quality ?? 0;
+  const lines = [
+    opts.created !== undefined ? `created: ${opts.created}` : null,
+    opts.source !== undefined ? `source: "[[${opts.source}]]"` : null,
+    "generated-by: linker",
+    `atoms-quality: ${quality}`,
+    "tags: []",
+  ].filter((line): line is string => line !== null);
+  const content = `---
+${lines.join("\n")}
+---
+${opts.prose ?? "just a capture with no links"}
+`;
+  return {
+    path: opts.path,
+    title: opts.title,
+    content,
+    quality,
+    mtime: opts.mtime ?? 1,
+    stats: computeLinkStats(content, new Set(["old", "alex"])),
+  };
+}
+
+describe("rankRefileCandidates", () => {
+  it("prefers a newer source-day healthy-linked atom over an older empty-link atom", () => {
+    const olderEmpty = rankItem({
+      path: "Atoms/Empty.md",
+      title: "Empty",
+      source: "2026-01-01",
+      created: "2026-01-01",
+      prose: "just a capture with no links",
+    });
+    const newerStrong = rankItem({
       path: "Atoms/Strong.md",
       title: "Strong",
-      content: weakAtom("Strong", 0, "revises [[Old]]."),
-      quality: 0,
-      mtime: 1,
-      stats: computeLinkStats(
-        weakAtom("Strong", 0, "revises [[Old]]."),
-        vault,
-      ),
-    };
+      source: "2026-07-01",
+      created: "2026-07-01",
+      prose: "revises [[Old]].",
+    });
+    const ranked = rankRefileCandidates([olderEmpty, newerStrong], 1);
+    expect(ranked[0]!.path).toBe("Atoms/Strong.md");
+  });
 
+  it("among empty-link atoms, newer source day wins", () => {
+    const older = rankItem({
+      path: "Atoms/Older.md",
+      title: "Older",
+      source: "2026-01-01",
+    });
+    const newer = rankItem({
+      path: "Atoms/Newer.md",
+      title: "Newer",
+      source: "2026-06-01",
+    });
+    const ranked = rankRefileCandidates([older, newer], 1);
+    expect(ranked[0]!.path).toBe("Atoms/Newer.md");
+  });
+
+  it("at equal source day, newer created wins", () => {
+    const morning = rankItem({
+      path: "Atoms/Morning.md",
+      title: "Morning",
+      source: "2026-06-01",
+      created: "2026-06-01T08:00:00",
+    });
+    const evening = rankItem({
+      path: "Atoms/Evening.md",
+      title: "Evening",
+      source: "2026-06-01",
+      created: "2026-06-01T20:00:00",
+    });
+    const ranked = rankRefileCandidates([morning, evening], 1);
+    expect(ranked[0]!.path).toBe("Atoms/Evening.md");
+  });
+
+  it("day-only created still ranks when source is missing", () => {
+    const stamped = rankItem({
+      path: "Atoms/Stamped.md",
+      title: "Stamped",
+      created: "2026-05-03",
+    });
+    const unstamped = rankItem({
+      path: "Atoms/Unstamped.md",
+      title: "Unstamped",
+    });
+    const ranked = rankRefileCandidates([unstamped, stamped], 1);
+    expect(ranked[0]!.path).toBe("Atoms/Stamped.md");
+  });
+
+  it("missing both stamps sort last by path", () => {
+    const b = rankItem({ path: "Atoms/B.md", title: "B" });
+    const a = rankItem({ path: "Atoms/A.md", title: "A" });
+    const dated = rankItem({
+      path: "Atoms/Dated.md",
+      title: "Dated",
+      source: "2026-01-01",
+    });
+    const ranked = rankRefileCandidates([b, dated, a], 3);
+    expect(ranked.map((r) => r.path)).toEqual([
+      "Atoms/Dated.md",
+      "Atoms/A.md",
+      "Atoms/B.md",
+    ]);
+  });
+
+  it("raising mtime on the loser does not change order", () => {
+    const older = rankItem({
+      path: "Atoms/Older.md",
+      title: "Older",
+      source: "2026-01-01",
+      mtime: 9e15,
+    });
+    const newer = rankItem({
+      path: "Atoms/Newer.md",
+      title: "Newer",
+      source: "2026-06-01",
+      mtime: 1,
+    });
+    const ranked = rankRefileCandidates([older, newer], 1);
+    expect(ranked[0]!.path).toBe("Atoms/Newer.md");
+  });
+
+  it("at equal recency, empty-link beats healthy-linked", () => {
+    const empty = rankItem({
+      path: "Atoms/Empty.md",
+      title: "Empty",
+      source: "2026-06-01",
+    });
+    const strong = rankItem({
+      path: "Atoms/Strong.md",
+      title: "Strong",
+      source: "2026-06-01",
+      prose: "revises [[Old]].",
+    });
     const ranked = rankRefileCandidates([strong, empty], 1);
     expect(ranked[0]!.path).toBe("Atoms/Empty.md");
-    expect(
-      refileScore({
-        quality: empty.quality,
-        stats: empty.stats,
-        mtime: empty.mtime,
-      }),
-    ).toBeGreaterThan(
-      refileScore({
-        quality: strong.quality,
-        stats: strong.stats,
-        mtime: strong.mtime,
-      }),
-    );
+  });
+
+  it("excludes atoms already at CURRENT before ranking", () => {
+    const current = rankItem({
+      path: "Atoms/Current.md",
+      title: "Current",
+      source: "2026-08-01",
+      quality: 9,
+    });
+    const stale = rankItem({
+      path: "Atoms/Stale.md",
+      title: "Stale",
+      source: "2026-01-01",
+      quality: 1,
+    });
+    const ranked = rankRefileCandidates([current, stale], 15);
+    expect(ranked.map((r) => r.path)).toEqual(["Atoms/Stale.md"]);
   });
 });
 

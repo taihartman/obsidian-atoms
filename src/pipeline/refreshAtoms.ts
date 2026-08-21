@@ -443,12 +443,62 @@ export function isPolishableContent(content: string, title: string): boolean {
   return planLocalPolish({ path: "", title, content }) !== null;
 }
 
+function frontmatterSlice(content: string): string {
+  if (!content.startsWith("---")) return "";
+  const end = content.indexOf("\n---", 3);
+  return end === -1 ? content.slice(0, 800) : content.slice(0, end + 4);
+}
+
+function parseStampMs(raw: string): number | null {
+  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dayOnly) {
+    const y = Number(dayOnly[1]);
+    const mo = Number(dayOnly[2]);
+    const d = Number(dayOnly[3]);
+    if (!y || !mo || !d) return null;
+    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
+  }
+  const withTime = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (withTime) {
+    const y = Number(withTime[1]);
+    const mo = Number(withTime[2]);
+    const d = Number(withTime[3]);
+    const h = Number(withTime[4]);
+    const mi = Number(withTime[5]);
+    const s = Number(withTime[6] ?? 0);
+    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
+  }
+  return null;
+}
+
+/**
+ * Recency for Update notes ranking: source daily day, else `created`.
+ * Missing stamps are null — never today, never file mtime.
+ */
+export function refileRecencyMs(content: string): number | null {
+  const fm = frontmatterSlice(content);
+  if (!fm) return null;
+  const sourceM = fm.match(/^source:\s*["']?\[\[([^\]]+)\]\]["']?\s*$/m);
+  if (sourceM?.[1]) {
+    const name = sourceM[1].trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(name)) {
+      const ms = parseStampMs(name.slice(0, 10));
+      if (ms != null) return ms;
+    }
+  }
+  const createdM = fm.match(/^created:\s*(.+)$/m);
+  if (!createdM?.[1]) return null;
+  const raw = createdM[1].trim().replace(/^["']|["']$/g, "");
+  return parseStampMs(raw);
+}
+
 export function refileScore(opts: {
   quality: number;
   stats: LinkStats;
-  mtime: number;
 }): number {
-  // Higher = more urgent for AI refile. Only meaningful when q < CURRENT.
+  // Higher = more urgent. Tie-break only after recency.
   let s = 0;
   if (opts.stats.linkCount === 0) s += 1000;
   if (
@@ -458,30 +508,26 @@ export function refileScore(opts: {
     s += 800;
   }
   s += opts.stats.brokenCount * 50;
-  // Newer recents slightly preferred over pure oldest (product: meet again)
-  s += Math.min(200, Math.floor(opts.mtime / 1e10));
-  // Older quality debt: slight boost for lower quality
   s += Math.max(0, 10 - opts.quality);
   return s;
 }
 
 export function rankRefileCandidates(
-  items: Array<EligibleAtom & { stats: LinkStats; mtime: number }>,
+  items: Array<EligibleAtom & { stats: LinkStats; mtime?: number }>,
   limit: number = UPDATE_NOTES_BATCH_LIMIT,
   current: number = CURRENT_ATOMS_QUALITY,
 ): EligibleAtom[] {
   const eligible = items.filter((i) => i.quality < current);
   eligible.sort((a, b) => {
-    const sa = refileScore({
-      quality: a.quality,
-      stats: a.stats,
-      mtime: a.mtime,
-    });
-    const sb = refileScore({
-      quality: b.quality,
-      stats: b.stats,
-      mtime: b.mtime,
-    });
+    const ra = refileRecencyMs(a.content);
+    const rb = refileRecencyMs(b.content);
+    if (ra !== rb) {
+      if (ra == null) return 1;
+      if (rb == null) return -1;
+      return rb - ra;
+    }
+    const sa = refileScore({ quality: a.quality, stats: a.stats });
+    const sb = refileScore({ quality: b.quality, stats: b.stats });
     if (sb !== sa) return sb - sa;
     return a.path.localeCompare(b.path);
   });
@@ -719,13 +765,11 @@ export async function runRefreshEligibleAtoms(
   }
 
   const withStats = all.map((a) => {
-    // Prefer polished content for refile ranking when we will polish first
     const polished = polishPlans.find((p) => p.path === a.path);
-    const content = polished?.content ?? a.content;
     return {
       ...a,
-      content,
-      stats: computeLinkStats(content, vaultTitles),
+      content: polished?.content ?? a.content,
+      stats: computeLinkStats(a.content, vaultTitles),
     };
   });
   const refileList = opts.skipRefile
