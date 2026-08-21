@@ -48,6 +48,15 @@ describe("isMeasurementReading", () => {
   it("an activity distance is not a thing's reading", () => {
     expect(isMeasurementReading("Ran 6 miles")).toBe(false);
     expect(isMeasurementReading("Drove 300 miles today")).toBe(false);
+    expect(isMeasurementReading("Rode 20 miles on the trainer")).toBe(false);
+    expect(isMeasurementReading("Flew 2800 miles to Tokyo")).toBe(false);
+  });
+
+  it("a distance or weight fact about something else is not a reading", () => {
+    expect(isMeasurementReading("Half marathon is 13.1 miles")).toBe(false);
+    expect(isMeasurementReading("The lake trail is 5 miles")).toBe(false);
+    expect(isMeasurementReading("My commute is 18 miles each way")).toBe(false);
+    expect(isMeasurementReading("The bag weighs 40 lbs")).toBe(false);
   });
 
   it("times and places never read as values", () => {

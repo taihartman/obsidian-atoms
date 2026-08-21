@@ -122,6 +122,11 @@ function createdStamp(content: string): string | null {
  * prior reading with an ordinary series reason, so the common case is an
  * existing link to the loop title: upgrade its reason in place (a title-dedup
  * append would silently write nothing and leave the loop open forever).
+ *
+ * The trailing region is only *replaced* when it actually parses to links.
+ * A trailing paragraph of capture text also splits off as a "prose region",
+ * and rewriting it would destroy verbatim body (non-negotiable #1) — that
+ * case appends a fresh link block below instead, touching nothing.
  * Null when the content already redeems or nothing changed.
  */
 export function applyRedeemsLink(
@@ -156,36 +161,62 @@ export function collectLoopCloseOffers(
 ): LoopCloseOffer[] {
   const told = new Set([...(opts.told ?? [])]);
   const redeemed = collectRedeemedParentKeys(rows);
-  const loops = rows.filter(
-    (r) =>
-      isOpenNowContent(r.content) && !redeemed.has(r.title.trim().toLowerCase()),
-  );
+  const loops = rows
+    .filter(
+      (r) =>
+        isOpenNowContent(r.content) &&
+        !redeemed.has(r.title.trim().toLowerCase()),
+    )
+    .map((r) => {
+      const body = extractCaptureBody(r.content).trim();
+      return {
+        row: r,
+        body,
+        mentions: measuredThingMentions(body),
+        // Day granularity: created stamps mix date-only and date-time forms,
+        // and a raw string compare would call a same-day later reading older.
+        day: createdStamp(r.content)?.slice(0, 10) ?? null,
+      };
+    })
+    .filter((l) => l.day !== null);
   if (!loops.length) return [];
 
+  const readings = rows
+    .map((r) => {
+      const body = extractCaptureBody(r.content).trim();
+      return {
+        row: r,
+        body,
+        key: measuredThingKey(body),
+        stamp: createdStamp(r.content),
+      };
+    })
+    .filter((r) => r.key && r.stamp)
+    .sort((a, b) => (a.stamp! < b.stamp! ? 1 : a.stamp! > b.stamp! ? -1 : 0));
+
+  // One offer per loop, against the NEWEST qualifying reading only. A told
+  // (declined) newest pair silences the loop entirely — an older reading must
+  // never re-ask the question with staler evidence. A future reading is a new
+  // pair, so new evidence may ask again.
   const offers: (LoopCloseOffer & { stamp: string })[] = [];
-  for (const reading of rows) {
-    const body = extractCaptureBody(reading.content).trim();
-    const key = measuredThingKey(body);
-    if (!key) continue;
-    const stamp = createdStamp(reading.content);
-    if (!stamp) continue;
-    for (const loop of loops) {
-      if (loop.path === reading.path) continue;
-      const loopBody = extractCaptureBody(loop.content).trim();
-      if (!measuredThingMentions(loopBody).has(key)) continue;
-      const loopStamp = createdStamp(loop.content);
-      if (!loopStamp || stamp < loopStamp) continue;
-      if (told.has(loopClosePairId(loop.path, reading.path))) continue;
-      offers.push({
-        loopPath: loop.path,
-        loopTitle: loop.title,
-        loopBody,
-        readingPath: reading.path,
-        readingTitle: reading.title,
-        readingBody: body,
-        stamp,
-      });
-    }
+  for (const loop of loops) {
+    const newest = readings.find(
+      (rd) =>
+        rd.row.path !== loop.row.path &&
+        loop.mentions.has(rd.key!) &&
+        rd.stamp!.slice(0, 10) >= loop.day!,
+    );
+    if (!newest) continue;
+    if (told.has(loopClosePairId(loop.row.path, newest.row.path))) continue;
+    offers.push({
+      loopPath: loop.row.path,
+      loopTitle: loop.row.title,
+      loopBody: loop.body,
+      readingPath: newest.row.path,
+      readingTitle: newest.row.title,
+      readingBody: newest.body,
+      stamp: newest.stamp!,
+    });
   }
   return offers
     .sort((a, b) => (a.stamp < b.stamp ? 1 : a.stamp > b.stamp ? -1 : 0))

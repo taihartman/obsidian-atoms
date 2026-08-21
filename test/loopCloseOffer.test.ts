@@ -100,7 +100,7 @@ describe("collectLoopCloseOffers", () => {
     expect(offers).toEqual([]);
   });
 
-  it("newest reading offers first when several qualify", () => {
+  it("one offer per loop, against the newest reading only", () => {
     const offers = collectLoopCloseOffers([
       loopAtom(),
       readingAtom(),
@@ -110,8 +110,30 @@ describe("collectLoopCloseOffers", () => {
         created: "2026-08-22T09:00:00",
       }),
     ]);
+    expect(offers).toHaveLength(1);
     expect(offers[0]!.readingBody).toBe("My car is at 73120 miles");
-    expect(offers).toHaveLength(2);
+  });
+
+  it("declining the newest pair silences the loop; older readings never re-ask", () => {
+    const loop = loopAtom();
+    const older = readingAtom({
+      path: "Atoms/Car odometer reads 73060 miles.md",
+      body: "My car is at 73060 miles",
+      created: "2026-08-19T09:00:00",
+    });
+    const newest = readingAtom();
+    const offers = collectLoopCloseOffers([loop, older, newest], {
+      told: [loopClosePairId(loop.path, newest.path)],
+    });
+    expect(offers).toEqual([]);
+  });
+
+  it("a reading captured later the same day still offers (date-only vs date-time stamps)", () => {
+    const offers = collectLoopCloseOffers([
+      loopAtom({ created: "2026-08-18T10:42:56" }),
+      readingAtom({ created: "2026-08-18" }),
+    ]);
+    expect(offers).toHaveLength(1);
   });
 });
 
@@ -150,5 +172,21 @@ My car is at 73089 miles
       "redeems [[Car at 73042 miles]]",
     );
     expect(applyRedeemsLink(done, "Car at 73042 miles")).toBe(null);
+  });
+
+  it("never destroys a trailing body paragraph (body is sacred)", () => {
+    const twoParas = `---
+created: 2026-08-20T20:22:26
+generated-by: linker
+---
+
+My car is at 73089 miles
+
+Also the brakes squeak a bit when cold
+`;
+    const next = applyRedeemsLink(twoParas, "Car at 73042 miles");
+    expect(next).toBeTruthy();
+    expect(next!).toContain("Also the brakes squeak a bit when cold");
+    expect(next!).toContain("redeems [[Car at 73042 miles]]");
   });
 });

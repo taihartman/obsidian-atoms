@@ -64,6 +64,21 @@ describe("looksLikeOpenLoop", () => {
     ).toBe(false);
   });
 
+  it("descriptive prose about coming back or returning never opens", () => {
+    expect(
+      looksLikeOpenLoop("Customers come back to brands that respect them", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop("Great ideas come back to you on walks", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop(
+        "The function should return the value to the caller",
+        "",
+      ),
+    ).toBe(false);
+  });
+
   it("rejects finished short notes with idea/newsletter titles", () => {
     expect(
       looksLikeOpenLoop(

@@ -1458,11 +1458,13 @@ export class AtomsHomeView extends ItemView {
       new Notice("Atoms: loop closed");
       this.plugin.scheduleAskMirrorSync();
       await this.loadData();
-      this.render();
     } catch {
       new Notice("Atoms: could not close that loop");
     } finally {
+      // Render here on every path — an early return or a throw would
+      // otherwise strand the card on disabled "Closing…" buttons.
       this.loopCloseBusy = false;
+      this.render();
     }
   }
 

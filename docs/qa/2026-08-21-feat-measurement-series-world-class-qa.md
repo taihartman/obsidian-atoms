@@ -20,7 +20,7 @@ this report does not claim it is.
 |---|---|
 | `npm run build` (tsc + esbuild production) | green |
 | `npm run lint` (eslint-plugin-obsidianmd, max-warnings 0) | green |
-| `npx vitest run` full suite | **2277 passed / 0 failed** (was 2270 pre-branch; +37 new, no regressions) |
+| `npx vitest run` full suite | **2282 passed / 0 failed** (was 2270 pre-branch; +42 new, no regressions) |
 | Prompt parity (plugin vs plus-service), phrase-locked | green (`classificationContract.test.ts`, new phrase locked) |
 | Enrich order contracts (live + offline, call-site aligned) | green |
 | Copy voice (no em dashes in `src/**` literals) | green |
@@ -48,6 +48,37 @@ this report does not claim it is.
 - Redeem correctness: `applyRedeemsLink` upgrades an existing series link's
   reason in place (title-dedup append would have written nothing), appends when
   absent, no-ops when already redeeming.
+
+## Code review (built-in `code-review` skill, high effort — ce-code-review unavailable)
+
+Seven findings, all fixed and regression-locked in the same session:
+
+- **P0 (body is sacred):** `applyRedeemsLink` / `applyHardLinkToAtomContent`
+  treated a trailing body paragraph as the link region and replaced it —
+  verified destroying "Also the brakes squeak a bit when cold". Replace now
+  requires the region to parse to links; append keeps the whole body (the old
+  append also re-sliced to the first paragraph). Fixed at the source, so
+  person/list invite accepts inherit the fix.
+- **P1:** bare "miles"/"weighs" counted as durable things ("Half marathon is
+  13.1 miles" keyed as a car reading). THING_RE narrowed to real things; the
+  weigh-in idiom and whole-capture bare odometer kept as explicit arms.
+- **P1:** two loop patterns lacked the intent lead their comment claimed
+  ("Customers come back to brands…" opened a loop) — amplified by the quality
+  sweep now stamping inferred loops on refresh. Patterns now require an intent
+  lead or line-initial imperative.
+- **P1:** declining the newest pair let the same loop re-offer with each older
+  reading. Collector now offers one pair per loop (newest reading only); told
+  silences the loop until genuinely new evidence arrives.
+- **P2:** mixed date-only/date-time created stamps mis-ordered same-day pairs
+  (raw string compare); now day-granularity.
+- **P2:** error paths left the close card stranded on disabled "Closing…"
+  buttons; render moved to `finally`.
+- **P3:** per-loop body/stamp recomputed inside the readings loop; precomputed.
+
+Residual (pre-existing, out of scope): a trailing body paragraph that itself
+contains a wikilink still parses as link prose across the whole
+parse/format-roundtrip family (refresh, invites) — the region convention's
+known ambiguity, not introduced here.
 
 ## Adversarial pass (what I tried to break)
 

@@ -24,11 +24,12 @@ const STRONG_INTENT: RegExp[] = [
   /\bcapture (this )?later\b/,
   /\bwrite (this )?up later\b/,
   // Return / completion intents (#589): a stated trip back is unfinished
-  // business. Intent lead required so past tense ("came back") never opens.
-  /\b(?:need to|have to|got to|gotta|should|will|i'll|going to|gonna)\b[^.\n]{0,60}?\b(?:come|go|head) back\b/,
-  /\bcome back (?:in|into|to)\b/,
-  /\b(?:bring|take) (?:it|this|that|the \w+|my \w+) back\b/,
-  /\breturn (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) to\b/,
+  // business. An intent lead or a line-initial imperative is required, so
+  // past tense ("came back") and descriptive prose ("customers come back to
+  // brands", "the function should return the value to the caller") never open.
+  /\b(?:need to|have to|got to|gotta|should|will|i'll|going to|gonna)\b[^.\n]{0,60}?\b(?:(?:come|go|head) back|(?:bring|take)\b[^.\n]{0,24}?\bback)\b/,
+  /^\s*(?:bring|take) (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) back\b/m,
+  /^\s*return (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) to\b/m,
 ];
 
 /** True when body is predominantly an intention / IOU, not substance. */

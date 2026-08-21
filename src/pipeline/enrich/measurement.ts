@@ -20,15 +20,23 @@ const CHORE_LEAD_RE =
  * reading ("…drive 60 to 70 miles…" still reads via "at 73042").
  */
 const ACTIVITY_DISTANCE_RE =
-  /\b(?:ran|run(?:ning)?|walk(?:ed|ing)?|jog(?:ged|ging)?|hik(?:ed|ing)|drove|drive|driving|cycl(?:ed|ing)|bik(?:ed|ing)|swam)\b[^.\n]{0,24}?\b\d[\d,]*(?:\.\d+)?\s*(?:miles?|mi|km|kilometers?)\b/gi;
+  /\b(?:ran|run(?:ning)?|walk(?:ed|ing)?|jog(?:ged|ging)?|hik(?:ed|ing)|drove|drive|driving|cycl(?:ed|ing)|bik(?:ed|ing)|rode|rid(?:e|ing|den)|flew|flown|fly(?:ing)?|swam)\b[^.\n]{0,24}?\b\d[\d,]*(?:\.\d+)?\s*(?:miles?|mi|km|kilometers?)\b/gi;
 
 /**
  * Durable things whose numbers form a series. Deliberately short — the model
  * carries the general concept; this list only covers shapes we have watched
- * fail (odometer) plus the obvious neighbours.
+ * fail (odometer) plus the obvious neighbours. Bare distance/verb words
+ * ("miles", "weighs") are NOT things: "Half marathon is 13.1 miles" and "The
+ * bag weighs 40 lbs" are facts about a race and a bag, not series points.
  */
 const THING_RE =
-  /\b(car|truck|bike|motorcycle|vehicle|odometer|mileage|miles?|scale|weight|weigh(?:ed|s|t)?|meter|rent)\b/gi;
+  /\b(car|truck|bike|motorcycle|vehicle|odometer|mileage|scale|weight|meter|rent)\b/gi;
+
+/** The self weigh-in idiom is a reading even without the word "weight". */
+const WEIGH_IN_RE = /\bweigh(?:ed)?\s+in\b/i;
+
+/** A capture that is nothing but an odometer number is a car reading. */
+const BARE_ODOMETER_RE = /^\d[\d,]{2,}(?:\.\d+)?\s*(?:miles|mi|km)$/i;
 
 /**
  * Reading-value shapes. The 3+ digit floor on the bare "at N" arm keeps times
@@ -48,19 +56,23 @@ function scrubbed(captureText: string): string {
     .replace(ACTIVITY_DISTANCE_RE, " ");
 }
 
+function hasThing(t: string): boolean {
+  THING_RE.lastIndex = 0;
+  return THING_RE.test(t) || WEIGH_IN_RE.test(t) || BARE_ODOMETER_RE.test(t);
+}
+
 /** High-precision: a short capture reading a durable thing's number. */
 export function isMeasurementReading(captureText: string): boolean {
   const t = scrubbed(captureText);
   if (!t || t.length > 200) return false;
   if (CHORE_LEAD_RE.test(t)) return false;
-  THING_RE.lastIndex = 0;
-  if (!THING_RE.test(t)) return false;
+  if (!hasThing(t)) return false;
   return VALUE_RES.some((re) => re.test(t));
 }
 
 function normalizeThing(raw: string): string {
-  if (/^(odometer|mileage|miles?|vehicle)$/.test(raw)) return "car";
-  if (/^(weigh(?:ed|s|t)?|scale|weight)$/.test(raw)) return "weight";
+  if (/^(odometer|mileage|vehicle)$/.test(raw)) return "car";
+  if (/^(scale|weight)$/.test(raw)) return "weight";
   return raw;
 }
 
@@ -71,10 +83,13 @@ function normalizeThing(raw: string): string {
  */
 export function measuredThingMentions(text: string): Set<string> {
   const out = new Set<string>();
+  const t = text ?? "";
   THING_RE.lastIndex = 0;
-  for (const m of (text ?? "").matchAll(THING_RE)) {
+  for (const m of t.matchAll(THING_RE)) {
     out.add(normalizeThing(m[1]!.toLowerCase()));
   }
+  if (WEIGH_IN_RE.test(t)) out.add("weight");
+  if (BARE_ODOMETER_RE.test(t.trim())) out.add("car");
   return out;
 }
 
@@ -86,16 +101,11 @@ export function measuredThingMentions(text: string): Set<string> {
 export function measuredThingKey(captureText: string): string | null {
   if (!isMeasurementReading(captureText)) return null;
   const t = scrubbed(captureText);
-  THING_RE.lastIndex = 0;
-  const found = new Set<string>();
-  for (const m of t.matchAll(THING_RE)) {
-    found.add(m[1]!.toLowerCase());
-  }
+  const found = measuredThingMentions(t);
   for (const concrete of ["car", "truck", "bike", "motorcycle", "rent", "meter"]) {
     if (found.has(concrete)) return concrete;
   }
-  const mapped = [...found].map(normalizeThing);
-  return mapped.find((k) => k === "car") ?? mapped.find((k) => k === "weight") ?? null;
+  return found.has("weight") ? "weight" : null;
 }
 
 /** Hub title offered when a series proves itself (invite copy owns phrasing). */

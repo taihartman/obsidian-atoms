@@ -566,7 +566,8 @@ export function applyHardLinkToAtomContent(
   const want = note.trim();
   if (!want) return null;
   const prose = extractLinkProseRegion(content);
-  let next = parseLinkProse(prose);
+  const parsed = parseLinkProse(prose);
+  let next = parsed;
   if (opts.dropSoft) {
     next = next.filter((l) => {
       const n = l.note.trim().toLowerCase();
@@ -578,20 +579,15 @@ export function applyHardLinkToAtomContent(
   );
   if (!has) next = [...next, { note: want, reason }];
   const newProse = formatLinkProse(next);
-  if (prose) {
+  // Replace the region only when it really is a link block. A trailing
+  // paragraph of capture text also splits off as a "prose region", and
+  // rewriting it would destroy verbatim body (non-negotiable #1).
+  if (prose && parsed.length) {
     const out = content.replace(prose, newProse);
     return out === content ? null : out;
   }
   if (has && !opts.dropSoft) return null;
-  // append after capture body
-  if (content.startsWith("---")) {
-    const fmEnd = content.indexOf("\n---", 3);
-    if (fmEnd !== -1) {
-      const fm = content.slice(0, fmEnd + 4);
-      const rest = content.slice(fmEnd + 4).replace(/^\r?\n/, "");
-      const capture = rest.split(/\n\n/)[0] ?? rest;
-      return `${fm}\n${capture.trimEnd()}\n\n${newProse}\n`;
-    }
-  }
-  return `${content.trimEnd()}\n\n${newProse}\n`;
+  // Append below the full body — never re-slice it (a first-paragraph split
+  // here silently dropped every later paragraph).
+  return `${content.replace(/\s+$/, "")}\n\n${newProse}\n`;
 }
