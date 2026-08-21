@@ -13,6 +13,7 @@ import {
   UPDATE_NOTES_BATCH_LIMIT,
 } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
+import type { RunPhase } from "./runProgress";
 import { parseCaptures } from "../pipeline/parse";
 import {
   plusLapse,
@@ -605,6 +606,46 @@ export function updateNotesConfirmCopy(opts: {
         body: "Sign in to Atoms Plus or add an API key in Settings first.",
       };
   }
+}
+
+export const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
+
+/** Home news once per quality. Refile debt only. Hidden under Process wait. */
+export function shouldShowUpdateNotesNews(opts: {
+  refileCount: number;
+  dismissedQuality: number;
+  workPending: boolean;
+  firstDay: boolean;
+  runPhase: RunPhase;
+  landPeak: boolean;
+  currentQuality?: number;
+}): boolean {
+  if (opts.refileCount <= 0) return false;
+  if (opts.workPending || opts.firstDay || opts.landPeak) return false;
+  if (
+    opts.runPhase === "preview" ||
+    opts.runPhase === "process" ||
+    opts.runPhase === "update"
+  ) {
+    return false;
+  }
+  const current = opts.currentQuality ?? CURRENT_ATOMS_QUALITY;
+  if (opts.dismissedQuality >= current) return false;
+  return true;
+}
+
+/** Persist the quality-era heard key after a wave that actually refiled. */
+export function rememberUpdateNotesHeard(opts: {
+  updated: number;
+  save: (key: string, value: string) => void;
+  current?: number;
+}): boolean {
+  if (opts.updated <= 0) return false;
+  opts.save(
+    LS_UPDATE_NOTES_DISMISSED_Q,
+    String(opts.current ?? CURRENT_ATOMS_QUALITY),
+  );
+  return true;
 }
 
 /** True when this device will file past captures without a Process tap. */

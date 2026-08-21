@@ -157,6 +157,7 @@ import {
   type PlusBaseVerifyCache,
 } from "../platform/plusBaseVerify";
 import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
+import { rememberUpdateNotesHeard } from "../home/atomsHomeData";
 import {
   formatConnectivityConsole,
   runConnectivityTest,
@@ -669,6 +670,10 @@ export default class AtomsPlugin extends Plugin {
         },
       });
       this.lastRefreshReport = report;
+      rememberUpdateNotesHeard({
+        updated: report.updated,
+        save: (k, v) => this.app.saveLocalStorage(k, v),
+      });
       const polished = report.polished ?? 0;
       const summary = formatUpdateSummary(
         report.updated,

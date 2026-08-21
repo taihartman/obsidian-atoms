@@ -31,12 +31,14 @@ import {
   planCreatedOrderBackfill,
   queuePeekTexts,
   shouldShowBackfillOffer,
+  shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesQuotedN,
   updateNotesStripCopy,
   waitingSubtitle,
+  LS_UPDATE_NOTES_DISMISSED_Q,
   type AtomLibraryEntry,
   type BackfillOfferCopy,
   type FilingHeroAction,
@@ -228,7 +230,6 @@ import {
 
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
-const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
@@ -265,10 +266,8 @@ export class AtomsHomeView extends ItemView {
   private inboxStuck: InboxStuckSummary | null = null;
   /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
   private inboxStuckCounts: InboxCounts | null = null;
-  /** Update work remaining: refile debt + polishable (for strip). */
-  private eligibleUpdateCount = 0;
+  /** Update refile debt (q < CURRENT) for the news strip. */
   private updateRefileCount = 0;
-  private updatePolishableCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
   /** Core Daily Notes or Periodic Notes daily. First-day card branches on this. */
@@ -766,9 +765,7 @@ export class AtomsHomeView extends ItemView {
         title: titleFromAtomPath(i.path),
       })),
     );
-    this.eligibleUpdateCount = work.total;
     this.updateRefileCount = work.refile;
-    this.updatePolishableCount = work.polishable;
     this.resurfaceThrottle = pruneThrottle(
       parseThrottleJson(
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
@@ -2474,15 +2471,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Show when not mid-run. Hide during preview/process/update and under land peak.
-    if (
-      !firstDay &&
-      this.runPhase !== "preview" &&
-      this.runPhase !== "process" &&
-      this.runPhase !== "update" &&
-      !this.landPeak &&
-      this.shouldShowUpdateNotesStrip()
-    ) {
+    if (this.shouldShowUpdateNotesStrip()) {
       this.renderUpdateNotesStrip(scroll);
     }
 
@@ -2810,9 +2799,14 @@ export class AtomsHomeView extends ItemView {
   }
 
   private shouldShowUpdateNotesStrip(): boolean {
-    if (this.eligibleUpdateCount <= 0) return false;
-    if (this.dismissedUpdateQuality() >= CURRENT_ATOMS_QUALITY) return false;
-    return true;
+    return shouldShowUpdateNotesNews({
+      refileCount: this.updateRefileCount,
+      dismissedQuality: this.dismissedUpdateQuality(),
+      workPending: shouldShowWaitCard(this.unprocessedCount),
+      firstDay: this.isFirstDay(),
+      runPhase: this.runPhase,
+      landPeak: !!this.landPeak,
+    });
   }
 
   private renderUpdateNotesStrip(scroll: HTMLElement): void {

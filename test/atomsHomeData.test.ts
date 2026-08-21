@@ -31,6 +31,8 @@ import {
   personNameFromClaimTitle,
   planCreatedOrderBackfill,
   shouldShowBackfillOffer,
+  rememberUpdateNotesHeard,
+  shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
@@ -643,6 +645,89 @@ tags: []
 new
 `;
     expect(countEligibleUpdateNotes([legacy, stamped, "# hand"])).toBe(1);
+  });
+});
+
+describe("shouldShowUpdateNotesNews", () => {
+  const idle = {
+    refileCount: 4,
+    dismissedQuality: -1,
+    workPending: false,
+    firstDay: false,
+    runPhase: "idle" as const,
+    landPeak: false,
+  };
+
+  it("is true when refile debt exists on idle Home and this quality is unheard", () => {
+    expect(shouldShowUpdateNotesNews(idle)).toBe(true);
+  });
+
+  it("is false while Process is waiting", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, workPending: true })).toBe(
+      false,
+    );
+  });
+
+  it("is false after this quality was heard", () => {
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, dismissedQuality: 9 }),
+    ).toBe(false);
+  });
+
+  it("is false when only polishable work remains", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, refileCount: 0 })).toBe(false);
+  });
+
+  it("is true again after CURRENT moves past the heard key", () => {
+    expect(
+      shouldShowUpdateNotesNews({
+        ...idle,
+        dismissedQuality: 8,
+        currentQuality: 9,
+      }),
+    ).toBe(true);
+  });
+
+  it("is false on first day, land peak, or a filing run phase", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, firstDay: true })).toBe(false);
+    expect(shouldShowUpdateNotesNews({ ...idle, landPeak: true })).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "process" }),
+    ).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "preview" }),
+    ).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "update" }),
+    ).toBe(false);
+  });
+});
+
+describe("rememberUpdateNotesHeard", () => {
+  it("writes CURRENT when updated is greater than 0", () => {
+    const writes: Record<string, string> = {};
+    expect(
+      rememberUpdateNotesHeard({
+        updated: 3,
+        save: (k, v) => {
+          writes[k] = v;
+        },
+      }),
+    ).toBe(true);
+    expect(writes["atoms-update-notes-dismissed-q"]).toBe("9");
+  });
+
+  it("does not write when updated is 0", () => {
+    const writes: Record<string, string> = {};
+    expect(
+      rememberUpdateNotesHeard({
+        updated: 0,
+        save: (k, v) => {
+          writes[k] = v;
+        },
+      }),
+    ).toBe(false);
+    expect(writes).toEqual({});
   });
 });
 
