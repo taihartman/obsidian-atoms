@@ -323,7 +323,7 @@ export function buildContextUserMessage(context: VaultContext): string {
   );
 }
 
-function hubsForEnrich(context: VaultContext): PersonHub[] {
+export function hubsForEnrich(context: VaultContext): PersonHub[] {
   if (context.personHubDetails?.length) {
     return context.personHubDetails.map((d) => ({
       canonicalTitle: d.canonicalTitle,

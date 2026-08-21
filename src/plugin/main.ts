@@ -46,6 +46,8 @@ import {
   parseUsage,
   ANTHROPIC_MESSAGES_URL,
   ANTHROPIC_VERSION,
+  applyClassificationQuality,
+  hubsForEnrich,
 } from "../pipeline/classify";
 import {
   MetadataContextProvider,
@@ -3316,7 +3318,20 @@ export default class AtomsPlugin extends Plugin {
           await commitResult(result);
         },
         onKeepAnyway: async () => {
-          await commitResult(forceKeepAtomResult(gate.capture.text));
+          // #589 KD6: a user override is a verdict; the system still owes it
+          // the enrichment chain so a kept note never files as an island.
+          const kept = applyClassificationQuality(
+            gate.capture.text,
+            forceKeepAtomResult(gate.capture.text),
+            {
+              titles: ctx.titles,
+              personHubs: hubsForEnrich(ctx),
+              personHubTitles: ctx.personHubs,
+              personHubDetails: ctx.personHubDetails,
+              listHubDetails: ctx.listHubDetails,
+            },
+          );
+          await commitResult(kept);
         },
       }).open();
     } catch (e) {

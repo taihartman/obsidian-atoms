@@ -7,6 +7,8 @@ import {
   rescueMeasurementReading,
   seriesLinkReason,
 } from "../src/pipeline/enrich/measurement";
+import { applyClassificationQuality } from "../src/pipeline/classify";
+import { forceKeepAtomResult } from "../src/pipeline/reconsider";
 import type { ClassificationResult } from "../src/shared/types";
 
 /** The live pair that spawned #589, verbatim. */
@@ -163,5 +165,27 @@ describe("rescueMeasurementReading", () => {
     );
     expect(r.tags).toEqual(["list"]);
     expect(r.links).toEqual([{ note: "My car", reason: "series" }]);
+  });
+});
+
+describe("Keep as note runs the enrichment chain (#589 KD6 / AE8)", () => {
+  it("a forced keep with a same-thread hub in context is never an island", () => {
+    const kept = applyClassificationQuality(
+      READING_73089,
+      forceKeepAtomResult(READING_73089),
+      { titles: ["My car", "Alex"] },
+    );
+    expect(kept.verdict).toBe("atom");
+    expect(kept.links?.some((l) => l.note === "My car")).toBe(true);
+  });
+
+  it("a forced keep with no matching titles stays a clean atom", () => {
+    const kept = applyClassificationQuality(
+      "some stray thought worth keeping",
+      forceKeepAtomResult("some stray thought worth keeping"),
+      { titles: ["My car"] },
+    );
+    expect(kept.verdict).toBe("atom");
+    expect(kept.links ?? []).toEqual([]);
   });
 });

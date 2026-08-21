@@ -139,6 +139,50 @@ I will share my routine later.
     expect(md).toContain(`${OPEN_LOOP_SOURCE_KEY}: user`);
   });
 
+  it("buildRefreshedAtomMarkdown infers a loop when FM has none (#589 AE6)", () => {
+    const noLoop = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+atoms-quality: 8
+quality-updated: 2026-08-18
+tags: []
+---
+
+My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive
+`;
+    const md = buildRefreshedAtomMarkdown({
+      oldContent: noLoop,
+      captureText:
+        "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive",
+      result: atom("Car at 73042 miles, needs a return to QGS automotive"),
+      title: "Car at 73042 miles, needs a return to QGS automotive",
+    });
+    expect(md).toContain(`${OPEN_LOOP_KEY}: active`);
+    expect(md).toContain(`${OPEN_LOOP_SOURCE_KEY}: inferred`);
+  });
+
+  it("refresh never invents a loop for substance", () => {
+    const noLoop = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+atoms-quality: 8
+quality-updated: 2026-08-18
+tags: []
+---
+
+Baked at 400F for 23 minutes. Crust was chewy.
+`;
+    const md = buildRefreshedAtomMarkdown({
+      oldContent: noLoop,
+      captureText: "Baked at 400F for 23 minutes. Crust was chewy.",
+      result: atom("Pizza crust chews best at 400F for 23 minutes"),
+      title: "Pizza crust chews best at 400F for 23 minutes",
+    });
+    expect(md).not.toContain(OPEN_LOOP_KEY);
+  });
+
   it("buildPolishedAtomMarkdown keeps user terminal", () => {
     const md = buildPolishedAtomMarkdown({
       oldContent: old,
