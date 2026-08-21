@@ -47,7 +47,7 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 - **Heard key:** `atoms-update-notes-dismissed-q`. Written on Not now and on `report.updated > 0` only.
 - **Command:** `atoms:update-notes` — name `Update notes`; no confirm (force path).
 - **Source:** `src/home/updateNotesConfirm.ts`, `shouldShowUpdateNotesNews` in `atomsHomeData.ts`, `renderUpdateNotesStrip` in `atomsHomeView.ts`, `renderUpdateNotesRow` in `settings.ts`.
-- **QA:** Planting `atoms-quality: 8` linker atoms is labeled UI-chrome (new Process output stamps CURRENT). Seeded dailies keep the wait card in the hero — zero the wait card (eval) to see the strip. Paid classify is Not Tested unless a key/Plus session exists. Do not run live Update notes just to hide the strip; `persistUpdateNotesHeard` via eval is labeled chrome for the quiet-Home frame.
+- **QA:** Planting `atoms-quality: 8` linker atoms is labeled UI-chrome (new Process output stamps CURRENT). Seeded dailies keep the wait card in the hero — **marker** those captures (eval-zero of `unprocessedCount` does not survive `refresh()`). Read heard via `app.loadLocalStorage("atoms-update-notes-dismissed-q")`, never `window.localStorage`. Paid classify is Not Tested unless a key/Plus session exists. Do not run live Update notes just to hide the strip; Not now or `persistUpdateNotesHeard` via eval is labeled chrome for the quiet-Home frame. Settings frames at `is-phone`; scroll the File group then screenshot immediately.
 - **Do not:** Expect the strip beside a Process wait card. Expect Settings `dev:screenshot` on desktop (popout) — take Settings frames at `is-phone`.
 
 ### Settings → Atoms
