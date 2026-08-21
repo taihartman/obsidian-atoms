@@ -1,0 +1,119 @@
+import { describe, expect, it } from "vitest";
+import {
+  isMeasurementReading,
+  measuredThingKey,
+  measuredThingHubTitle,
+  rescueMeasurementReading,
+} from "../src/pipeline/enrich/measurement";
+import type { ClassificationResult } from "../src/shared/types";
+
+/** The live pair that spawned #589, verbatim. */
+const READING_73042 =
+  "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive";
+const READING_73089 = "My car is at 73089 miles";
+
+const noiseResult = (over: Partial<ClassificationResult> = {}): ClassificationResult => ({
+  verdict: "noise",
+  title: "",
+  tags: [],
+  proposed_tags: [],
+  links: [],
+  ...over,
+});
+
+describe("isMeasurementReading", () => {
+  it("recognizes the live pair verbatim", () => {
+    expect(isMeasurementReading(READING_73042)).toBe(true);
+    expect(isMeasurementReading(READING_73089)).toBe(true);
+  });
+
+  it("generalizes to weight, rent, and bare odometer captures", () => {
+    expect(isMeasurementReading("Weighed in at 178 this morning")).toBe(true);
+    expect(isMeasurementReading("Rent is $1450 now")).toBe(true);
+    expect(isMeasurementReading("73150 miles")).toBe(true);
+  });
+
+  it("never promotes chores that carry a quantity", () => {
+    expect(isMeasurementReading("buy milk")).toBe(false);
+    expect(isMeasurementReading("buy 2 gallons of milk")).toBe(false);
+    expect(isMeasurementReading("call dentist at 3")).toBe(false);
+    expect(isMeasurementReading("pay $1200 rent tomorrow")).toBe(false);
+    expect(isMeasurementReading("pick up the car at 5")).toBe(false);
+  });
+
+  it("an activity distance is not a thing's reading", () => {
+    expect(isMeasurementReading("Ran 6 miles")).toBe(false);
+    expect(isMeasurementReading("Drove 300 miles today")).toBe(false);
+  });
+
+  it("times and places never read as values", () => {
+    expect(isMeasurementReading("car wash at 230pm")).toBe(false);
+    expect(isMeasurementReading("parked the car at 5th street")).toBe(false);
+    expect(isMeasurementReading("10:30")).toBe(false);
+    expect(isMeasurementReading("")).toBe(false);
+  });
+
+  it("long captures are not the seatbelt's job", () => {
+    const long = `My car is at 73089 miles. ${"More prose. ".repeat(30)}`;
+    expect(isMeasurementReading(long)).toBe(false);
+  });
+});
+
+describe("measuredThingKey", () => {
+  it("keys both live captures to the same series", () => {
+    expect(measuredThingKey(READING_73042)).toBe("car");
+    expect(measuredThingKey(READING_73089)).toBe("car");
+  });
+
+  it("concrete nouns win over generic units", () => {
+    expect(measuredThingKey("73150 miles")).toBe("car");
+    expect(measuredThingKey("Weighed in at 178 this morning")).toBe("weight");
+    expect(measuredThingKey("Rent is $1450 now")).toBe("rent");
+  });
+
+  it("is null for non-readings", () => {
+    expect(measuredThingKey("Ran 6 miles")).toBe(null);
+    expect(measuredThingKey("buy 2 gallons of milk")).toBe(null);
+  });
+
+  it("hub titles read as ownership", () => {
+    expect(measuredThingHubTitle("car")).toBe("My car");
+    expect(measuredThingHubTitle("weight")).toBe("My weight");
+  });
+});
+
+describe("rescueMeasurementReading", () => {
+  it("promotes a noise reading to atom with a non-empty title", () => {
+    const r = rescueMeasurementReading(READING_73089, noiseResult());
+    expect(r.verdict).toBe("atom");
+    expect(r.title.trim().length).toBeGreaterThan(0);
+    expect(r.title.length).toBeLessThanOrEqual(90);
+  });
+
+  it("promotes a task reading too (soft-retired verdict)", () => {
+    const r = rescueMeasurementReading(
+      "Weighed in at 178 this morning",
+      noiseResult({ verdict: "task" }),
+    );
+    expect(r.verdict).toBe("atom");
+  });
+
+  it("leaves an atom verdict untouched", () => {
+    const atom = noiseResult({ verdict: "atom", title: "Car odometer reads 73089 miles" });
+    expect(rescueMeasurementReading(READING_73089, atom)).toBe(atom);
+  });
+
+  it("leaves non-reading noise as noise", () => {
+    const noise = noiseResult();
+    expect(rescueMeasurementReading("buy 2 gallons of milk", noise)).toBe(noise);
+  });
+
+  it("carries existing tags and links through the promotion", () => {
+    const r = rescueMeasurementReading(
+      READING_73089,
+      noiseResult({ tags: ["list"], links: [{ note: "My car", reason: "series" }] }),
+    );
+    expect(r.tags).toEqual(["list"]);
+    expect(r.links).toEqual([{ note: "My car", reason: "series" }]);
+  });
+});
