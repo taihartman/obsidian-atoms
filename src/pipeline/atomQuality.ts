@@ -73,6 +73,49 @@ export function isEligibleForUpdate(
   return parseAtomsQuality(content) < current;
 }
 
+/** metadataCache frontmatter used to estimate refile debt without reading bodies. */
+export type AtomQualityFileCache = {
+  frontmatter?: Record<string, unknown> | null;
+} | null;
+
+function qualityFromFrontmatterValue(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw;
+  if (typeof raw === "string") {
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
+/** Same eligibility as `isEligibleForUpdate`, from a file cache instead of file text. */
+export function isEligibleForUpdateFromCache(
+  cache: AtomQualityFileCache,
+  current: number = CURRENT_ATOMS_QUALITY,
+): boolean {
+  if (cache?.frontmatter?.["generated-by"] !== "linker") return false;
+  return (
+    qualityFromFrontmatterValue(cache.frontmatter["atoms-quality"]) < current
+  );
+}
+
+/**
+ * Count linker atoms below CURRENT inside `atomFolder`, from metadataCache only.
+ * Folder must already be clamped. Files outside it, Ask-generated notes, and
+ * CURRENT-stamped atoms do not count.
+ */
+export function countRefileFromFileCaches(
+  files: Array<{ path: string; cache: AtomQualityFileCache }>,
+  atomFolder: string,
+  current: number = CURRENT_ATOMS_QUALITY,
+): number {
+  let n = 0;
+  for (const f of files) {
+    if (f.path !== atomFolder && !f.path.startsWith(`${atomFolder}/`)) continue;
+    if (isEligibleForUpdateFromCache(f.cache, current)) n += 1;
+  }
+  return n;
+}
+
 const PEOPLE_KEY_RE = /^atoms-people:(.*)$/;
 const PEOPLE_NAME_RE = /^\s{2}-\s+name:\s*(.+?)\s*$/;
 const PEOPLE_ROLE_RE = /^\s{4}role:\s*([a-z]+)\s*$/;

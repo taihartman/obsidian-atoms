@@ -1,9 +1,7 @@
 import {
   ItemView,
   Menu,
-  Modal,
   Notice,
-  Setting,
   TFile,
   WorkspaceLeaf,
 } from "obsidian";
@@ -34,8 +32,6 @@ import {
   shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
-  updateNotesConfirmCopy,
-  updateNotesQuotedN,
   updateNotesStripCopy,
   waitingSubtitle,
   LS_UPDATE_NOTES_DISMISSED_Q,
@@ -90,6 +86,7 @@ import {
   resolveAtomPersonName,
 } from "../pipeline/personInvite";
 import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
+import { openUpdateNotesConfirm } from "./updateNotesConfirm";
 import {
   discoverPersonHubs,
   type PersonHubFile,
@@ -2983,28 +2980,15 @@ export class AtomsHomeView extends ItemView {
   }
 
   private confirmUpdateNotes(): void {
-    const n = updateNotesQuotedN(this.updateRefileCount);
-    const billing = filingPathFromAuth(this.plugin.resolveFilingAuth());
-    const copy = updateNotesConfirmCopy({ n, billing });
-    const modal = new Modal(this.app);
-    modal.titleEl.setText(copy.title);
-    modal.contentEl.createEl("p", {
-      text: copy.body,
+    if (this.plugin.filingPassInFlight()) return;
+    openUpdateNotesConfirm({
+      app: this.app,
+      n: this.updateRefileCount,
+      billing: filingPathFromAuth(this.plugin.resolveFilingAuth()),
+      onConfirm: (limit) => {
+        void this.plugin.runUpdateNotes({ limit });
+      },
     });
-    new Setting(modal.contentEl)
-      .addButton((b) =>
-        b.setButtonText("Cancel").onClick(() => modal.close()),
-      )
-      .addButton((b) =>
-        b
-          .setButtonText("Update")
-          .setCta()
-          .onClick(() => {
-            modal.close();
-            void this.plugin.runUpdateNotes();
-          }),
-      );
-    modal.open();
   }
 
   /** iOS: Capture Atom shortcut. Android: the Play listing. */

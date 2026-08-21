@@ -1186,6 +1186,7 @@ const MAIN_DESTINATION_ROWS = [
   "Capture on your phone",
   "Atoms Capture",
   "Filing",
+  "Update notes",
   `Tag vocabulary · ${DEFAULT_SETTINGS.activeVocabulary.length} active`,
   "Atoms home",
   "Connect Claude or ChatGPT",

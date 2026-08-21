@@ -674,6 +674,7 @@ export default class AtomsPlugin extends Plugin {
         updated: report.updated,
         save: (k, v) => this.app.saveLocalStorage(k, v),
       });
+      this.settingTab?.refreshFromExternalSettings();
       const polished = report.polished ?? 0;
       const summary = formatUpdateSummary(
         report.updated,
@@ -1440,6 +1441,15 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * Silent hold: Process, Update notes, auto-run, or backfill is already writing.
+   * Settings uses this so a second tap does not stack a spend confirm. Callers that
+   * should tell the user why use `backfillBusy` instead.
+   */
+  filingPassInFlight(): boolean {
+    return this.autoRunInFlight || this.backfillInFlight || this.manualFilingInFlight;
+  }
+
+  /**
    * Is another filing pass already running? Both directions, in one place.
    *
    * The check is one synchronous step on purpose: the hourly pass, the manual catch-up and a
@@ -1447,19 +1457,13 @@ export default class AtomsPlugin extends Plugin {
    * exactly what the flags exist to prevent.
    */
   private backfillBusy(): boolean {
-    if (this.autoRunInFlight) {
-      new Notice("Atoms: filing already in progress");
-      return true;
-    }
+    if (!this.filingPassInFlight()) return false;
     if (this.backfillInFlight) {
       new Notice("Atoms: backfill already in progress");
       return true;
     }
-    if (this.manualFilingInFlight) {
-      new Notice("Atoms: filing already in progress");
-      return true;
-    }
-    return false;
+    new Notice("Atoms: filing already in progress");
+    return true;
   }
 
   /** The one bounded scan both engines derive their counts from. */

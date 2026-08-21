@@ -3,7 +3,9 @@ import {
   CURRENT_ATOMS_QUALITY,
   CURRENT_ATOMS_QUALITY_ANSWER,
   CURRENT_ATOMS_QUALITY_REASON,
+  countRefileFromFileCaches,
   isEligibleForUpdate,
+  isEligibleForUpdateFromCache,
   isLinkerGenerated,
   parseAtomsQuality,
   qualityStampLines,
@@ -71,6 +73,49 @@ describe("atomQuality", () => {
 
   it("non-linker content is not eligible", () => {
     expect(isEligibleForUpdate("# hand note\n\nhello")).toBe(false);
+  });
+
+  it("counts refile debt from metadataCache frontmatter inside the atom folder", () => {
+    const files = [
+      {
+        path: "Atoms/Old.md",
+        cache: {
+          frontmatter: { "generated-by": "linker", "atoms-quality": 8 },
+        },
+      },
+      {
+        path: "Atoms/Unstamped.md",
+        cache: { frontmatter: { "generated-by": "linker" } },
+      },
+      {
+        path: "Atoms/Current.md",
+        cache: {
+          frontmatter: {
+            "generated-by": "linker",
+            "atoms-quality": CURRENT_ATOMS_QUALITY,
+          },
+        },
+      },
+      {
+        path: "Atoms/Ask.md",
+        cache: {
+          frontmatter: { "generated-by": "ask-mcp", "atoms-quality": 1 },
+        },
+      },
+      {
+        path: "Notes/Elsewhere.md",
+        cache: {
+          frontmatter: { "generated-by": "linker", "atoms-quality": 1 },
+        },
+      },
+      { path: "Atoms/NoCache.md", cache: null },
+    ];
+    expect(countRefileFromFileCaches(files, "Atoms")).toBe(2);
+    expect(
+      isEligibleForUpdateFromCache({
+        frontmatter: { "generated-by": "linker", "atoms-quality": "3" },
+      }),
+    ).toBe(true);
   });
 
   it("qualityStampLines shape", () => {

@@ -51,7 +51,7 @@ import {
   requestMagicLink,
 } from "../src/platform/plusClient";
 import * as dni from "obsidian-daily-notes-interface";
-import { firstDaySetupCopy } from "../src/home/atomsHomeData";
+import { firstDaySetupCopy, updateNotesConfirmCopy } from "../src/home/atomsHomeData";
 import {
   destinationNames,
   dismissSheet,
@@ -3401,7 +3401,7 @@ describe("Advanced destination (U7, R4)", () => {
 /**
  * The main screen's row sequence, and the three action rows U9 removed.
  *
- * The plan's *"The resulting main screen"* table is the contract: fourteen rows, in one order,
+ * The plan's *"The resulting main screen"* table is the contract: row order
  * on a signed-in Plus install. Section headings are not rows and the Capture intro is prose, so
  * neither is counted — `rowNames(tab, { headings: false })` is what the table is about.
  */
@@ -3469,6 +3469,7 @@ describe("main screen row grammar (U9)", () => {
       // what they may be tagged, what gets listed on hub notes. The engine row is a noun and
       // its answer is the account's state, whose own screen is two taps in.
       "Filing",
+      "Update notes",
       // Shed to the status group once somebody files; the File group keeps it while the screen
       // is still asking who that is.
       ...(filingChosen ? [] : ["File automatically when Obsidian opens"]),
@@ -3497,7 +3498,7 @@ describe("main screen row grammar (U9)", () => {
 
     const rows = rowNames(tab, { headings: false });
     expect(rows).toEqual(expectedRows(true, ASK_ROWS, true));
-    expect(rows).toHaveLength(16);
+    expect(rows).toHaveLength(17);
   });
 
   it("renders thirteen rows signed out — the Ask group is the only difference", () => {
@@ -3507,7 +3508,7 @@ describe("main screen row grammar (U9)", () => {
     const rows = rowNames(tab, { headings: false });
     // No session, no ack, no cloud copy: nothing to take back, so no Privacy row either.
     expect(rows).toEqual(expectedRows(false, [ASK_OFF_ROW], false));
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(15);
   });
 
   it("adds the device-local key row under its toggle, and nowhere else", () => {
@@ -5012,4 +5013,137 @@ describe("Capture and File groups (U3)", () => {
       expect(said).toHaveLength(2);
     });
   });
+
+  /**
+   * U4 — File group `Update notes › Readings can link`, same spend confirm as Home.
+   */
+  describe("Update notes File row (U4)", () => {
+  const debtFiles = (n: number, quality = 8) =>
+    Array.from({ length: n }, (_, i) => ({
+      path: `Atoms/Old ${i + 1}.md`,
+      frontmatter: { "generated-by": "linker" as const, "atoms-quality": quality },
+    }));
+
+  function fileGroupDestinations(tab: AtomsSettingTab): string[] {
+    const header = Array.from(
+      tab.containerEl.querySelectorAll("h3.atoms-setting-group-header"),
+    ).find((el) => el.textContent === "2 · File");
+    const groupEl = header?.nextElementSibling;
+    if (!groupEl) throw new Error("no File group");
+    return Array.from(groupEl.querySelectorAll(".atoms-setting-destination")).map(
+      (el) => el.querySelector(".setting-item-name")?.textContent ?? "",
+    );
+  }
+
+  it("sits immediately after Filing, with the short quality answer while debt remains (AE6)", () => {
+    const { tab } = filingTab({ files: debtFiles(3) });
+    tab.display();
+
+    const dest = fileGroupDestinations(tab);
+    expect(dest[0]).toBe("Filing");
+    expect(dest[1]).toBe("Update notes");
+    expect(row(tab, "Update notes").querySelector(".setting-item-description")?.textContent).toBe(
+      "Readings can link",
+    );
+  });
+
+  it("says Up to date when every atom is current, and a tap does not run (AE7)", () => {
+    const { tab, calls } = filingTab({
+      files: [
+        {
+          path: "Atoms/Current.md",
+          frontmatter: { "generated-by": "linker", "atoms-quality": 9 },
+        },
+      ],
+    });
+    tab.display();
+
+    expect(row(tab, "Update notes").querySelector(".setting-item-description")?.textContent).toBe(
+      "Up to date",
+    );
+    open(tab, "Update notes");
+    expect(sheetOpen()).toBe(false);
+    expect(calls).not.toContain("runUpdateNotes");
+  });
+
+  it("appends the catch-up sentence without dropping the Filing definition", () => {
+    const { tab } = filingTab();
+    tab.display();
+    const headers = groupHeaders(tab);
+    const at = headers.indexOf("2 · File");
+    const feet = Array.from(
+      tab.containerEl.querySelectorAll("p.atoms-setting-group-foot"),
+    ).map((el) => el.textContent ?? "");
+    const foot = feet[at] ?? "";
+    expect(foot).toContain("never rewritten");
+    expect(foot).toContain("Older notes catch up when you ask.");
+    expect(foot).toContain("Same AI as filing.");
+    expect(foot).toContain("New days still come first.");
+  });
+
+  it("opens the same spend confirm Home uses, priced at the quoted N", () => {
+    const limits: unknown[] = [];
+    const { tab } = filingTab({
+      files: debtFiles(3),
+      plugin: {
+        runUpdateNotes: (opts?: { limit?: number }) => {
+          limits.push(opts);
+        },
+      },
+    });
+    tab.display();
+    open(tab, "Update notes");
+
+    const copy = updateNotesConfirmCopy({ n: 3, billing: "plus_active" });
+    expect(sheetText()).toContain(copy.title);
+    expect(sheetText()).toContain(copy.body);
+    expect(sheetButtons()).toEqual(["Cancel", "Update"]);
+    pressSheet("Update");
+    expect(limits).toEqual([{ limit: 3 }]);
+  });
+
+  it("does not run when the confirm is cancelled", () => {
+    const { tab, calls } = filingTab({ files: debtFiles(2) });
+    tab.display();
+    open(tab, "Update notes");
+    pressSheet("Cancel");
+    expect(calls).not.toContain("runUpdateNotes");
+  });
+
+  it("does not stack a second confirm while a filing pass is in flight", () => {
+    const { tab, calls } = filingTab({
+      files: debtFiles(3),
+      plugin: { filingPassInFlight: () => true },
+    });
+    tab.display();
+    open(tab, "Update notes");
+    open(tab, "Update notes");
+    expect(sheetOpen()).toBe(false);
+    expect(calls).not.toContain("runUpdateNotes");
+  });
+
+  it("names the palette command Update notes and does not open a confirm", () => {
+    const commands = registeredCommands();
+    const cmd = commands.find((c) => c.id === "update-notes");
+    expect(cmd?.name).toBe("Update notes");
+
+    const plugin = new AtomsPlugin({} as App, {} as PluginManifest);
+    plugin.settings = { ...DEFAULT_SETTINGS };
+    let ran = 0;
+    const registered: Array<{ id: string; name: string; callback?: () => void }> = [];
+    Object.assign(plugin, {
+      app: { workspace: { getActiveViewOfType: () => null } },
+      runUpdateNotes: () => {
+        ran += 1;
+      },
+      addCommand: (c: { id: string; name: string; callback?: () => void }) =>
+        registered.push(c),
+    });
+    registerAtomsCommands(plugin);
+    registered.find((c) => c.id === "update-notes")?.callback?.();
+    expect(ran).toBe(1);
+    expect(sheetOpen()).toBe(false);
+  });
+  });
 });
+
