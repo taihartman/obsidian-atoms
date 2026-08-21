@@ -1457,13 +1457,19 @@ export default class AtomsPlugin extends Plugin {
    * exactly what the flags exist to prevent.
    */
   private backfillBusy(): boolean {
-    if (!this.filingPassInFlight()) return false;
+    if (this.autoRunInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return true;
+    }
     if (this.backfillInFlight) {
       new Notice("Atoms: backfill already in progress");
       return true;
     }
-    new Notice("Atoms: filing already in progress");
-    return true;
+    if (this.manualFilingInFlight) {
+      new Notice("Atoms: filing already in progress");
+      return true;
+    }
+    return false;
   }
 
   /** The one bounded scan both engines derive their counts from. */

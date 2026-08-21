@@ -2490,10 +2490,13 @@ export class AtomsSettingTab extends PluginSettingTab {
   /** metadataCache estimate: linker-generated, `atoms-quality` below CURRENT, in the atom folder. */
   private estimateRefileCount(): number {
     const folder = clampAtomFolder(this.plugin.settings.atomFolder);
-    const files = this.app.vault.getMarkdownFiles().map((f) => ({
-      path: f.path,
-      cache: this.app.metadataCache.getFileCache(f),
-    }));
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => f.path === folder || f.path.startsWith(`${folder}/`))
+      .map((f) => ({
+        path: f.path,
+        cache: this.app.metadataCache.getFileCache(f),
+      }));
     return countRefileFromFileCaches(files, folder);
   }
 
