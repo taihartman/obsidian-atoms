@@ -48,7 +48,7 @@ Live dogfood 2026-08-18 → 2026-08-20 (#589): "My car is at 73089 miles" classi
 - R6. Reconsider's Keep as note override runs the post-classify enrichment chain (entity/person/media/link quality) with the capture's shortlist context before filing.
 - R7. Ordinary logistics stay noise: "buy milk", "call dentist at 3", lone timestamps, one-off errands with numbers. The noise gate does not widen for non-measurement captures.
 - R8. Update notes repairs eligible pre-feature atoms to the new quality: series links, loop frontmatter where the body states a return intent, and title repair where the title is the pasted capture.
-- R9. All new user-facing copy lives in the locale catalog; no source literals.
+- R9. New user-facing copy follows the plugin's current convention: English in source (the plugin tree has no locale catalog yet, per `docs/localization.md`), centralized in copy functions where a shared one exists, voice rules enforced by `test/copyVoice.test.ts`.
 - R10. Body stays verbatim everywhere; no folder movement; no computed service targets, dates, or reminders anywhere in the surface.
 
 ### Acceptance Examples
@@ -76,7 +76,7 @@ Live dogfood 2026-08-18 → 2026-08-20 (#589): "My car is at 73089 miles" classi
 - `looksLikeOpenLoop` return/completion intents.
 - Loop-close offer card and thing-hub invite on Home (existing card families).
 - Keep-as-note enrichment (R6), title repair for pasted-capture titles during Update notes, `CURRENT_ATOMS_QUALITY` bump.
-- Locale catalog entries; version bump; docs (CONCEPTS entry for "measurement series"; solution doc).
+- Copy per plugin convention (no catalog yet); version bump; docs (CONCEPTS entry for "measurement series"; solution doc).
 
 **Out of scope**
 
@@ -144,7 +144,7 @@ Reconsider override through `applyClassificationQuality`; quality bump 8→9. Ti
 
 ### U6. Shipping tail
 
-Locale entries audit, `manifest.json`/`package.json`/`versions.json` bump, CONCEPTS "measurement series", solution doc (a reading is a point in a series — the second point is the trigger), simplify → code-review → compound → world-class QA + adversarial QA (noise gate attack), PR evidence with throwaway-vault screenshots; owner runs Update notes on their vault for AE6 evidence.
+Copy voice audit, `manifest.json`/`package.json`/`versions.json` bump, CONCEPTS "measurement series", solution doc (a reading is a point in a series — the second point is the trigger), simplify → code-review → compound → world-class QA + adversarial QA (noise gate attack), PR evidence with throwaway-vault screenshots; owner runs Update notes on their vault for AE6 evidence.
 
 ## Verification Contract
 

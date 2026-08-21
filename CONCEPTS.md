@@ -56,6 +56,9 @@ Drain outcomes that are neither filed nor failed. **Held** = stamped ahead of th
 ### Verdict
 One of **atom**, **task**, or **noise**. Every verdict still gets a marker so the capture never re-enters the queue. Product stance: **atom** for memory-worthy dumps (including list/media items); **noise** for pure logistics; **task** is soft-retired (legacy markers still mean processed; classify should rarely emit task).
 
+### Measurement series
+A **reading** is a number attached to a durable thing the user owns or tracks over time (odometer, body weight, a meter, rent). One reading looks like logistics; the series is the keepable memory, so readings are **atoms**, never noise. The series anchors on the **owned thing** (`My car`), not a vendor; the vendor links where mentioned. The second reading is the trigger: it links the prior reading (model, prompt-taught) or the thing hub (deterministic when the title exists), and Home may offer **Track [thing]?** (never before two readings) and, when an open loop about the same thing exists, a **loop-close offer** showing both captures verbatim — an offer, never a verdict, and never arithmetic. Requirements: `docs/plans/2026-08-21-001-feat-measurement-series-plan.md` (#589).
+
 ### Open loop
 A note that records an **intention** (or open commitment), not the finished substance — captured on purpose for future-self. Frontmatter marks it as intention-shaped (`loop_source` inferred or user; user is sticky). **Open-now** is derived: intention mark present and no **redeeming** child. Ordinary continue/detail never closes it. Not a defect, stub, or Home unfinished queue. Parent body and FM stay put on close; substance lives on the redeeming child. Agents must never pitch an open-now loop as a finished asset. Requirements: `docs/plans/2026-08-11-003-feat-open-loops-plan.md`.
 

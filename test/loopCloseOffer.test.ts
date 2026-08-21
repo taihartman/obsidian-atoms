@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyRedeemsLink,
   collectLoopCloseOffers,
   loopClosePairId,
 } from "../src/plugin/openLoops";
@@ -111,5 +112,43 @@ describe("collectLoopCloseOffers", () => {
     ]);
     expect(offers[0]!.readingBody).toBe("My car is at 73120 miles");
     expect(offers).toHaveLength(2);
+  });
+});
+
+describe("applyRedeemsLink", () => {
+  const content = `---
+created: 2026-08-20T20:22:26
+generated-by: linker
+atoms-quality: 9
+---
+
+My car is at 73089 miles
+
+- new reading in the [[Car at 73042 miles]] series
+`;
+
+  it("upgrades an existing series link's reason to redeems in place", () => {
+    const next = applyRedeemsLink(content, "Car at 73042 miles");
+    expect(next).toBeTruthy();
+    expect(next!).toContain("redeems [[Car at 73042 miles]]");
+    expect(next!).not.toContain("new reading in the [[Car at 73042 miles]] series");
+  });
+
+  it("appends the redeems link when no link to the loop exists", () => {
+    const bare = content.replace(
+      "\n- new reading in the [[Car at 73042 miles]] series\n",
+      "",
+    );
+    const next = applyRedeemsLink(bare, "Car at 73042 miles");
+    expect(next).toBeTruthy();
+    expect(next!).toContain("redeems [[Car at 73042 miles]]");
+  });
+
+  it("already-redeems content changes nothing", () => {
+    const done = content.replace(
+      "new reading in the [[Car at 73042 miles]] series",
+      "redeems [[Car at 73042 miles]]",
+    );
+    expect(applyRedeemsLink(done, "Car at 73042 miles")).toBe(null);
   });
 });

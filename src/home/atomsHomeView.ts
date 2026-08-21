@@ -44,11 +44,11 @@ import {
 } from "./atomsHomeData";
 import { seriesLinkReason } from "../pipeline/enrich/measurement";
 import {
+  applyRedeemsLink,
   collectLoopCloseOffers,
   loopClosePairId,
   type LoopCloseOffer,
 } from "../plugin/openLoops";
-import { relationReasonProse } from "../shared/relationReason";
 import { buildOrbits } from "../pipeline/entityOrbitIndex";
 import {
   pickPrimaryOrbit,
@@ -1449,11 +1449,7 @@ export class AtomsHomeView extends ItemView {
         return;
       }
       const content = await this.app.vault.read(file);
-      const next = applyHardLinkToAtomContent(
-        content,
-        offer.loopTitle,
-        relationReasonProse("redeems", offer.loopTitle),
-      );
+      const next = applyRedeemsLink(content, offer.loopTitle);
       if (next) await this.app.vault.modify(file, next);
       this.stampLoopCloseTold(
         loopClosePairId(offer.loopPath, offer.readingPath),

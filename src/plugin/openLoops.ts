@@ -10,7 +10,10 @@ import {
   extractLinkProseRegion,
   parseLinkProse,
 } from "../pipeline/parseLinkProse";
+import { applyHardLinkToAtomContent } from "../pipeline/personInvite";
 import { extractCaptureBody } from "../pipeline/refreshAtoms";
+import { formatLinkProse } from "../pipeline/render";
+import { relationReasonProse } from "../shared/relationReason";
 import {
   REDEEMS_RELATION,
   applyOpenLoopFm,
@@ -112,6 +115,39 @@ function createdStamp(content: string): string | null {
   const fm = frontmatterBlock(content);
   const m = fm.match(/^created:\s*["']?([0-9][0-9T:-]*)/m);
   return m?.[1] ?? null;
+}
+
+/**
+ * Write the redeems edge on the reading. The model is taught to link the
+ * prior reading with an ordinary series reason, so the common case is an
+ * existing link to the loop title: upgrade its reason in place (a title-dedup
+ * append would silently write nothing and leave the loop open forever).
+ * Null when the content already redeems or nothing changed.
+ */
+export function applyRedeemsLink(
+  content: string,
+  loopTitle: string,
+): string | null {
+  const want = loopTitle.trim().toLowerCase();
+  if (!want) return null;
+  const prose = extractLinkProseRegion(content);
+  const links = parseLinkProse(prose);
+  const existing = links.find((l) => l.note.trim().toLowerCase() === want);
+  if (existing && prose) {
+    if (linksIncludeRedeems([existing])) return null;
+    const next = links.map((l) =>
+      l === existing
+        ? { note: l.note, reason: relationReasonProse(REDEEMS_RELATION, l.note) }
+        : l,
+    );
+    const out = content.replace(prose, formatLinkProse(next));
+    return out === content ? null : out;
+  }
+  return applyHardLinkToAtomContent(
+    content,
+    loopTitle,
+    relationReasonProse(REDEEMS_RELATION, loopTitle),
+  );
 }
 
 export function collectLoopCloseOffers(
