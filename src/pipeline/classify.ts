@@ -30,7 +30,10 @@ import {
   stripSelfReferentialLinks,
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
-import { rescueMeasurementReading } from "./enrich/measurement";
+import {
+  enrichMeasurementLinks,
+  rescueMeasurementReading,
+} from "./enrich/measurement";
 import { repairBorrowedTitle } from "./enrich/titleCoherence";
 import { filterTagsToActive } from "./vocabulary";
 import {
@@ -103,6 +106,7 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
   "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
+  "enrichMeasurementLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
   "repairBorrowedTitle",
@@ -123,6 +127,7 @@ export const CLASSIFY_OFFLINE_QUALITY_ORDER = [
   "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
+  "enrichMeasurementLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
   "repairBorrowedTitle",
@@ -1032,6 +1037,8 @@ export async function classifyCapture(
   );
   // Trip/list/project entity reinforce — exact vault titles only.
   result = enrichEntityLinks(capture, result, context.titles ?? []);
+  // Measurement series: hard-link the thing's hub when it exists (#589).
+  result = enrichMeasurementLinks(capture, result, context.titles ?? []);
   // Rewrite boilerplate reasons into substantive prose.
   result = improveClassificationLinks(capture, result);
   // Never self-link / self-duplicate the atom title in graph prose.
@@ -1091,6 +1098,7 @@ export function applyClassificationQuality(
     opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
   );
   r = enrichEntityLinks(capture, r, titles);
+  r = enrichMeasurementLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
   r = repairBorrowedTitle(capture, r, titles, opts.continueParentTitle);

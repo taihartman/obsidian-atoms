@@ -8,6 +8,10 @@ import {
   type AtomInviteInput,
 } from "./entityInvite";
 import { suggestEntityHubLabel } from "./enrich/entityLinks";
+import {
+  measuredThingHubTitle,
+  measuredThingKey,
+} from "./enrich/measurement";
 import { isListHubShaped, titleMatchesCapture } from "./enrich/listHubs";
 import { watchlistWork } from "./enrich/media";
 import { isJunkLinkReason } from "./enrich/linkQuality";
@@ -27,6 +31,8 @@ export type HubAssociationCandidate = {
   memberPaths: string[];
   memberTitles: string[];
   existingNote: boolean;
+  /** Measurement-series invite (#589): copy speaks of readings, not lists. */
+  measured?: boolean;
 };
 
 const LIST_NAMED =
@@ -134,6 +140,51 @@ function collectListPairings(
   return [...groups.values()];
 }
 
+/**
+ * Measurement-series invites (#589, KD3): the series proves itself at reading
+ * two, so a fresh hub needs >= 2 readings of the same thing. When the hub
+ * note already exists, one unlinked reading is enough to offer the pairing.
+ * Snooze and accept ride the existing list-invite paths.
+ */
+function collectMeasuredThingInvites(
+  atoms: AtomInviteInput[],
+  vaultTitles: string[],
+  snoozed: Set<string>,
+): HubAssociationCandidate[] {
+  const groups = new Map<string, HubAssociationCandidate>();
+
+  for (const atom of atoms) {
+    const body = captureBody(atom.content);
+    const key = measuredThingKey(body) ?? measuredThingKey(atom.title);
+    if (!key) continue;
+    const label = measuredThingHubTitle(key);
+    const existing = vaultTitles.find(
+      (t) => t.trim().toLowerCase() === label.toLowerCase(),
+    );
+    if (hasHardLinkToTitle(atom.content, existing ?? label)) continue;
+    const id = pairingId("list", label);
+    if (snoozed.has(id) || snoozed.has(label.toLowerCase())) continue;
+
+    const g = groups.get(key) ?? {
+      kind: "list" as const,
+      label: existing?.trim() || label,
+      memberPaths: [],
+      memberTitles: [],
+      existingNote: !!existing,
+      measured: true,
+    };
+    if (!g.memberPaths.includes(atom.path)) {
+      g.memberPaths.push(atom.path);
+      g.memberTitles.push(atom.title);
+    }
+    groups.set(key, g);
+  }
+
+  return [...groups.values()].filter(
+    (g) => g.memberPaths.length >= (g.existingNote ? 1 : 2),
+  );
+}
+
 function personToAssoc(p: PersonInviteCandidate): HubAssociationCandidate {
   return {
     kind: "person",
@@ -187,7 +238,16 @@ export function collectHubAssociationInvites(opts: {
       }),
     );
 
-  const lists = [...pairings, ...creates];
+  const listKeys = new Set(
+    [...pairings, ...creates].map((p) => p.label.trim().toLowerCase()),
+  );
+  const measured = collectMeasuredThingInvites(
+    opts.atoms,
+    opts.vaultTitles,
+    snoozed,
+  ).filter((m) => !listKeys.has(m.label.trim().toLowerCase()));
+
+  const lists = [...pairings, ...creates, ...measured];
   return [...people, ...lists];
 }
 
@@ -196,6 +256,7 @@ export function hubAssociationInviteCopy(opts: {
   label: string;
   memberCount: number;
   existingNote: boolean;
+  measured?: boolean;
 }): {
   kicker: string;
   title: string;
@@ -230,6 +291,29 @@ export function hubAssociationInviteCopy(opts: {
       createLabel: `Add ${display}`,
       dismissLabel: "Not now",
       alreadyLabel: "Already have them…",
+    };
+  }
+  if (opts.measured) {
+    if (opts.existingNote) {
+      return {
+        kicker: "Series",
+        title: `Add to ${display}?`,
+        body:
+          n === 1
+            ? `A new reading of ${display}. Add it so the series stays in one place.`
+            : `${n} readings of ${display}. Add them so the series stays in one place.`,
+        createLabel: `Add to ${display}`,
+        dismissLabel: "Not now",
+        alreadyLabel: "Choose different note…",
+      };
+    }
+    return {
+      kicker: "Series",
+      title: `Track ${display}?`,
+      body: `${n} readings of the same thing. Create a note so the series collects in one place.`,
+      createLabel: `Track ${display}`,
+      dismissLabel: "Not now",
+      alreadyLabel: "Already have it…",
     };
   }
   if (opts.existingNote) {

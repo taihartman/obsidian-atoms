@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  enrichMeasurementLinks,
   isMeasurementReading,
   measuredThingKey,
   measuredThingHubTitle,
   rescueMeasurementReading,
+  seriesLinkReason,
 } from "../src/pipeline/enrich/measurement";
 import type { ClassificationResult } from "../src/shared/types";
 
@@ -82,6 +84,43 @@ describe("measuredThingKey", () => {
   });
 });
 
+describe("enrichMeasurementLinks", () => {
+  const atomResult = (over: Partial<ClassificationResult> = {}): ClassificationResult =>
+    noiseResult({ verdict: "atom", title: "Car odometer reads 73089 miles", ...over });
+
+  it("hard-links the thing hub when the title exists", () => {
+    const r = enrichMeasurementLinks(READING_73089, atomResult(), ["My car", "Alex"]);
+    expect(r.links).toEqual([
+      { note: "My car", reason: seriesLinkReason("My car") },
+    ]);
+  });
+
+  it("matches the hub title case-insensitively and keeps vault casing", () => {
+    const r = enrichMeasurementLinks(READING_73089, atomResult(), ["my Car"]);
+    expect(r.links?.[0]?.note).toBe("my Car");
+  });
+
+  it("never duplicates an existing hub link", () => {
+    const withLink = atomResult({
+      links: [{ note: "My car", reason: "model already linked it" }],
+    });
+    const r = enrichMeasurementLinks(READING_73089, withLink, ["My car"]);
+    expect(r).toBe(withLink);
+  });
+
+  it("no hub in titles means no invented link", () => {
+    const base = atomResult();
+    expect(enrichMeasurementLinks(READING_73089, base, ["Alex"])).toBe(base);
+  });
+
+  it("leaves non-readings and non-atoms alone", () => {
+    const base = atomResult();
+    expect(enrichMeasurementLinks("watch Past Lives", base, ["My car"])).toBe(base);
+    const noise = noiseResult();
+    expect(enrichMeasurementLinks(READING_73089, noise, ["My car"])).toBe(noise);
+  });
+});
+
 describe("rescueMeasurementReading", () => {
   it("promotes a noise reading to atom with a non-empty title", () => {
     const r = rescueMeasurementReading(READING_73089, noiseResult());
@@ -106,6 +145,15 @@ describe("rescueMeasurementReading", () => {
   it("leaves non-reading noise as noise", () => {
     const noise = noiseResult();
     expect(rescueMeasurementReading("buy 2 gallons of milk", noise)).toBe(noise);
+  });
+
+  it("rescue then hub enrich files a linked atom, never an island", () => {
+    const promoted = rescueMeasurementReading(READING_73089, noiseResult());
+    const linked = enrichMeasurementLinks(READING_73089, promoted, ["My car"]);
+    expect(linked.verdict).toBe("atom");
+    expect(linked.links).toEqual([
+      { note: "My car", reason: seriesLinkReason("My car") },
+    ]);
   });
 
   it("carries existing tags and links through the promotion", () => {

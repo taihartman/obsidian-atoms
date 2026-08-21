@@ -89,6 +89,37 @@ export function measuredThingHubTitle(key: string): string {
   return `My ${key}`;
 }
 
+/** The one series-link reason, shared by enrich and the Home accept path. */
+export function seriesLinkReason(label: string): string {
+  return `new reading in the [[${label.trim()}]] series`;
+}
+
+/**
+ * Deterministic half of series linking (KD2): when the thing's hub note
+ * already exists under Note titles, hard-link it. Prior-reading chaining is
+ * fuzzier and stays the model's job (prompt "Series linking (MUST)").
+ */
+export function enrichMeasurementLinks(
+  captureText: string,
+  result: ClassificationResult,
+  noteTitles: string[],
+): ClassificationResult {
+  if (result.verdict !== "atom") return result;
+  const key = measuredThingKey(captureText);
+  if (!key) return result;
+  const want = measuredThingHubTitle(key).toLowerCase();
+  const hub = noteTitles.find((t) => t.trim().toLowerCase() === want);
+  if (!hub) return result;
+  const links = result.links ?? [];
+  if (links.some((l) => (l.note ?? "").trim().toLowerCase() === want)) {
+    return result;
+  }
+  return {
+    ...result,
+    links: [...links, { note: hub.trim(), reason: seriesLinkReason(hub) }],
+  };
+}
+
 /**
  * If verdict is task/noise and the capture is a reading, promote to atom.
  * Mirrors rescueKeepableIdea's contract: never demotes, body written elsewhere.

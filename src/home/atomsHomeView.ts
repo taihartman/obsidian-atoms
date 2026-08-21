@@ -42,6 +42,7 @@ import {
   type FilingHeroCopy,
   type InboxStuckSummary,
 } from "./atomsHomeData";
+import { seriesLinkReason } from "../pipeline/enrich/measurement";
 import { buildOrbits } from "../pipeline/entityOrbitIndex";
 import {
   pickPrimaryOrbit,
@@ -1370,6 +1371,7 @@ export class AtomsHomeView extends ItemView {
       label: inv.label,
       memberCount: inv.memberPaths.length,
       existingNote: inv.existingNote,
+      measured: inv.measured,
     });
     const card = flatCard(scroll, {
       className:
@@ -1483,7 +1485,11 @@ export class AtomsHomeView extends ItemView {
       }
       const linkName = file.basename.trim();
       for (const memberPath of inv.memberPaths) {
-        await this.upgradeAtomToHub(memberPath, linkName, listLinkReason(linkName));
+        await this.upgradeAtomToHub(
+          memberPath,
+          linkName,
+          inv.measured ? seriesLinkReason(linkName) : listLinkReason(linkName),
+        );
       }
       if (this.plugin.settings.enableHubProjection === true) {
         const fresh = await this.app.vault.read(file);
@@ -1526,7 +1532,9 @@ export class AtomsHomeView extends ItemView {
       const reason =
         inv.kind === "person"
           ? `about [[${linkName}]]`
-          : listLinkReason(linkName);
+          : inv.measured
+            ? seriesLinkReason(linkName)
+            : listLinkReason(linkName);
       const paths =
         inv.kind === "person" ? this.upgradePathSet(inv) : new Set(inv.memberPaths);
       for (const memberPath of paths) {
