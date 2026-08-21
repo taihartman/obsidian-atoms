@@ -98,6 +98,20 @@ capture
 `;
     expect(refileRecencyMs(content)).toBeNull();
   });
+
+  it("strips .md from a source daily wikilink", () => {
+    const content = `---
+source: "[[2026-03-08.md]]"
+generated-by: linker
+atoms-quality: 0
+tags: []
+---
+capture
+`;
+    expect(refileRecencyMs(content)).toBe(
+      new Date(2026, 2, 8, 12, 0, 0, 0).getTime(),
+    );
+  });
 });
 
 function rankItem(opts: {

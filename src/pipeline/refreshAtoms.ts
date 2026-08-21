@@ -13,10 +13,12 @@ import {
 } from "./context";
 import {
   CURRENT_ATOMS_QUALITY,
+  frontmatterBlock,
   isEligibleForUpdate,
   isLinkerGenerated,
   localDateYmd,
   parseAtomsQuality,
+  parseLocalStampMs,
   qualityStampLines,
 } from "./atomQuality";
 import {
@@ -59,7 +61,6 @@ export type EligibleAtom = {
   title: string;
   content: string;
   quality: number;
-  mtime?: number;
 };
 
 /** Body after YAML frontmatter. */
@@ -443,55 +444,23 @@ export function isPolishableContent(content: string, title: string): boolean {
   return planLocalPolish({ path: "", title, content }) !== null;
 }
 
-function frontmatterSlice(content: string): string {
-  if (!content.startsWith("---")) return "";
-  const end = content.indexOf("\n---", 3);
-  return end === -1 ? content.slice(0, 800) : content.slice(0, end + 4);
-}
-
-function parseStampMs(raw: string): number | null {
-  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dayOnly) {
-    const y = Number(dayOnly[1]);
-    const mo = Number(dayOnly[2]);
-    const d = Number(dayOnly[3]);
-    if (!y || !mo || !d) return null;
-    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
-  }
-  const withTime = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
-  );
-  if (withTime) {
-    const y = Number(withTime[1]);
-    const mo = Number(withTime[2]);
-    const d = Number(withTime[3]);
-    const h = Number(withTime[4]);
-    const mi = Number(withTime[5]);
-    const s = Number(withTime[6] ?? 0);
-    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
-  }
-  return null;
-}
-
 /**
  * Recency for Update notes ranking: source daily day, else `created`.
  * Missing stamps are null — never today, never file mtime.
  */
 export function refileRecencyMs(content: string): number | null {
-  const fm = frontmatterSlice(content);
+  const fm = frontmatterBlock(content);
   if (!fm) return null;
-  const sourceM = fm.match(/^source:\s*["']?\[\[([^\]]+)\]\]["']?\s*$/m);
-  if (sourceM?.[1]) {
-    const name = sourceM[1].trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(name)) {
-      const ms = parseStampMs(name.slice(0, 10));
-      if (ms != null) return ms;
-    }
-  }
-  const createdM = fm.match(/^created:\s*(.+)$/m);
-  if (!createdM?.[1]) return null;
-  const raw = createdM[1].trim().replace(/^["']|["']$/g, "");
-  return parseStampMs(raw);
+  const sourceLink = fm.match(/^source:\s*["']?(\[\[[^\]]+\]\])["']?\s*$/m)?.[1];
+  const sourceName = sourceLink ? sourceDailyBasename(sourceLink) : null;
+  const sourceMs =
+    sourceName && /^\d{4}-\d{2}-\d{2}/.test(sourceName)
+      ? parseLocalStampMs(sourceName.slice(0, 10))
+      : null;
+  if (sourceMs != null) return sourceMs;
+  const created = fm.match(/^created:\s*(.+)$/m)?.[1];
+  if (!created) return null;
+  return parseLocalStampMs(created.trim().replace(/^["']|["']$/g, ""));
 }
 
 export function refileScore(opts: {
@@ -513,25 +482,30 @@ export function refileScore(opts: {
 }
 
 export function rankRefileCandidates(
-  items: Array<EligibleAtom & { stats: LinkStats; mtime?: number }>,
+  items: Array<EligibleAtom & { stats: LinkStats }>,
   limit: number = UPDATE_NOTES_BATCH_LIMIT,
   current: number = CURRENT_ATOMS_QUALITY,
 ): EligibleAtom[] {
-  const eligible = items.filter((i) => i.quality < current);
-  eligible.sort((a, b) => {
-    const ra = refileRecencyMs(a.content);
-    const rb = refileRecencyMs(b.content);
-    if (ra !== rb) {
-      if (ra == null) return 1;
-      if (rb == null) return -1;
-      return rb - ra;
+  const ranked = items
+    .filter((i) => i.quality < current)
+    .map((i) => ({
+      item: i,
+      recency: refileRecencyMs(i.content),
+      score: refileScore({ quality: i.quality, stats: i.stats }),
+    }));
+  ranked.sort((a, b) => {
+    if (a.recency !== b.recency) {
+      if (a.recency == null) return 1;
+      if (b.recency == null) return -1;
+      return b.recency - a.recency;
     }
-    const sa = refileScore({ quality: a.quality, stats: a.stats });
-    const sb = refileScore({ quality: b.quality, stats: b.stats });
-    if (sb !== sa) return sb - sa;
-    return a.path.localeCompare(b.path);
+    if (b.score !== a.score) return b.score - a.score;
+    return a.item.path.localeCompare(b.item.path);
   });
-  return eligible.slice(0, limit).map(({ stats: _s, mtime: _m, ...rest }) => rest);
+  return ranked.slice(0, limit).map((row) => {
+    const { stats: _s, ...rest } = row.item;
+    return rest;
+  });
 }
 
 export async function listLinkerAtoms(
@@ -764,14 +738,10 @@ export async function runRefreshEligibleAtoms(
     }
   }
 
-  const withStats = all.map((a) => {
-    const polished = polishPlans.find((p) => p.path === a.path);
-    return {
-      ...a,
-      content: polished?.content ?? a.content,
-      stats: computeLinkStats(a.content, vaultTitles),
-    };
-  });
+  const withStats = all.map((a) => ({
+    ...a,
+    stats: computeLinkStats(a.content, vaultTitles),
+  }));
   const refileList = opts.skipRefile
     ? []
     : rankRefileCandidates(withStats, refileLimit);

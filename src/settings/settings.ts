@@ -130,6 +130,7 @@ import {
   FILING_NAME,
   filingPathFromAuth,
   firstDaySetupCopy,
+  isUnderAtomFolder,
   updateNotesSettingsAnswer,
   type SetupStep,
 } from "../home/atomsHomeData";
@@ -2492,7 +2493,7 @@ export class AtomsSettingTab extends PluginSettingTab {
     const folder = clampAtomFolder(this.plugin.settings.atomFolder);
     const files = this.app.vault
       .getMarkdownFiles()
-      .filter((f) => f.path === folder || f.path.startsWith(`${folder}/`))
+      .filter((f) => isUnderAtomFolder(f.path, folder))
       .map((f) => ({
         path: f.path,
         cache: this.app.metadataCache.getFileCache(f),

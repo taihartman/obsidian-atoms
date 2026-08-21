@@ -41,6 +41,34 @@ export function localDateTimeStamp(d: Date = new Date()): string {
   return `${y}-${mo}-${day}T${h}:${mi}:${s}`;
 }
 
+/**
+ * Local-wall-clock epoch for `YYYY-MM-DD` (noon) or `YYYY-MM-DDTHH:mm[:ss]`.
+ * No `Date.parse` — missing stamps stay missing, never today.
+ */
+export function parseLocalStampMs(raw: string): number | null {
+  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dayOnly) {
+    const y = Number(dayOnly[1]);
+    const mo = Number(dayOnly[2]);
+    const d = Number(dayOnly[3]);
+    if (!y || !mo || !d) return null;
+    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
+  }
+  const withTime = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (withTime) {
+    const y = Number(withTime[1]);
+    const mo = Number(withTime[2]);
+    const d = Number(withTime[3]);
+    const h = Number(withTime[4]);
+    const mi = Number(withTime[5]);
+    const s = Number(withTime[6] ?? 0);
+    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
+  }
+  return null;
+}
+
 /** Frontmatter block only (includes opening ---). */
 export function frontmatterBlock(content: string): string {
   if (!content.startsWith("---")) return "";
@@ -53,15 +81,22 @@ export function isLinkerGenerated(content: string): boolean {
   return GENERATED_BY_RE.test(frontmatterBlock(content));
 }
 
+function qualityFromFrontmatterValue(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw;
+  if (typeof raw === "string") {
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
 /**
  * Parsed quality integer. Missing / unstamped → 0 (eligible when CURRENT > 0).
  */
 export function parseAtomsQuality(content: string): number {
-  const fm = frontmatterBlock(content);
-  const m = fm.match(QUALITY_RE);
-  if (!m?.[1]) return 0;
-  const n = Number.parseInt(m[1], 10);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return qualityFromFrontmatterValue(
+    frontmatterBlock(content).match(QUALITY_RE)?.[1],
+  );
 }
 
 /** Eligible for Update notes when linker-generated and below CURRENT. */
@@ -77,15 +112,6 @@ export function isEligibleForUpdate(
 export type AtomQualityFileCache = {
   frontmatter?: Record<string, unknown> | null;
 } | null;
-
-function qualityFromFrontmatterValue(raw: unknown): number {
-  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw;
-  if (typeof raw === "string") {
-    const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n) && n >= 0) return n;
-  }
-  return 0;
-}
 
 /** Same eligibility as `isEligibleForUpdate`, from a file cache instead of file text. */
 export function isEligibleForUpdateFromCache(

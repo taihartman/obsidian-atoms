@@ -8,6 +8,7 @@ import {
   isEligibleForUpdateFromCache,
   isLinkerGenerated,
   parseAtomsQuality,
+  parseLocalStampMs,
   qualityStampLines,
 } from "../src/pipeline/atomQuality";
 
@@ -124,5 +125,15 @@ describe("atomQuality", () => {
       "atoms-quality: 2",
       "quality-updated: 2026-07-16",
     ]);
+  });
+
+  it("parseLocalStampMs is noon for a day stamp and wall clock for a datetime", () => {
+    expect(parseLocalStampMs("2026-03-08")).toBe(
+      new Date(2026, 2, 8, 12, 0, 0, 0).getTime(),
+    );
+    expect(parseLocalStampMs("2026-04-02T09:15:00")).toBe(
+      new Date(2026, 3, 2, 9, 15, 0, 0).getTime(),
+    );
+    expect(parseLocalStampMs("not-a-date")).toBeNull();
   });
 });

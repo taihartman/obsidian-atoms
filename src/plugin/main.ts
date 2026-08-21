@@ -189,7 +189,6 @@ import {
   runRefreshEligibleAtoms,
   type RefreshReport,
 } from "../pipeline/refreshAtoms";
-import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
 import { askPrivacyAckIsCurrent, settleAckRecords } from "../shared/askAck";
@@ -627,7 +626,7 @@ export default class AtomsPlugin extends Plugin {
     const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
     const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
     const needsApi =
-      usingFixtures || linker.some((a) => isEligibleForUpdate(a.content));
+      usingFixtures || linker.some((a) => a.quality < CURRENT_ATOMS_QUALITY);
     let apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
       : this.getApiKey() || "polish-only";

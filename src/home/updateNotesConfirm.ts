@@ -1,7 +1,7 @@
 import { Modal, Setting, type App } from "obsidian";
 import {
   updateNotesConfirmCopy,
-  type UpdateNotesBilling,
+  type FilingPathKind,
   updateNotesQuotedN,
 } from "./atomsHomeData";
 
@@ -22,7 +22,7 @@ export function updateNotesConfirmIsOpen(): boolean {
 export function openUpdateNotesConfirm(opts: {
   app: App;
   n: number;
-  billing: UpdateNotesBilling;
+  billing: FilingPathKind;
   onConfirm: (limit: number) => void;
 }): void {
   if (openConfirm) return;

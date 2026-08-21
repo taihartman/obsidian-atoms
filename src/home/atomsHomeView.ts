@@ -14,7 +14,7 @@ import {
   backfillOfferCopy,
   countUnprocessedSince,
   CORE_PLUGINS_SETTINGS_TAB_ID,
-  countUpdateWorkRemaining,
+  countEligibleUpdateNotes,
   extractSourceDay,
   filingHeroCopy,
   filingPathFromAuth,
@@ -26,6 +26,7 @@ import {
   isDayOnlyCreated,
   isGeneratedAtomContent,
   listAtomLibraryEntries,
+  persistUpdateNotesHeard,
   planCreatedOrderBackfill,
   queuePeekTexts,
   shouldShowBackfillOffer,
@@ -91,9 +92,6 @@ import {
   discoverPersonHubs,
   type PersonHubFile,
 } from "../pipeline/enrich/people";
-import {
-  CURRENT_ATOMS_QUALITY,
-} from "../pipeline/atomQuality";
 import {
   isPlusLimitDismissedToday,
   localCalendarDay,
@@ -756,13 +754,9 @@ export class AtomsHomeView extends ItemView {
     }));
     this.personHubTitles = this.personHubs.map((h) => h.title);
     this.refreshEntitySurfaces();
-    const work = countUpdateWorkRemaining(
-      inputs.map((i) => ({
-        content: i.content,
-        title: titleFromAtomPath(i.path),
-      })),
+    this.updateRefileCount = countEligibleUpdateNotes(
+      inputs.map((i) => i.content),
     );
-    this.updateRefileCount = work.refile;
     this.resurfaceThrottle = pruneThrottle(
       parseThrottleJson(
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
@@ -2825,10 +2819,7 @@ export class AtomsHomeView extends ItemView {
       label: "Not now",
       disabled: this.busy,
       onClick: () => {
-        this.app.saveLocalStorage(
-          LS_UPDATE_NOTES_DISMISSED_Q,
-          String(CURRENT_ATOMS_QUALITY),
-        );
+        persistUpdateNotesHeard((k, v) => this.app.saveLocalStorage(k, v));
         this.render();
       },
     });

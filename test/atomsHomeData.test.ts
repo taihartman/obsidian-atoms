@@ -32,6 +32,7 @@ import {
   planCreatedOrderBackfill,
   shouldShowBackfillOffer,
   rememberUpdateNotesHeard,
+  persistUpdateNotesHeard,
   shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
@@ -728,6 +729,14 @@ describe("rememberUpdateNotesHeard", () => {
       }),
     ).toBe(false);
     expect(writes).toEqual({});
+  });
+
+  it("persistUpdateNotesHeard writes CURRENT without an updated gate", () => {
+    const writes: Record<string, string> = {};
+    persistUpdateNotesHeard((k, v) => {
+      writes[k] = v;
+    });
+    expect(writes["atoms-update-notes-dismissed-q"]).toBe("9");
   });
 });
 

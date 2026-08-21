@@ -7,11 +7,9 @@ import {
   CURRENT_ATOMS_QUALITY_ANSWER,
   CURRENT_ATOMS_QUALITY_REASON,
   isEligibleForUpdate,
+  parseLocalStampMs,
 } from "../pipeline/atomQuality";
-import {
-  isPolishableContent,
-  UPDATE_NOTES_BATCH_LIMIT,
-} from "../pipeline/refreshAtoms";
+import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
 import type { RunPhase } from "./runProgress";
 import { parseCaptures } from "../pipeline/parse";
@@ -122,26 +120,8 @@ export function parseCreatedMs(content: string): number | null {
   const m = fm.match(CREATED_RE);
   if (!m?.[1]) return null;
   const raw = m[1].trim().replace(/^["']|["']$/g, "");
-  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dayOnly) {
-    const y = Number(dayOnly[1]);
-    const mo = Number(dayOnly[2]);
-    const d = Number(dayOnly[3]);
-    if (!y || !mo || !d) return null;
-    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
-  }
-  const withTime = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
-  );
-  if (withTime) {
-    const y = Number(withTime[1]);
-    const mo = Number(withTime[2]);
-    const d = Number(withTime[3]);
-    const h = Number(withTime[4]);
-    const mi = Number(withTime[5]);
-    const s = Number(withTime[6] ?? 0);
-    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
-  }
+  const local = parseLocalStampMs(raw);
+  if (local != null) return local;
   const t = Date.parse(raw);
   return Number.isFinite(t) ? t : null;
 }
@@ -505,23 +485,6 @@ export function countEligibleUpdateNotes(
   return n;
 }
 
-/**
- * Work remaining for Update strip: refile debt (q < CURRENT) + polishable links.
- * Does not double-count for display when both — total = refile + polishable.
- */
-export function countUpdateWorkRemaining(
-  entries: Array<{ content: string; title: string }>,
-  current: number = CURRENT_ATOMS_QUALITY,
-): { refile: number; polishable: number; total: number } {
-  let refile = 0;
-  let polishable = 0;
-  for (const e of entries) {
-    if (isEligibleForUpdate(e.content, current)) refile += 1;
-    if (isPolishableContent(e.content, e.title)) polishable += 1;
-  }
-  return { refile, polishable, total: refile + polishable };
-}
-
 /** Quoted confirm N: min(refile debt, batch cap). */
 export function updateNotesQuotedN(
   refileCount: number,
@@ -553,16 +516,13 @@ export function updateNotesSettingsAnswer(
   return refileCount > 0 ? answer : "Up to date";
 }
 
-/**
- * Confirm billing path. Same cases as `FilingPathKind` so Home/Settings can
- * pass `filingPathFromAuth` without remapping exhausted Plus onto none.
- */
-export type UpdateNotesBilling =
+/** Filing path for wait-card branching (from resolveFilingAuth + status). */
+export type FilingPathKind =
+  | "none"
+  | "byok"
   | "plus_active"
   | "plus_exhausted"
-  | "plus_lapsed"
-  | "byok"
-  | "none";
+  | "plus_lapsed";
 
 const UPDATE_NOTES_SACRED =
   "Titles and links may change. Your original capture text will not.";
@@ -574,7 +534,7 @@ function updateNotesNoun(n: number): string {
 /** Spend-only confirm chrome. Does not repeat the quality reason. */
 export function updateNotesConfirmCopy(opts: {
   n: number;
-  billing: UpdateNotesBilling;
+  billing: FilingPathKind;
 }): { title: string; body: string } {
   const n = Math.max(0, opts.n);
   const title =
@@ -610,6 +570,14 @@ export function updateNotesConfirmCopy(opts: {
 
 export const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 
+/** Write the quality-era heard key. Home Not now and a successful wave share this. */
+export function persistUpdateNotesHeard(
+  save: (key: string, value: string) => void,
+  current?: number,
+): void {
+  save(LS_UPDATE_NOTES_DISMISSED_Q, String(current ?? CURRENT_ATOMS_QUALITY));
+}
+
 /** Home news once per quality. Refile debt only. Hidden under Process wait. */
 export function shouldShowUpdateNotesNews(opts: {
   refileCount: number;
@@ -641,10 +609,7 @@ export function rememberUpdateNotesHeard(opts: {
   current?: number;
 }): boolean {
   if (opts.updated <= 0) return false;
-  opts.save(
-    LS_UPDATE_NOTES_DISMISSED_Q,
-    String(opts.current ?? CURRENT_ATOMS_QUALITY),
-  );
+  persistUpdateNotesHeard(opts.save, opts.current);
   return true;
 }
 
@@ -667,14 +632,6 @@ export type FilingHeroMode =
   | "enable_auto"
   | "auto_on"
   | "auto_running";
-
-/** Filing path for wait-card branching (from resolveFilingAuth + status). */
-export type FilingPathKind =
-  | "none"
-  | "byok"
-  | "plus_active"
-  | "plus_exhausted"
-  | "plus_lapsed";
 
 export type FilingHeroAction =
   | "open_settings"
