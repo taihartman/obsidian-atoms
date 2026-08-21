@@ -58,6 +58,26 @@ export function isMeasurementReading(captureText: string): boolean {
   return VALUE_RES.some((re) => re.test(t));
 }
 
+function normalizeThing(raw: string): string {
+  if (/^(odometer|mileage|miles?|vehicle)$/.test(raw)) return "car";
+  if (/^(weigh(?:ed|s|t)?|scale|weight)$/.test(raw)) return "weight";
+  return raw;
+}
+
+/**
+ * Every measured thing a text names, normalized, with no reading-value
+ * requirement. The loop side of a close offer uses this: "come back into QGS
+ * automotive" mentions the car without reading its number.
+ */
+export function measuredThingMentions(text: string): Set<string> {
+  const out = new Set<string>();
+  THING_RE.lastIndex = 0;
+  for (const m of (text ?? "").matchAll(THING_RE)) {
+    out.add(normalizeThing(m[1]!.toLowerCase()));
+  }
+  return out;
+}
+
 /**
  * The measured thing behind a reading, normalized so two captures about the
  * same series share a key. Concrete nouns win over generic units: "My miles in
@@ -74,13 +94,8 @@ export function measuredThingKey(captureText: string): string | null {
   for (const concrete of ["car", "truck", "bike", "motorcycle", "rent", "meter"]) {
     if (found.has(concrete)) return concrete;
   }
-  for (const k of found) {
-    if (/^(odometer|mileage|miles?|vehicle)$/.test(k)) return "car";
-  }
-  for (const k of found) {
-    if (/^(weigh(?:ed|s|t)?|scale|weight)$/.test(k)) return "weight";
-  }
-  return null;
+  const mapped = [...found].map(normalizeThing);
+  return mapped.find((k) => k === "car") ?? mapped.find((k) => k === "weight") ?? null;
 }
 
 /** Hub title offered when a series proves itself (invite copy owns phrasing). */
