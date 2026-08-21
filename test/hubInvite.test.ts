@@ -348,3 +348,95 @@ describe("collectEntityInvites still create-only", () => {
     expect(invites).toHaveLength(0);
   });
 });
+
+describe("measured-thing invites (#589)", () => {
+  const reading1 = atom(
+    "Atoms/Car at 73042 miles, needs a return to QGS automotive.md",
+    "Car at 73042 miles, needs a return to QGS automotive",
+    "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive",
+  );
+  const reading2 = atom(
+    "Atoms/Car odometer reads 73089 miles.md",
+    "Car odometer reads 73089 miles",
+    "My car is at 73089 miles",
+  );
+
+  it("one reading alone never invites (series proves itself at two)", () => {
+    const invites = collectHubAssociationInvites({
+      atoms: [reading1],
+      vaultTitles: [],
+      personHubTitles: [],
+    });
+    expect(invites).toEqual([]);
+  });
+
+  it("two readings of the same thing invite Track My car", () => {
+    const invites = collectHubAssociationInvites({
+      atoms: [reading1, reading2],
+      vaultTitles: [],
+      personHubTitles: [],
+    });
+    const m = invites.find((i) => i.measured);
+    expect(m?.label).toBe("My car");
+    expect(m?.existingNote).toBe(false);
+    expect(m?.memberPaths).toEqual([reading1.path, reading2.path]);
+    const copy = hubAssociationInviteCopy({
+      kind: "list",
+      label: m!.label,
+      memberCount: m!.memberPaths.length,
+      existingNote: false,
+      measured: true,
+    });
+    expect(copy.title).toBe("Track My car?");
+    expect(copy.kicker).toBe("Series");
+  });
+
+  it("an existing My car note pairs from a single unlinked reading", () => {
+    const invites = collectHubAssociationInvites({
+      atoms: [reading2],
+      vaultTitles: ["My car"],
+      personHubTitles: [],
+    });
+    const m = invites.find((i) => i.measured);
+    expect(m?.label).toBe("My car");
+    expect(m?.existingNote).toBe(true);
+  });
+
+  it("a hard-linked reading never re-invites", () => {
+    const linked = atom(
+      "Atoms/Car odometer reads 73089 miles.md",
+      "Car odometer reads 73089 miles",
+      "My car is at 73089 miles\n\n- new reading in the [[My car]] series",
+    );
+    const invites = collectHubAssociationInvites({
+      atoms: [linked],
+      vaultTitles: ["My car"],
+      personHubTitles: [],
+    });
+    expect(invites.find((i) => i.measured)).toBeUndefined();
+  });
+
+  it("a snoozed label stays quiet", () => {
+    const invites = collectHubAssociationInvites({
+      atoms: [reading1, reading2],
+      vaultTitles: [],
+      personHubTitles: [],
+      snoozedIds: [pairingId("list", "My car")],
+    });
+    expect(invites.find((i) => i.measured)).toBeUndefined();
+  });
+
+  it("different things never share a series invite", () => {
+    const weight = atom(
+      "Atoms/Weighed in at 178.md",
+      "Weighed in at 178",
+      "Weighed in at 178 this morning",
+    );
+    const invites = collectHubAssociationInvites({
+      atoms: [reading1, weight],
+      vaultTitles: [],
+      personHubTitles: [],
+    });
+    expect(invites.find((i) => i.measured)).toBeUndefined();
+  });
+});

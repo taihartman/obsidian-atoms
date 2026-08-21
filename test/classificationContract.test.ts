@@ -61,6 +61,7 @@ describe("enrich stage order (named lists)", () => {
   it("documents intentional live vs offline order difference", () => {
     expect([...CLASSIFY_LIVE_ENRICH_ORDER]).toEqual([
       "rescueKeepableIdea",
+      "rescueMeasurementReading",
       "normalizePeople",
       "normalizeHubSection",
       "enrichPersonLinks",
@@ -68,6 +69,7 @@ describe("enrich stage order (named lists)", () => {
       "enrichListHubLinks",
       "maybeLinkPeopleIndex",
       "enrichEntityLinks",
+      "enrichMeasurementLinks",
       "improveClassificationLinks",
       "stripSelfReferentialLinks",
       "repairBorrowedTitle",
@@ -76,11 +78,13 @@ describe("enrich stage order (named lists)", () => {
     expect([...CLASSIFY_OFFLINE_QUALITY_ORDER]).toEqual([
       "normalizePeople",
       "rescueKeepableIdea",
+      "rescueMeasurementReading",
       "enrichPersonLinks",
       "enrichMediaLinks",
       "enrichListHubLinks",
       "maybeLinkPeopleIndex",
       "enrichEntityLinks",
+      "enrichMeasurementLinks",
       "improveClassificationLinks",
       "stripSelfReferentialLinks",
       "repairBorrowedTitle",

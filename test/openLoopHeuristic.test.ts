@@ -37,6 +37,48 @@ describe("looksLikeOpenLoop", () => {
     expect(looksLikeOpenLoop("buy milk", "Milk")).toBe(false);
   });
 
+  it("hits the #589 return-intent shape verbatim", () => {
+    expect(
+      looksLikeOpenLoop(
+        "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive",
+        "Car at 73042 miles, needs a return to QGS automotive",
+      ),
+    ).toBe(true);
+  });
+
+  it("hits bring-back and return-to intents", () => {
+    expect(
+      looksLikeOpenLoop("Bring the car back in once it hits 73100", ""),
+    ).toBe(true);
+    expect(
+      looksLikeOpenLoop("Return the library books to the Main St branch", ""),
+    ).toBe(true);
+  });
+
+  it("past-tense returns never open a loop", () => {
+    expect(
+      looksLikeOpenLoop("Took the car in, came back by lunch. All fixed.", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop("Come back from vacation feeling rested for once", ""),
+    ).toBe(false);
+  });
+
+  it("descriptive prose about coming back or returning never opens", () => {
+    expect(
+      looksLikeOpenLoop("Customers come back to brands that respect them", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop("Great ideas come back to you on walks", ""),
+    ).toBe(false);
+    expect(
+      looksLikeOpenLoop(
+        "The function should return the value to the caller",
+        "",
+      ),
+    ).toBe(false);
+  });
+
   it("rejects finished short notes with idea/newsletter titles", () => {
     expect(
       looksLikeOpenLoop(
@@ -110,6 +152,50 @@ I will share my routine later.
     });
     expect(md).toContain(`${OPEN_LOOP_KEY}: not_a_loop`);
     expect(md).toContain(`${OPEN_LOOP_SOURCE_KEY}: user`);
+  });
+
+  it("buildRefreshedAtomMarkdown infers a loop when FM has none (#589 AE6)", () => {
+    const noLoop = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+atoms-quality: 8
+quality-updated: 2026-08-18
+tags: []
+---
+
+My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive
+`;
+    const md = buildRefreshedAtomMarkdown({
+      oldContent: noLoop,
+      captureText:
+        "My miles in my car at 73042 I need to drive 60 to 70 miles and come back into QGS automotive",
+      result: atom("Car at 73042 miles, needs a return to QGS automotive"),
+      title: "Car at 73042 miles, needs a return to QGS automotive",
+    });
+    expect(md).toContain(`${OPEN_LOOP_KEY}: active`);
+    expect(md).toContain(`${OPEN_LOOP_SOURCE_KEY}: inferred`);
+  });
+
+  it("refresh never invents a loop for substance", () => {
+    const noLoop = `---
+created: 2026-08-18
+source: "[[2026-08-18]]"
+generated-by: linker
+atoms-quality: 8
+quality-updated: 2026-08-18
+tags: []
+---
+
+Baked at 400F for 23 minutes. Crust was chewy.
+`;
+    const md = buildRefreshedAtomMarkdown({
+      oldContent: noLoop,
+      captureText: "Baked at 400F for 23 minutes. Crust was chewy.",
+      result: atom("Pizza crust chews best at 400F for 23 minutes"),
+      title: "Pizza crust chews best at 400F for 23 minutes",
+    });
+    expect(md).not.toContain(OPEN_LOOP_KEY);
   });
 
   it("buildPolishedAtomMarkdown keeps user terminal", () => {

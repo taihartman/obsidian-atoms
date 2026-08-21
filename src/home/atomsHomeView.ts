@@ -42,6 +42,13 @@ import {
   type FilingHeroCopy,
   type InboxStuckSummary,
 } from "./atomsHomeData";
+import {
+  applyRedeemsLink,
+  collectLoopCloseOffers,
+  loopCloseCardCopy,
+  loopClosePairId,
+  type LoopCloseOffer,
+} from "../pipeline/openLoopState";
 import { buildOrbits } from "../pipeline/entityOrbitIndex";
 import {
   pickPrimaryOrbit,
@@ -54,7 +61,7 @@ import {
 import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
-  listLinkReason,
+  hubInviteLinkReason,
   pairingId,
   seedHubListMarkdown,
   type HubAssociationCandidate,
@@ -224,6 +231,9 @@ export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
+const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
+/** A decline is permanent for the pair, not a snooze (#589 KD4). */
+const LOOP_CLOSE_TOLD_DAYS = 36500;
 
 type FilterMode = "all" | "linked" | "skipped";
 
@@ -339,6 +349,8 @@ export class AtomsHomeView extends ItemView {
   /** Pending hub association invite (person or list). */
   private hubInvite: HubAssociationCandidate | null = null;
   private hubInviteBusy = false;
+  private loopCloseOffer: LoopCloseOffer | null = null;
+  private loopCloseBusy = false;
   /** Unseen-join Together news. Null after Open/Not now until the next Home open. */
   private togetherNews: TogetherNewsCard | null = null;
   private togetherNewsHeldThisVisit = false;
@@ -1313,6 +1325,11 @@ export class AtomsHomeView extends ItemView {
     });
     this.hubInvite = invites[0] ?? null;
 
+    this.loopCloseOffer =
+      collectLoopCloseOffers(atoms, {
+        told: this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
+      })[0] ?? null;
+
     if (this.togetherNewsHeldThisVisit) {
       this.togetherNews = null;
       return;
@@ -1362,6 +1379,83 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
+  /** Told is permanent per pair; the shared snooze map with a far horizon. */
+  private stampLoopCloseTold(pairId: string): void {
+    this.writeSnooze(LS_LOOP_CLOSE_TOLD, pairId, LOOP_CLOSE_TOLD_DAYS);
+  }
+
+  /**
+   * Loop-close offer (#589, KD4): both captures verbatim, no arithmetic, the
+   * user judges. Decline is a permanent told for this pair.
+   */
+  private renderLoopCloseCard(scroll: HTMLElement): void {
+    const offer = this.loopCloseOffer;
+    if (!offer) return;
+    const copy = loopCloseCardCopy();
+    const card = flatCard(scroll, { className: "atoms-home-loop-close" });
+    card.createEl("p", {
+      cls: "atoms-home-card-eyebrow atoms-home-entity-invite-kicker",
+      text: copy.kicker,
+    });
+    card.createEl("h2", { text: copy.title });
+    const then = card.createDiv({ cls: "atoms-home-loop-close-leg" });
+    then.createEl("p", { cls: "atoms-home-card-eyebrow", text: copy.thenLabel });
+    claimQuote(then, { text: offer.loopBody, maxLines: 8 });
+    const now = card.createDiv({ cls: "atoms-home-loop-close-leg" });
+    now.createEl("p", { cls: "atoms-home-card-eyebrow", text: copy.nowLabel });
+    claimQuote(now, { text: offer.readingBody, maxLines: 8 });
+    const actions = actionRow(card);
+    button(actions, {
+      grade: "primary",
+      label: this.loopCloseBusy ? copy.closeBusyLabel : copy.closeLabel,
+      disabled: this.loopCloseBusy,
+      onClick: () => void this.onAcceptLoopClose(offer),
+    });
+    button(actions, {
+      grade: "secondary",
+      label: copy.keepLabel,
+      disabled: this.loopCloseBusy,
+      onClick: () => this.onDeclineLoopClose(offer),
+    });
+  }
+
+  private async onAcceptLoopClose(offer: LoopCloseOffer): Promise<void> {
+    if (this.loopCloseBusy) return;
+    this.loopCloseBusy = true;
+    this.render();
+    try {
+      const file = this.app.vault.getAbstractFileByPath(offer.readingPath);
+      if (!(file instanceof TFile)) {
+        new Notice("Atoms: could not find that note");
+        return;
+      }
+      const content = await this.app.vault.read(file);
+      if (!isGeneratedAtomContent(content)) return;
+      const next = applyRedeemsLink(content, offer.loopTitle);
+      if (next) await this.app.vault.modify(file, next);
+      this.stampLoopCloseTold(
+        loopClosePairId(offer.loopPath, offer.readingPath),
+      );
+      new Notice("Atoms: loop closed");
+      this.plugin.scheduleAskMirrorSync();
+      await this.loadData();
+    } catch {
+      new Notice("Atoms: could not close that loop");
+    } finally {
+      // Render here on every path — an early return or a throw would
+      // otherwise strand the card on disabled "Closing…" buttons.
+      this.loopCloseBusy = false;
+      this.render();
+    }
+  }
+
+  private onDeclineLoopClose(offer: LoopCloseOffer): void {
+    if (this.loopCloseBusy) return;
+    this.stampLoopCloseTold(loopClosePairId(offer.loopPath, offer.readingPath));
+    this.loopCloseOffer = null;
+    this.render();
+  }
+
   private renderHubInviteCard(scroll: HTMLElement): void {
     const inv = this.hubInvite;
     if (!inv) return;
@@ -1370,6 +1464,7 @@ export class AtomsHomeView extends ItemView {
       label: inv.label,
       memberCount: inv.memberPaths.length,
       existingNote: inv.existingNote,
+      measured: inv.measured,
     });
     const card = flatCard(scroll, {
       className:
@@ -1483,7 +1578,11 @@ export class AtomsHomeView extends ItemView {
       }
       const linkName = file.basename.trim();
       for (const memberPath of inv.memberPaths) {
-        await this.upgradeAtomToHub(memberPath, linkName, listLinkReason(linkName));
+        await this.upgradeAtomToHub(
+          memberPath,
+          linkName,
+          hubInviteLinkReason(inv, linkName),
+        );
       }
       if (this.plugin.settings.enableHubProjection === true) {
         const fresh = await this.app.vault.read(file);
@@ -1523,10 +1622,7 @@ export class AtomsHomeView extends ItemView {
     this.hubInviteBusy = true;
     this.render();
     try {
-      const reason =
-        inv.kind === "person"
-          ? `about [[${linkName}]]`
-          : listLinkReason(linkName);
+      const reason = hubInviteLinkReason(inv, linkName);
       const paths =
         inv.kind === "person" ? this.upgradePathSet(inv) : new Set(inv.memberPaths);
       for (const memberPath of paths) {
@@ -2360,7 +2456,9 @@ export class AtomsHomeView extends ItemView {
       !workPending &&
       !this.landPeak
     ) {
-      if (this.hubInvite) {
+      if (this.loopCloseOffer) {
+        this.renderLoopCloseCard(scroll);
+      } else if (this.hubInvite) {
         this.renderHubInviteCard(scroll);
       } else if (this.togetherNews) {
         this.renderTogetherCard(scroll);

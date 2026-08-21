@@ -23,7 +23,31 @@ const STRONG_INTENT: RegExp[] = [
   /\bleave (this )?for later\b/,
   /\bcapture (this )?later\b/,
   /\bwrite (this )?up later\b/,
+  // Return / completion intents (#589): a stated trip back is unfinished
+  // business. An intent lead or a line-initial imperative is required, so
+  // past tense ("came back") and descriptive prose ("customers come back to
+  // brands", "the function should return the value to the caller") never open.
+  /\b(?:need to|have to|got to|gotta|should|will|i'll|going to|gonna)\b[^.\n]{0,60}?\b(?:(?:come|go|head) back|(?:bring|take)\b[^.\n]{0,24}?\bback)\b/,
+  /^\s*(?:bring|take) (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) back\b/m,
+  /^\s*return (?:it|this|that|(?:the|my|our) \w+(?: \w+){0,2}) to\b/m,
 ];
+
+/**
+ * Loop frontmatter for a rebuilt atom (#589 AE6): an existing mark (any
+ * state) passes through untouched; only unset frontmatter may gain an
+ * inferred active mark, matching canClassifierWrite. One home for the policy
+ * the refresh builders share.
+ */
+export function inferredLoopFm<T extends { state: string; source: string }>(
+  existing: T | null,
+  captureText: string,
+  title: string,
+): T | { state: "active"; source: "inferred" } | null {
+  if (existing) return existing;
+  return looksLikeOpenLoop(captureText, title)
+    ? { state: "active", source: "inferred" }
+    : null;
+}
 
 /** True when body is predominantly an intention / IOU, not substance. */
 export function looksLikeOpenLoop(text: string, title = ""): boolean {

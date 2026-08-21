@@ -86,7 +86,7 @@ import {
   dailyDateForFile,
   findCaptureAtLine,
   filedNotice,
-  forceKeepAtomResult,
+  keepAsNoteResult,
   collisionNotice,
   gateReconsiderTarget,
   missNotice,
@@ -3316,7 +3316,7 @@ export default class AtomsPlugin extends Plugin {
           await commitResult(result);
         },
         onKeepAnyway: async () => {
-          await commitResult(forceKeepAtomResult(gate.capture.text));
+          await commitResult(keepAsNoteResult(gate.capture.text, ctx));
         },
       }).open();
     } catch (e) {

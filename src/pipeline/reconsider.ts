@@ -4,8 +4,10 @@ import type {
   Capture,
   ClassificationResult,
   MarkerKind,
+  VaultContext,
   Verdict,
 } from "../shared/types";
+import { applyClassificationQuality, hubsForEnrich } from "./classify";
 import { parseCaptures } from "./parse";
 import {
   captureTextsMatch,
@@ -157,6 +159,25 @@ export function forceKeepAtomResult(captureText: string): ClassificationResult {
     proposed_tags: [],
     links: [],
   };
+}
+
+/**
+ * Keep-as-note override (#589 KD6): the user's verdict, the system's links.
+ * Runs the shared quality chain with the same context classify used, so a
+ * forced keep never files as an island while a same-thread title is in reach.
+ */
+export function keepAsNoteResult(
+  captureText: string,
+  ctx: VaultContext,
+): ClassificationResult {
+  return applyClassificationQuality(captureText, forceKeepAtomResult(captureText), {
+    titles: ctx.titles,
+    continueParentTitle: ctx.continueParent?.title ?? null,
+    personHubs: hubsForEnrich(ctx),
+    personHubTitles: ctx.personHubs,
+    personHubDetails: ctx.personHubDetails,
+    listHubDetails: ctx.listHubDetails,
+  });
 }
 
 export interface ReconsiderApplyOpts {

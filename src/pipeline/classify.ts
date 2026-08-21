@@ -30,6 +30,10 @@ import {
   stripSelfReferentialLinks,
 } from "./enrich/linkQuality";
 import { rescueKeepableIdea } from "./enrich/ideaRescue";
+import {
+  enrichMeasurementLinks,
+  rescueMeasurementReading,
+} from "./enrich/measurement";
 import { repairBorrowedTitle } from "./enrich/titleCoherence";
 import { filterTagsToActive } from "./vocabulary";
 import {
@@ -85,6 +89,7 @@ export const CLASSIFICATION_PARITY_PHRASES = [
   "task: **soft-retired / almost never**",
   "Continue parent (when present)",
   "The atom title must be about this capture",
+  "Readings of durable things (measurement series)",
 ] as const;
 
 /**
@@ -93,6 +98,7 @@ export const CLASSIFICATION_PARITY_PHRASES = [
  */
 export const CLASSIFY_LIVE_ENRICH_ORDER = [
   "rescueKeepableIdea",
+  "rescueMeasurementReading",
   "normalizePeople",
   "normalizeHubSection",
   "enrichPersonLinks",
@@ -100,6 +106,7 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
   "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
+  "enrichMeasurementLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
   "repairBorrowedTitle",
@@ -114,11 +121,13 @@ export const CLASSIFY_LIVE_ENRICH_ORDER = [
 export const CLASSIFY_OFFLINE_QUALITY_ORDER = [
   "normalizePeople",
   "rescueKeepableIdea",
+  "rescueMeasurementReading",
   "enrichPersonLinks",
   "enrichMediaLinks",
   "enrichListHubLinks",
   "maybeLinkPeopleIndex",
   "enrichEntityLinks",
+  "enrichMeasurementLinks",
   "improveClassificationLinks",
   "stripSelfReferentialLinks",
   "repairBorrowedTitle",
@@ -218,7 +227,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   Bad (too long): a full multi-clause comparison as the filename — put nuance in the body
 
 ## Triage (second brain)
-- atom: anything worth meeting again in the graph — claims, observations, decisions, preferences, questions, **list/media dumps**, **and product/app/build ideas** (website pitches, game mashups, "create a …" product specs). If the user would want to find it later, it is an atom.
+- atom: anything worth meeting again in the graph — claims, observations, decisions, preferences, questions, **list/media dumps**, **recurring readings of durable things** (odometer, body weight, a meter — see Readings below), **and product/app/build ideas** (website pitches, game mashups, "create a …" product specs). If the user would want to find it later, it is an atom.
 - noise: pure logistics, empty, or not worth keeping in a second brain ("buy milk", "email landlord", "call dentist at 3", lone timestamps). When in doubt between task and noise → **noise**. When in doubt between atom and noise for keepable content → **atom**.
 - task: **soft-retired / almost never**. Do not use task for list items, media, preferences, people facts, or product ideas. Do not use task for ordinary chores (those are noise). Only emit task if nothing else fits and the capture is a pure to-do that somehow is not noise — prefer noise.
 - Durable facts about people you know (likes, habits, stories that matter) are usually atoms, not noise.
@@ -268,7 +277,7 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
   Good: "revises [[Old claim]]" / "contradicts [[Old claim]]"
   Good: "same product thread — settlement timing after split ([[Expense app — final settlement]])"
 - **When a Note title is clearly the same thread, prefer a substantive link over silence.**
-  Same person, same named work, same app/product/project, same trip, or an explicit revise/continue/contradict of an earlier claim — if that exact title is under Note titles, link it with a reason that teaches the relationship. A plausible, title-exact link is better than an island. Do not skip an obvious same-thread title just to stay sparse.
+  Same person, same named work, same app/product/project, same trip, same measured thing (a later reading of the same odometer/weight/meter), or an explicit revise/continue/contradict of an earlier claim — if that exact title is under Note titles, link it with a reason that teaches the relationship. A plausible, title-exact link is better than an island. Do not skip an obvious same-thread title just to stay sparse.
 - Still never invent titles, never link on a vague shared vibe alone, and never force a junk edge with an empty reason. People must-link and media work-title rules above still apply; this section adds the missing *do link* pressure for real threads.
 - If a Movies/Shows hub title already exists in Note titles, you may also link it; still link the specific work only when that work title exists.
 
@@ -279,6 +288,14 @@ export const SYSTEM_PROMPT = `You classify fleeting captures from a daily-note i
 - Do **not** invent hollow trip/project notes in links[]. Soft buckets alone (Camping, Travel) are not enough when a more specific title exists.
 - Prefer one hard entity link with a substantive reason over only a broad hub.
 - Pure one-off logistics with no keepable list ("buy milk", lone "call dentist at 3") stay noise. A multi-item checklist is not pure logistics.
+
+## Readings of durable things (measurement series)
+- A number attached to a durable thing the user owns or tracks over time — an odometer, body weight, a utility meter, rent — is a **reading**: one point in a series. Readings are **atoms**, never noise, even as a single short line. The series is the keepable memory, and the second reading is the moment it becomes findable.
+  Examples that are **atoms**: "My car is at 73089 miles"; "Weighed in at 178 this morning"; "Rent is $1450 now".
+  Still **noise**: chores that happen to contain a quantity ("buy 2 gallons of milk", "call dentist at 3", "pay the $40 copay"). A quantity inside an errand is not a reading.
+- Title the reading as a short claim carrying the thing and its value ("Car odometer reads 73089 miles"), never the pasted capture.
+- Series linking (MUST): when a Note title is an earlier reading of the same thing, or a hub note for the thing itself ("My car"), link it with a reason that names the series ("next odometer reading, continues the mileage log after [[…]]"). The newer reading continues or revises the series; prefer that phrasing.
+- A stated intent riding along with a reading ("…and come back into the shop") stays in the body as always; it does not turn the reading into noise.
 
 ## Continue parent (when present)
 - When the user context includes a **### Continue parent** block, the user intentionally continued that note.
@@ -306,7 +323,7 @@ export function buildContextUserMessage(context: VaultContext): string {
   );
 }
 
-function hubsForEnrich(context: VaultContext): PersonHub[] {
+export function hubsForEnrich(context: VaultContext): PersonHub[] {
   if (context.personHubDetails?.length) {
     return context.personHubDetails.map((d) => ({
       canonicalTitle: d.canonicalTitle,
@@ -985,6 +1002,8 @@ export async function classifyCapture(
 
   // Keepable product ideas must not soft-delete as task/noise (before invariants need title).
   parsed = rescueKeepableIdea(capture, parsed, context.titles ?? []);
+  // A reading of a durable thing is a point in a series, not logistics (#589).
+  parsed = rescueMeasurementReading(capture, parsed);
 
   const inv = checkInvariants(parsed);
   if (!inv.ok) {
@@ -1018,6 +1037,8 @@ export async function classifyCapture(
   );
   // Trip/list/project entity reinforce — exact vault titles only.
   result = enrichEntityLinks(capture, result, context.titles ?? []);
+  // Measurement series: hard-link the thing's hub when it exists (#589).
+  result = enrichMeasurementLinks(capture, result, context.titles ?? []);
   // Rewrite boilerplate reasons into substantive prose.
   result = improveClassificationLinks(capture, result);
   // Never self-link / self-duplicate the atom title in graph prose.
@@ -1066,6 +1087,7 @@ export function applyClassificationQuality(
   // people here too, or unvetted names reach frontmatter (R4/R5). Idempotent.
   let r = normalizePeople(capture, result);
   r = rescueKeepableIdea(capture, r, titles);
+  r = rescueMeasurementReading(capture, r);
   r = enrichPersonLinks(capture, r, hubs);
   r = enrichMediaLinks(capture, r, titles);
   r = enrichListHubLinks(capture, r, opts.listHubDetails ?? []);
@@ -1076,6 +1098,7 @@ export function applyClassificationQuality(
     opts.personHubTitles ?? hubs.map((h) => h.canonicalTitle),
   );
   r = enrichEntityLinks(capture, r, titles);
+  r = enrichMeasurementLinks(capture, r, titles);
   r = improveClassificationLinks(capture, r);
   r = stripSelfReferentialLinks(r);
   r = repairBorrowedTitle(capture, r, titles, opts.continueParentTitle);

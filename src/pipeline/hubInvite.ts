@@ -8,6 +8,11 @@ import {
   type AtomInviteInput,
 } from "./entityInvite";
 import { suggestEntityHubLabel } from "./enrich/entityLinks";
+import {
+  measuredThingHubTitle,
+  measuredThingKey,
+  seriesLinkReason,
+} from "./enrich/measurement";
 import { isListHubShaped, titleMatchesCapture } from "./enrich/listHubs";
 import { watchlistWork } from "./enrich/media";
 import { isJunkLinkReason } from "./enrich/linkQuality";
@@ -27,6 +32,8 @@ export type HubAssociationCandidate = {
   memberPaths: string[];
   memberTitles: string[];
   existingNote: boolean;
+  /** Measurement-series invite (#589): copy speaks of readings, not lists. */
+  measured?: boolean;
 };
 
 const LIST_NAMED =
@@ -91,27 +98,26 @@ export function hasHardLinkToTitle(content: string, title: string): boolean {
   return false;
 }
 
-function collectListPairings(
+/**
+ * One grouping engine for the list-flavoured invite collectors: pick decides
+ * the label (null skips the atom); hard-link and snooze rules are shared so
+ * the collectors cannot drift on them.
+ */
+function groupInviteCandidates(
   atoms: AtomInviteInput[],
-  vaultTitles: string[],
   snoozed: Set<string>,
+  pick: (
+    atom: AtomInviteInput,
+    body: string,
+  ) => { label: string; existingNote: boolean; measured?: boolean } | null,
 ): HubAssociationCandidate[] {
   const groups = new Map<string, HubAssociationCandidate>();
 
   for (const atom of atoms) {
     const body = captureBody(atom.content);
-    const hay = `${body}\n${atom.title}`;
-    if (!isListHubShaped(body) && !isListHubShaped(atom.title)) continue;
-
-    const named = pickListNamedHub(hay, vaultTitles, body);
-    const suggested = suggestEntityHubLabel(body) || suggestEntityHubLabel(atom.title);
-    const suggestedHit = suggested
-      ? vaultTitles.find(
-          (t) => t.trim().toLowerCase() === suggested.trim().toLowerCase(),
-        )
-      : undefined;
-    const label = named ?? suggestedHit;
-    if (!label) continue;
+    const picked = pick(atom, body);
+    if (!picked) continue;
+    const label = picked.label;
     if (hasHardLinkToTitle(atom.content, label)) continue;
     const id = pairingId("list", label);
     if (snoozed.has(id) || snoozed.has(label.trim().toLowerCase())) continue;
@@ -122,7 +128,8 @@ function collectListPairings(
       label: label.trim() || label,
       memberPaths: [],
       memberTitles: [],
-      existingNote: true,
+      existingNote: picked.existingNote,
+      ...(picked.measured ? { measured: true } : {}),
     };
     if (!g.memberPaths.includes(atom.path)) {
       g.memberPaths.push(atom.path);
@@ -132,6 +139,50 @@ function collectListPairings(
   }
 
   return [...groups.values()];
+}
+
+function collectListPairings(
+  atoms: AtomInviteInput[],
+  vaultTitles: string[],
+  snoozed: Set<string>,
+): HubAssociationCandidate[] {
+  return groupInviteCandidates(atoms, snoozed, (atom, body) => {
+    const hay = `${body}\n${atom.title}`;
+    if (!isListHubShaped(body) && !isListHubShaped(atom.title)) return null;
+    const named = pickListNamedHub(hay, vaultTitles, body);
+    const suggested =
+      suggestEntityHubLabel(body) || suggestEntityHubLabel(atom.title);
+    const suggestedHit = suggested
+      ? vaultTitles.find(
+          (t) => t.trim().toLowerCase() === suggested.trim().toLowerCase(),
+        )
+      : undefined;
+    const label = named ?? suggestedHit;
+    return label ? { label, existingNote: true } : null;
+  });
+}
+
+/**
+ * Measurement-series invites (#589, KD3): the series proves itself at reading
+ * two, so a fresh hub needs >= 2 readings of the same thing. When the hub
+ * note already exists, one unlinked reading is enough to offer the pairing.
+ * Snooze and accept ride the existing list-invite paths.
+ */
+function collectMeasuredThingInvites(
+  atoms: AtomInviteInput[],
+  vaultTitles: string[],
+  snoozed: Set<string>,
+): HubAssociationCandidate[] {
+  const byLower = new Map(
+    vaultTitles.map((t) => [t.trim().toLowerCase(), t.trim()] as const),
+  );
+  return groupInviteCandidates(atoms, snoozed, (atom, body) => {
+    const key = measuredThingKey(body) ?? measuredThingKey(atom.title);
+    if (!key) return null;
+    const label = measuredThingHubTitle(key);
+    const existing = byLower.get(label.toLowerCase());
+    return { label: existing ?? label, existingNote: !!existing, measured: true };
+  }).filter((g) => g.memberPaths.length >= (g.existingNote ? 1 : 2));
 }
 
 function personToAssoc(p: PersonInviteCandidate): HubAssociationCandidate {
@@ -187,7 +238,16 @@ export function collectHubAssociationInvites(opts: {
       }),
     );
 
-  const lists = [...pairings, ...creates];
+  const listKeys = new Set(
+    [...pairings, ...creates].map((p) => p.label.trim().toLowerCase()),
+  );
+  const measured = collectMeasuredThingInvites(
+    opts.atoms,
+    opts.vaultTitles,
+    snoozed,
+  ).filter((m) => !listKeys.has(m.label.trim().toLowerCase()));
+
+  const lists = [...pairings, ...creates, ...measured];
   return [...people, ...lists];
 }
 
@@ -196,6 +256,7 @@ export function hubAssociationInviteCopy(opts: {
   label: string;
   memberCount: number;
   existingNote: boolean;
+  measured?: boolean;
 }): {
   kicker: string;
   title: string;
@@ -230,6 +291,29 @@ export function hubAssociationInviteCopy(opts: {
       createLabel: `Add ${display}`,
       dismissLabel: "Not now",
       alreadyLabel: "Already have them…",
+    };
+  }
+  if (opts.measured) {
+    if (opts.existingNote) {
+      return {
+        kicker: "Series",
+        title: `Add to ${display}?`,
+        body:
+          n === 1
+            ? `A new reading of ${display}. Add it so the series stays in one place.`
+            : `${n} readings of ${display}. Add them so the series stays in one place.`,
+        createLabel: `Add to ${display}`,
+        dismissLabel: "Not now",
+        alreadyLabel: "Choose different note…",
+      };
+    }
+    return {
+      kicker: "Series",
+      title: `Track ${display}?`,
+      body: `${n} readings of the same thing. Create a note so the series collects in one place.`,
+      createLabel: `Track ${display}`,
+      dismissLabel: "Not now",
+      alreadyLabel: "Already have it…",
     };
   }
   if (opts.existingNote) {
@@ -274,4 +358,13 @@ export function seedHubListMarkdown(
 
 export function listLinkReason(label: string): string {
   return `belongs with [[${label.trim()}]]`;
+}
+
+/** Link reason for an invite accept — the flavour decision lives here, not in the view. */
+export function hubInviteLinkReason(
+  inv: { kind: HubAssociationKind; measured?: boolean },
+  linkName: string,
+): string {
+  if (inv.kind === "person") return `about [[${linkName}]]`;
+  return inv.measured ? seriesLinkReason(linkName) : listLinkReason(linkName);
 }

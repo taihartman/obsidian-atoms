@@ -6,7 +6,8 @@ import type { ClassificationPerson, PersonRole } from "../shared/types";
  */
 
 /** Bump when Process/Update should re-touch older atoms (e.g. self-link ban). */
-export const CURRENT_ATOMS_QUALITY = 8;
+// 9: measurement series (#589) — readings re-title, series links, loop inference.
+export const CURRENT_ATOMS_QUALITY = 9;
 
 const GENERATED_BY_RE = /^generated-by:\s*linker\s*$/m;
 const QUALITY_RE = /^atoms-quality:\s*(\d+)\s*$/m;

@@ -5,7 +5,7 @@ import {
   isDismissCandidate,
   isOpenNowContent,
   isProposalCandidate,
-} from "../src/plugin/openLoops";
+} from "../src/pipeline/openLoopState";
 import { OPEN_LOOP_KEY, OPEN_LOOP_SOURCE_KEY } from "../src/shared/openLoop";
 
 const intention = `---

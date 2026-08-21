@@ -32,6 +32,7 @@ import {
   parseOpenLoopFm,
   type OpenLoopFm,
 } from "../shared/openLoop";
+import { inferredLoopFm } from "./openLoopHeuristic";
 import {
   improveClassificationLinks,
   isJunkLinkReason,
@@ -196,7 +197,8 @@ export function buildRefreshedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec) fm.push(`hub-section: ${JSON.stringify(hubSec)}`);
-  if (openLoop) fm.push(...formatOpenLoopFmLines(openLoop));
+  const loopFm = inferredLoopFm(openLoop, opts.captureText, opts.title);
+  if (loopFm) fm.push(...formatOpenLoopFmLines(loopFm));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
@@ -397,7 +399,8 @@ export function buildPolishedAtomMarkdown(opts: {
     (result.hub_section ?? "").trim() ||
     parseHubSectionFromFrontmatter(opts.oldContent);
   if (hubSec2) fm.push(`hub-section: ${JSON.stringify(hubSec2)}`);
-  if (openLoop) fm.push(...formatOpenLoopFmLines(openLoop));
+  const loopFm = inferredLoopFm(openLoop, opts.captureText, opts.title);
+  if (loopFm) fm.push(...formatOpenLoopFmLines(loopFm));
   fm.push("---", "");
   const body = formatAtomBody(opts.captureText, result);
   return fm.join("\n") + body + (body.endsWith("\n") ? "" : "\n");
