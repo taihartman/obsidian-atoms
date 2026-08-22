@@ -105,8 +105,8 @@ import {
   parsePlusPlan,
   plusIsExhausted,
   plusLapse,
+  projectPlusIdentityAuth,
   readPlusSession,
-  resolveFilingAuth,
   recordPendingSignIn,
   setAwaitingCheckout,
 
@@ -128,9 +128,14 @@ import {
   atomsPlusTopUpCopy,
   CORE_PLUGINS_SETTINGS_TAB_ID,
   FILING_NAME,
+  filingPathFromAuth,
   firstDaySetupCopy,
+  isUnderAtomFolder,
+  updateNotesSettingsAnswer,
   type SetupStep,
 } from "../home/atomsHomeData";
+import { openUpdateNotesConfirm } from "../home/updateNotesConfirm";
+import { countRefileFromFileCaches } from "../pipeline/atomQuality";
 import {
   DEFAULT_PLUS_BASE_URL,
   isAllowedPlusBaseUrl,
@@ -249,7 +254,10 @@ export function deriveAccountState(
   const plusView =
     auth.mode === "plus"
       ? auth
-      : resolveFilingAuth({ byokApiKey: null, plusSession: session });
+      : projectPlusIdentityAuth({
+          byokApiKey: auth.mode === "byok" ? auth.apiKey : null,
+          plusSession: session,
+        });
   const lapse = plusLapse(plusView, now);
   if (lapse) {
     return {
@@ -592,7 +600,7 @@ const FILE_GROUP = {
    * safety promise rather than after.
    */
   footer:
-    "Filing is Atoms reading a day of captures and writing each thought up as its own note, linked to the people and topics it mentions. What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home.",
+    "Filing is Atoms reading a day of captures and writing each thought up as its own note, linked to the people and topics it mentions. What you wrote is never rewritten. Atoms only adds new atom files, one small marker line under the capture it read, and a list inside its own marked block on hub notes. Older captures wait until you backfill them from Atoms home. Older notes catch up when you ask. Same AI as filing. New days still come first.",
 } as const;
 
 /**
@@ -1995,6 +2003,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       ...FILE_GROUP,
       render: (groupEl) => {
         this.renderEngineRow(groupEl, filing);
+        this.renderUpdateNotesRow(groupEl);
         if (step) {
           // Setup is unfinished, but that does not mean this device has never filed: switching the
           // Daily Notes core plugin off under a configured engine puts the toggle back here with
@@ -2466,6 +2475,50 @@ export class AtomsSettingTab extends PluginSettingTab {
       name: DESTINATION_TITLES.engine,
       desc: this.engineAnswer(filing),
       onOpen: () => this.openRoute("engine"),
+    });
+  }
+
+  /**
+   * Catch-up for notes already filed under an older quality stamp. Noun + state,
+   * immediately after Filing. `display()` estimates from metadataCache; the tap
+   * recounts before no-op vs confirm so a stale paint cannot spend.
+   */
+  private renderUpdateNotesRow(containerEl: HTMLElement): void {
+    destinationRow(containerEl, {
+      name: "Update notes",
+      desc: updateNotesSettingsAnswer(this.estimateRefileCount()),
+      onOpen: () => this.openUpdateNotesFromSettings(),
+    });
+  }
+
+  /** metadataCache estimate: linker-generated, `atoms-quality` below CURRENT, in the atom folder. */
+  private estimateRefileCount(): number {
+    const folder = clampAtomFolder(this.plugin.settings.atomFolder);
+    const files = this.app.vault
+      .getMarkdownFiles()
+      .filter((f) => isUnderAtomFolder(f.path, folder))
+      .map((f) => ({
+        path: f.path,
+        cache: this.app.metadataCache.getFileCache(f),
+      }));
+    return countRefileFromFileCaches(files, folder);
+  }
+
+  /**
+   * Recount, then the same spend confirm Home uses. Zero debt and an in-flight
+   * filing pass are silent. A sheet already up does not stack.
+   */
+  private openUpdateNotesFromSettings(): void {
+    if (this.plugin.filingPassInFlight()) return;
+    const refileCount = this.estimateRefileCount();
+    if (refileCount <= 0) return;
+    openUpdateNotesConfirm({
+      app: this.app,
+      n: refileCount,
+      billing: filingPathFromAuth(this.plugin.resolveUpdateNotesAuth()),
+      onConfirm: (limit) => {
+        void this.plugin.runUpdateNotes({ limit });
+      },
     });
   }
 

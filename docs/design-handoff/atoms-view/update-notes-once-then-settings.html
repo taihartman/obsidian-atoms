@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms · Update notes, once then Settings</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #ffffff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --tint-soft: rgba(10, 132, 255, 0.22);
+      --person: #ff9f0a;
+      --person-bg: rgba(255, 159, 10, 0.14);
+      --work: #64d2ff;
+      --work-bg: rgba(100, 210, 255, 0.12);
+      --orange: #ff9f0a;
+      --page-bg: #121214;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--page-bg);
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 18px 90px; }
+    .page > h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px;
+    }
+    .lede {
+      color: var(--secondary); max-width: 46rem; line-height: 1.5;
+      margin: 0 0 12px; font-size: 0.95rem;
+    }
+    .decisions {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 22px;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; align-items: center;
+    }
+    .toolbar > span {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--tertiary);
+    }
+    .chip {
+      border: none; background: var(--elevated); color: var(--secondary);
+      border-radius: 980px; padding: 8px 14px; font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    }
+    .chip.on { background: var(--tint-soft); color: var(--tint); }
+
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; justify-items: center; }
+      .side { max-width: 420px; width: 100%; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--tertiary); text-align: center; margin-bottom: 10px;
+    }
+
+    .phone {
+      width: 375px;
+      height: 812px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 4px solid #3a3a3c;
+      box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .status-bar {
+      height: 50px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .nav { padding: 0 10px 10px 16px; flex-shrink: 0; }
+    .nav.settings-nav {
+      padding: 8px 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-top {
+      display: flex; justify-content: space-between; align-items: center; min-height: 40px;
+    }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.2rem; min-width: 40px; min-height: 40px; cursor: pointer;
+    }
+    .back {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.05rem; padding: 0; cursor: pointer;
+    }
+    .settings-title {
+      font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; margin: 0;
+    }
+    .large-title {
+      font-size: 2.05rem; font-weight: 700; letter-spacing: -0.045em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle {
+      font-size: 0.9rem; color: var(--secondary); margin: 5px 0 0; letter-spacing: -0.01em;
+    }
+    .scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 6px 16px 28px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .scroll.settings-scroll { padding: 0 0 28px; }
+
+    .ready {
+      background: rgba(255, 159, 10, 0.1);
+      border: 1px solid rgba(255, 159, 10, 0.28);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .update-strip {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      margin-bottom: 18px;
+    }
+    .ready h2, .update-strip h2 {
+      margin: 0 0 6px; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .ready p, .update-strip p {
+      margin: 0 0 12px; font-size: 0.88rem; color: var(--secondary); line-height: 1.4;
+    }
+    .btns { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; min-height: 46px; border: none; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; cursor: pointer;
+    }
+    .btn-p { background: var(--tint); color: #fff; }
+    .btn-s { background: var(--elevated); color: var(--tint); }
+    .btn-q {
+      background: transparent;
+      color: var(--secondary);
+      font-weight: 500;
+    }
+
+    .sec {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em;
+      margin: 4px 0 10px;
+    }
+    .list {
+      background: var(--grouped); border-radius: 14px; overflow: hidden;
+      border: 1px solid var(--sep);
+    }
+    .row {
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+      padding: 14px 16px; border-bottom: 0.5px solid var(--sep);
+      min-height: 58px; align-items: start;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .t {
+      font-size: 0.98rem; font-weight: 550; letter-spacing: -0.015em; line-height: 1.3;
+    }
+    .row .sub {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 5px; font-size: 0.78rem; color: var(--tertiary);
+    }
+    .row .time {
+      font-size: 0.78rem; color: var(--tertiary); font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .chip-p {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--person); background: var(--person-bg);
+      padding: 2px 8px; border-radius: 6px;
+    }
+    .chip-w {
+      display: inline-block; font-size: 0.78rem; font-weight: 600;
+      color: var(--work); background: var(--work-bg);
+      padding: 2px 8px; border-radius: 6px;
+    }
+
+    .eyebrow {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+      color: var(--tertiary); padding: 22px 32px 8px;
+    }
+    .eyebrow.first { padding-top: 12px; }
+    .group {
+      background: var(--grouped); border-radius: 14px; margin: 0 16px; overflow: hidden;
+    }
+    .gfoot {
+      font-size: 0.8rem; color: var(--tertiary); line-height: 1.45;
+      padding: 9px 32px 0;
+    }
+    .srow {
+      display: flex; align-items: center; gap: 12px; min-height: 58px;
+      padding: 11px 16px; position: relative; width: 100%;
+      border: none; background: transparent; color: inherit; text-align: left;
+      font-family: inherit; cursor: pointer;
+    }
+    .srow + .srow::before {
+      content: ""; position: absolute; top: 0; left: 16px; right: 0;
+      height: 1px; background: var(--sep);
+    }
+    .srow .nm {
+      font-size: 0.98rem; font-weight: 500; letter-spacing: -0.015em; flex: 1;
+    }
+    .srow .val { font-size: 0.9rem; color: var(--secondary); flex-shrink: 0; }
+    .srow .val.act { color: var(--tint); }
+    .srow .cv { color: var(--tertiary); font-size: 1.05rem; flex-shrink: 0; }
+
+    .confirm-root {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 10px 12px;
+    }
+    .confirm-root.is-open { display: flex; }
+    .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); }
+    .action-sheet {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .sheet-card {
+      background: rgba(44, 44, 46, 0.96);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 14px;
+      overflow: hidden;
+      text-align: center;
+    }
+    .sheet-card .title {
+      margin: 0; padding: 16px 16px 6px;
+      font-size: 0.82rem; font-weight: 600; color: var(--tertiary); line-height: 1.35;
+    }
+    .sheet-card .body {
+      margin: 0; padding: 0 18px 14px;
+      font-size: 0.8rem; color: var(--secondary); line-height: 1.4;
+    }
+    .sheet-card .body strong { color: var(--label); font-weight: 600; }
+    .sheet-card button.row-btn {
+      display: block; width: 100%; border: none;
+      border-top: 0.5px solid var(--sep);
+      background: transparent; color: var(--tint);
+      font-size: 1.05rem; font-weight: 600;
+      padding: 16px; cursor: pointer; min-height: 52px;
+    }
+    .sheet-cancel {
+      background: rgba(44, 44, 46, 0.98);
+      border-radius: 14px; border: none; color: var(--tint);
+      font-size: 1.05rem; font-weight: 600;
+      padding: 16px; min-height: 52px; cursor: pointer; width: 100%;
+    }
+
+    .home-indicator {
+      height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      background: var(--bg);
+    }
+    .home-indicator span {
+      width: 120px; height: 4px; border-radius: 3px; background: #fff; opacity: 0.2;
+    }
+
+    .panel { display: none; }
+    .panel.is-active { display: block; }
+    .home-chrome, .settings-chrome { display: none; }
+    .home-chrome.is-on, .settings-chrome.is-on { display: block; }
+
+    .side h2 {
+      font-size: 0.95rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .side p { font-size: 0.85rem; color: var(--secondary); line-height: 1.45; margin: 0 0 14px; }
+    .side code {
+      font-size: 0.78rem; background: var(--elevated); padding: 2px 6px; border-radius: 4px;
+      color: var(--secondary);
+    }
+    .doctrine {
+      background: var(--grouped); border: 1px solid var(--sep); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 14px; font-size: 0.84rem; color: var(--secondary);
+      line-height: 1.45;
+    }
+    .doctrine strong { color: var(--label); }
+    .flow {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      color: var(--tint);
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 0 0 14px;
+      line-height: 1.5;
+    }
+    .note { font-size: 0.8rem; color: var(--tertiary); line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Update notes · once, then Settings</h1>
+    <p class="lede">
+      Directional mock of the Apple-shaped version. One card name. News once on Home.
+      Confirm is the spend. Home goes quiet. More waves live on a Settings row.
+      Compare with <code>update-notes-weekly-waves.html</code>.
+    </p>
+    <div class="decisions">
+      <strong>What changed from the weekly mock</strong>
+      <ul>
+        <li>The card is always <strong>Update notes</strong>. Never “Filing got smarter.”</li>
+        <li>Home names the change once. Confirm does not re-pitch it. Confirm is 15 filings and what may change.</li>
+        <li>Not now hides Home until the <strong>next quality</strong>, not next week.</li>
+        <li>No timetable after a wave. Silence.</li>
+        <li>Process waiting hides the strip entirely. One hero.</li>
+        <li>Want more: Settings <strong>Update notes › Readings can link</strong>. Same confirm. Leftover filings, then top-up.</li>
+      </ul>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span>State</span>
+      <button type="button" class="chip on" data-state="news">Home · news</button>
+      <button type="button" class="chip" data-state="confirm">Confirm · cost</button>
+      <button type="button" class="chip" data-state="quiet">Home · quiet</button>
+      <button type="button" class="chip" data-state="process">Process waiting</button>
+      <button type="button" class="chip" data-state="settings">Settings · more</button>
+      <button type="button" class="chip" data-state="settings-confirm">Settings · confirm</button>
+      <button type="button" class="chip" data-state="current">Settings · current</button>
+    </div>
+
+    <div class="stage">
+      <div>
+        <div class="cap" id="phone-cap">Home · one news moment</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+
+          <div class="home-chrome is-on" id="home-chrome">
+            <div class="nav">
+              <div class="nav-top">
+                <button type="button" class="nav-btn" aria-label="More">...</button>
+                <button type="button" class="nav-btn" aria-label="Today">O</button>
+                <span style="flex:1"></span>
+                <button type="button" class="nav-btn js-to-settings" aria-label="Settings">*</button>
+              </div>
+              <h1 class="large-title">Atoms</h1>
+              <p class="subtitle">Your second brain</p>
+            </div>
+          </div>
+
+          <div class="settings-chrome" id="settings-chrome">
+            <div class="nav settings-nav">
+              <button type="button" class="back js-to-quiet">‹ Settings</button>
+              <h1 class="settings-title">Atoms</h1>
+            </div>
+          </div>
+
+          <div class="scroll" id="home-scroll">
+            <div class="panel is-active" data-panel="news">
+              <div class="update-strip">
+                <h2>Update notes</h2>
+                <p>Readings of the same thing can link now. Your original text stays.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-p js-open-confirm">Update</button>
+                  <button type="button" class="btn btn-q js-to-quiet">Not now</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list" id="recent-list"></div>
+            </div>
+
+            <div class="panel" data-panel="quiet">
+              <div class="sec">Recent</div>
+              <div class="list" id="recent-list-quiet"></div>
+            </div>
+
+            <div class="panel" data-panel="process">
+              <div class="ready">
+                <h2>3 past thoughts to file</h2>
+                <p>Preview first. Nothing writes until you process.</p>
+                <div class="btns">
+                  <button type="button" class="btn btn-s">Preview</button>
+                  <button type="button" class="btn btn-p">Process</button>
+                </div>
+              </div>
+              <div class="sec">Recent</div>
+              <div class="list" id="recent-list-process"></div>
+            </div>
+          </div>
+
+          <div class="scroll settings-scroll" id="settings-scroll" hidden>
+            <div class="panel is-active" data-panel="settings">
+              <p class="eyebrow first">File</p>
+              <div class="group">
+                <div class="srow" style="cursor: default;">
+                  <span class="nm">Filing</span>
+                  <span class="val">Plus · 132 left</span>
+                </div>
+                <button type="button" class="srow js-open-settings-confirm">
+                  <span class="nm">Update notes</span>
+                  <span class="val act" id="update-val">Readings can link</span>
+                  <span class="cv">›</span>
+                </button>
+              </div>
+              <p class="gfoot">Older notes catch up when you ask. Same AI as filing. New days still come first.</p>
+            </div>
+          </div>
+
+          <div class="confirm-root" id="confirm-root" aria-hidden="true">
+            <div class="scrim" id="confirm-scrim"></div>
+            <div class="action-sheet">
+              <div class="sheet-card">
+                <p class="title">Update 15 notes?</p>
+                <p class="body">
+                  <strong>Uses Atoms Plus (15 of this month’s filings).</strong>
+                  Titles and links may change. Your original capture text will not.
+                </p>
+                <button type="button" class="row-btn" id="confirm-go">Update</button>
+              </div>
+              <button type="button" class="sheet-cancel" id="confirm-cancel">Cancel</button>
+            </div>
+          </div>
+
+          <div class="home-indicator"><span></span></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <h2>Happy path</h2>
+        <p class="flow">Home names the change once → confirm is the spend → silence. More is Settings, not next Monday.</p>
+        <div class="doctrine">
+          <strong>Same name everywhere.</strong>
+          Home, Settings, confirm, command. Update notes. The sentence on the card is this quality’s reason. The next bump ships a different sentence.
+        </div>
+        <div class="doctrine">
+          <strong>Plus still paces.</strong>
+          Fifteen per run, leftover filings, top-up when empty. The meter does not get a weekly appointment on Home.
+        </div>
+        <p class="note">
+          File: <code>docs/design-handoff/atoms-view/update-notes-once-then-settings.html</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var recent = [
+        ["73089 on the Civic", "chip-w", "My car", "1d"],
+        ["Alex likes the color periwinkle", "chip-p", "Alex", "3d"],
+        ["Christian recommended Frieren", "chip-w", "Frieren", "5d"]
+      ];
+      function recentHtml() {
+        return recent.map(function (r) {
+          return '<div class="row"><div><div class="t">' + r[0] + '</div><div class="sub"><span class="' + r[1] + '">' + r[2] + "</span></div></div><div class=\"time\">" + r[3] + "</div></div>";
+        }).join("");
+      }
+      ["recent-list", "recent-list-quiet", "recent-list-process"].forEach(function (id) {
+        document.getElementById(id).innerHTML = recentHtml();
+      });
+
+      var caps = {
+        news: "Home · one news moment",
+        confirm: "Confirm · cost only, no re-pitch",
+        quiet: "Home · quiet after Not now or a wave",
+        process: "Process waiting · Update hidden",
+        settings: "Settings · the rest lives here",
+        "settings-confirm": "Settings · same cost confirm",
+        current: "Settings · vault is current"
+      };
+
+      var confirmRoot = document.getElementById("confirm-root");
+      var phoneCap = document.getElementById("phone-cap");
+      var homeChrome = document.getElementById("home-chrome");
+      var settingsChrome = document.getElementById("settings-chrome");
+      var homeScroll = document.getElementById("home-scroll");
+      var settingsScroll = document.getElementById("settings-scroll");
+      var updateVal = document.getElementById("update-val");
+      var chips = document.querySelectorAll("#toolbar .chip");
+      var confirmFrom = "home";
+
+      function showHomePanel(name) {
+        var panels = homeScroll.querySelectorAll(".panel");
+        for (var i = 0; i < panels.length; i++) {
+          if (panels[i].getAttribute("data-panel") === name) {
+            panels[i].classList.add("is-active");
+          } else {
+            panels[i].classList.remove("is-active");
+          }
+        }
+      }
+
+      function setSurface(kind) {
+        var settings = kind === "settings";
+        homeChrome.classList.toggle("is-on", !settings);
+        settingsChrome.classList.toggle("is-on", settings);
+        homeScroll.hidden = settings;
+        settingsScroll.hidden = !settings;
+      }
+
+      function setConfirmOpen(open) {
+        if (open) {
+          confirmRoot.classList.add("is-open");
+          confirmRoot.setAttribute("aria-hidden", "false");
+        } else {
+          confirmRoot.classList.remove("is-open");
+          confirmRoot.setAttribute("aria-hidden", "true");
+        }
+      }
+
+      function setState(state) {
+        for (var i = 0; i < chips.length; i++) {
+          chips[i].classList.toggle("on", chips[i].getAttribute("data-state") === state);
+        }
+        phoneCap.textContent = caps[state] || state;
+        updateVal.textContent = state === "current" ? "Up to date" : "Readings can link";
+        updateVal.classList.toggle("act", state !== "current");
+
+        if (state === "confirm") {
+          setSurface("home");
+          showHomePanel("news");
+          confirmFrom = "home";
+          setConfirmOpen(true);
+        } else if (state === "settings-confirm") {
+          setSurface("settings");
+          confirmFrom = "settings";
+          setConfirmOpen(true);
+        } else if (state === "settings" || state === "current") {
+          setSurface("settings");
+          setConfirmOpen(false);
+        } else {
+          setSurface("home");
+          setConfirmOpen(false);
+          showHomePanel(state === "news" ? "news" : state);
+        }
+      }
+
+      for (var j = 0; j < chips.length; j++) {
+        chips[j].addEventListener("click", function (e) {
+          setState(e.currentTarget.getAttribute("data-state"));
+        });
+      }
+
+      function closeConfirm() {
+        setState(confirmFrom === "settings" ? "settings" : "news");
+      }
+      document.getElementById("confirm-scrim").addEventListener("click", closeConfirm);
+      document.getElementById("confirm-cancel").addEventListener("click", closeConfirm);
+      document.getElementById("confirm-go").addEventListener("click", function () {
+        setState("quiet");
+      });
+      document.querySelectorAll(".js-open-confirm").forEach(function (el) {
+        el.addEventListener("click", function () { setState("confirm"); });
+      });
+      document.querySelectorAll(".js-to-quiet").forEach(function (el) {
+        el.addEventListener("click", function () { setState("quiet"); });
+      });
+      document.querySelectorAll(".js-to-settings").forEach(function (el) {
+        el.addEventListener("click", function () { setState("settings"); });
+      });
+      document.querySelectorAll(".js-open-settings-confirm").forEach(function (el) {
+        el.addEventListener("click", function () {
+          if (updateVal.textContent === "Up to date") return;
+          setState("settings-confirm");
+        });
+      });
+
+      var params = new URLSearchParams(location.search);
+      var initial = params.get("state") || "news";
+      if (!caps[initial]) initial = "news";
+      setState(initial);
+    })();
+  </script>
+</body>
+</html>

@@ -33,7 +33,7 @@ Shared presentation for Atoms home. Visual authority: [`docs/design-handoff/toke
 
 ## Update notes strip
 
-Compose existing kit only — no dedicated factory: `flatCard` + `h2`/`p` + `actionRow` + `button` primary **Update** / quiet **Not now**. Class: `.atoms-home-update-notes`. Do **not** reuse `.atoms-home-update-banner` (capture shortcut CTA).
+Card title is **Update notes**. Compose existing kit only — no dedicated factory: `flatCard` + `h2`/`p` + `actionRow` + `button` primary **Update** / quiet **Not now**. Class: `.atoms-home-update-notes`. Do **not** reuse `.atoms-home-update-banner` (capture shortcut CTA). Confirm chrome is `Update N notes?`, not a second product name. More waves live in Settings File, not a returning Home nag.
 
 ## Contributing a component
 

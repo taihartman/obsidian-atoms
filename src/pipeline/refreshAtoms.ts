@@ -13,10 +13,12 @@ import {
 } from "./context";
 import {
   CURRENT_ATOMS_QUALITY,
+  frontmatterBlock,
   isEligibleForUpdate,
   isLinkerGenerated,
   localDateYmd,
   parseAtomsQuality,
+  parseLocalStampMs,
   qualityStampLines,
 } from "./atomQuality";
 import {
@@ -59,7 +61,6 @@ export type EligibleAtom = {
   title: string;
   content: string;
   quality: number;
-  mtime?: number;
 };
 
 /** Body after YAML frontmatter. */
@@ -443,12 +444,49 @@ export function isPolishableContent(content: string, title: string): boolean {
   return planLocalPolish({ path: "", title, content }) !== null;
 }
 
+function createdStampMs(fm: string): number | null {
+  const created = fm.match(/^created:\s*(.+)$/m)?.[1];
+  if (!created) return null;
+  return parseLocalStampMs(created.trim().replace(/^["']|["']$/g, ""));
+}
+
+/**
+ * Recency for Update notes ranking: source daily day, else `created`.
+ * Missing stamps are null — never today, never file mtime.
+ */
+export function refileRecencyMs(content: string): number | null {
+  const fm = frontmatterBlock(content);
+  if (!fm) return null;
+  const sourceLink = fm.match(/^source:\s*["']?(\[\[[^\]]+\]\])["']?\s*$/m)?.[1];
+  const sourceName = sourceLink ? sourceDailyBasename(sourceLink) : null;
+  const sourceMs =
+    sourceName && /^\d{4}-\d{2}-\d{2}/.test(sourceName)
+      ? parseLocalStampMs(sourceName.slice(0, 10))
+      : null;
+  if (sourceMs != null) return sourceMs;
+  return createdStampMs(fm);
+}
+
+/** `created` stamp only — the within-day key after source day (R12 / U2). */
+export function refileCreatedMs(content: string): number | null {
+  const fm = frontmatterBlock(content);
+  if (!fm) return null;
+  return createdStampMs(fm);
+}
+
+/** Newer first; missing stamps sort last. `null` means the two values are equal. */
+function newerStampFirst(a: number | null, b: number | null): number | null {
+  if (a === b) return null;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b - a;
+}
+
 export function refileScore(opts: {
   quality: number;
   stats: LinkStats;
-  mtime: number;
 }): number {
-  // Higher = more urgent for AI refile. Only meaningful when q < CURRENT.
+  // Higher = more urgent. Tie-break only after recency.
   let s = 0;
   if (opts.stats.linkCount === 0) s += 1000;
   if (
@@ -458,34 +496,35 @@ export function refileScore(opts: {
     s += 800;
   }
   s += opts.stats.brokenCount * 50;
-  // Newer recents slightly preferred over pure oldest (product: meet again)
-  s += Math.min(200, Math.floor(opts.mtime / 1e10));
-  // Older quality debt: slight boost for lower quality
   s += Math.max(0, 10 - opts.quality);
   return s;
 }
 
 export function rankRefileCandidates(
-  items: Array<EligibleAtom & { stats: LinkStats; mtime: number }>,
+  items: Array<EligibleAtom & { stats: LinkStats }>,
   limit: number = UPDATE_NOTES_BATCH_LIMIT,
   current: number = CURRENT_ATOMS_QUALITY,
 ): EligibleAtom[] {
-  const eligible = items.filter((i) => i.quality < current);
-  eligible.sort((a, b) => {
-    const sa = refileScore({
-      quality: a.quality,
-      stats: a.stats,
-      mtime: a.mtime,
-    });
-    const sb = refileScore({
-      quality: b.quality,
-      stats: b.stats,
-      mtime: b.mtime,
-    });
-    if (sb !== sa) return sb - sa;
-    return a.path.localeCompare(b.path);
+  const ranked = items
+    .filter((i) => i.quality < current)
+    .map((i) => ({
+      item: i,
+      recency: refileRecencyMs(i.content),
+      created: refileCreatedMs(i.content),
+      score: refileScore({ quality: i.quality, stats: i.stats }),
+    }));
+  ranked.sort((a, b) => {
+    const byRecency = newerStampFirst(a.recency, b.recency);
+    if (byRecency != null) return byRecency;
+    const byCreated = newerStampFirst(a.created, b.created);
+    if (byCreated != null) return byCreated;
+    if (b.score !== a.score) return b.score - a.score;
+    return a.item.path.localeCompare(b.item.path);
   });
-  return eligible.slice(0, limit).map(({ stats: _s, mtime: _m, ...rest }) => rest);
+  return ranked.slice(0, limit).map((row) => {
+    const { stats: _s, ...rest } = row.item;
+    return rest;
+  });
 }
 
 export async function listLinkerAtoms(
@@ -718,16 +757,10 @@ export async function runRefreshEligibleAtoms(
     }
   }
 
-  const withStats = all.map((a) => {
-    // Prefer polished content for refile ranking when we will polish first
-    const polished = polishPlans.find((p) => p.path === a.path);
-    const content = polished?.content ?? a.content;
-    return {
-      ...a,
-      content,
-      stats: computeLinkStats(content, vaultTitles),
-    };
-  });
+  const withStats = all.map((a) => ({
+    ...a,
+    stats: computeLinkStats(a.content, vaultTitles),
+  }));
   const refileList = opts.skipRefile
     ? []
     : rankRefileCandidates(withStats, refileLimit);

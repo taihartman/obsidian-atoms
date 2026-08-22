@@ -4,13 +4,14 @@
 
 import {
   CURRENT_ATOMS_QUALITY,
+  CURRENT_ATOMS_QUALITY_ANSWER,
+  CURRENT_ATOMS_QUALITY_REASON,
   isEligibleForUpdate,
+  parseLocalStampMs,
 } from "../pipeline/atomQuality";
-import {
-  isPolishableContent,
-  UPDATE_NOTES_BATCH_LIMIT,
-} from "../pipeline/refreshAtoms";
+import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import { isCalendarDay, utcMidnight } from "../pipeline/backfillOffer";
+import type { RunPhase } from "./runProgress";
 import { parseCaptures } from "../pipeline/parse";
 import {
   plusLapse,
@@ -119,26 +120,8 @@ export function parseCreatedMs(content: string): number | null {
   const m = fm.match(CREATED_RE);
   if (!m?.[1]) return null;
   const raw = m[1].trim().replace(/^["']|["']$/g, "");
-  const dayOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dayOnly) {
-    const y = Number(dayOnly[1]);
-    const mo = Number(dayOnly[2]);
-    const d = Number(dayOnly[3]);
-    if (!y || !mo || !d) return null;
-    return new Date(y, mo - 1, d, 12, 0, 0, 0).getTime();
-  }
-  const withTime = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})(?::(\d{2}))?/,
-  );
-  if (withTime) {
-    const y = Number(withTime[1]);
-    const mo = Number(withTime[2]);
-    const d = Number(withTime[3]);
-    const h = Number(withTime[4]);
-    const mi = Number(withTime[5]);
-    const s = Number(withTime[6] ?? 0);
-    return new Date(y, mo - 1, d, h, mi, s, 0).getTime();
-  }
+  const local = parseLocalStampMs(raw);
+  if (local != null) return local;
   const t = Date.parse(raw);
   return Number.isFinite(t) ? t : null;
 }
@@ -502,112 +485,132 @@ export function countEligibleUpdateNotes(
   return n;
 }
 
-/**
- * Work remaining for Update strip: refile debt (q < CURRENT) + polishable links.
- * Does not double-count for display when both — total = refile + polishable.
- */
-export function countUpdateWorkRemaining(
-  entries: Array<{ content: string; title: string }>,
-  current: number = CURRENT_ATOMS_QUALITY,
-): { refile: number; polishable: number; total: number } {
-  let refile = 0;
-  let polishable = 0;
-  for (const e of entries) {
-    if (isEligibleForUpdate(e.content, current)) refile += 1;
-    if (isPolishableContent(e.content, e.title)) polishable += 1;
-  }
-  return { refile, polishable, total: refile + polishable };
-}
-
-/**
- * Why refile is capped per tap — keep strip + confirm in lockstep with
- * `UPDATE_NOTES_BATCH_LIMIT` (cost + phone run length).
- */
-export function updateNotesBatchWhy(
+/** Quoted confirm N: min(refile debt, batch cap). */
+export function updateNotesQuotedN(
+  refileCount: number,
   batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
-): string {
-  return `Up to ${batchLimit} per Update so each run stays short and cost stays predictable. Tap again for the rest.`;
+): number {
+  return Math.min(Math.max(0, refileCount), Math.max(1, batchLimit));
 }
 
-/** Strip copy for Update notes (product strings). */
+/** Strip copy for Update notes. Body is this quality's reason, never a count. */
 export function updateNotesStripCopy(
-  eligibleCount: number,
-  batchLimit: number = UPDATE_NOTES_BATCH_LIMIT,
+  reason: string = CURRENT_ATOMS_QUALITY_REASON,
 ): {
   title: string;
   body: string;
   button: string;
 } {
-  const n = Math.max(0, eligibleCount);
-  const cap = Math.max(1, batchLimit);
-  const why = updateNotesBatchWhy(cap);
   return {
-    title: "Filing got smarter",
-    body:
-      n === 0
-        ? "Older notes can use the new linking."
-        : n === 1
-          ? "Update 1 older note to match? Titles and links may improve. Your original text stays the same."
-          : n > cap
-            ? n >= 50
-              ? `Older notes can use the new linking. We’ll start with the ones that matter most. ${why}`
-              : `${n} older notes can use the new linking. ${why}`
-            : `Update ${n} older notes this pass? Titles and links may improve. Your original text stays the same.`,
+    title: "Update notes",
+    body: reason,
     button: "Update",
   };
 }
 
-/** How AI refile will be billed — must match `resolveClassifyAuth` preference. */
-export type UpdateNotesBilling = "plus" | "byok" | "none";
-
-export type UpdateConfirmOpts = {
-  /** AI refile slots this pass (≤ batch limit). */
-  refileBatch: number;
-  /** Free polish candidates (may exceed batch). */
-  polishable: number;
-  /**
-   * Who pays for AI refile. Polish-only ignores this.
-   * Defaults to `none` so callers must pass the real path — never imply a key by accident.
-   */
-  billing?: UpdateNotesBilling;
-};
-
-/** One trailing sentence naming the real cost path (refile only). */
-export function updateNotesBillingLine(billing: UpdateNotesBilling): string {
-  if (billing === "plus") {
-    return "Uses Atoms Plus (counts toward your monthly filings).";
-  }
-  if (billing === "byok") {
-    return "Uses your Anthropic API key.";
-  }
-  return "Sign in to Atoms Plus or add an API key in Settings first.";
+/** Settings File-group value: short quality answer, or current. */
+export function updateNotesSettingsAnswer(
+  refileCount: number,
+  answer: string = CURRENT_ATOMS_QUALITY_ANSWER,
+): string {
+  return refileCount > 0 ? answer : "Up to date";
 }
 
-export function updateNotesConfirmCopy(
-  batchCountOrOpts: number | UpdateConfirmOpts,
-): string {
-  if (typeof batchCountOrOpts === "number") {
-    const n = Math.max(0, batchCountOrOpts);
-    return `Update ${n} note${n === 1 ? "" : "s"} this pass to the newer filing quality? Titles and links may change. Your original capture text will not. ${updateNotesBatchWhy()} ${updateNotesBillingLine("none")}`;
+/** Filing path for wait-card branching (from resolveFilingAuth + status). */
+export type FilingPathKind =
+  | "none"
+  | "byok"
+  | "plus_active"
+  | "plus_exhausted"
+  | "plus_lapsed";
+
+const UPDATE_NOTES_SACRED =
+  "Titles and links may change. Your original capture text will not.";
+
+function updateNotesNoun(n: number): string {
+  return n === 1 ? "note" : "notes";
+}
+
+/** Spend-only confirm chrome. Does not repeat the quality reason. */
+export function updateNotesConfirmCopy(opts: {
+  n: number;
+  billing: FilingPathKind;
+}): { title: string; body: string } {
+  const n = Math.max(0, opts.n);
+  const title =
+    n <= 0 ? "Update notes?" : `Update ${n} ${updateNotesNoun(n)}?`;
+  switch (opts.billing) {
+    case "plus_active":
+      return {
+        title,
+        body: `Uses Atoms Plus (${n} of this month’s filings). ${UPDATE_NOTES_SACRED}`,
+      };
+    case "plus_exhausted":
+      return {
+        title,
+        body: "This month’s included Atoms Plus filings are used up.",
+      };
+    case "plus_lapsed":
+      return {
+        title,
+        body: "Your Atoms Plus period ended. Subscribe in Settings.",
+      };
+    case "byok":
+      return {
+        title,
+        body: `Uses your Anthropic API key. ${UPDATE_NOTES_SACRED}`,
+      };
+    case "none":
+      return {
+        title,
+        body: "Sign in to Atoms Plus or add an API key in Settings first.",
+      };
   }
-  const refile = Math.max(0, batchCountOrOpts.refileBatch);
-  const polish = Math.max(0, batchCountOrOpts.polishable);
-  const billing = batchCountOrOpts.billing ?? "none";
-  if (refile <= 0 && polish <= 0) {
-    return "Nothing needs a refresh right now.";
+}
+
+export const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
+
+/** Write the quality-era heard key. Home Not now and a successful wave share this. */
+export function persistUpdateNotesHeard(
+  save: (key: string, value: string) => void,
+  current?: number,
+): void {
+  save(LS_UPDATE_NOTES_DISMISSED_Q, String(current ?? CURRENT_ATOMS_QUALITY));
+}
+
+/** Home news once per quality. Refile debt only. Hidden under Process wait. */
+export function shouldShowUpdateNotesNews(opts: {
+  refileCount: number;
+  dismissedQuality: number;
+  workPending: boolean;
+  firstDay: boolean;
+  runPhase: RunPhase;
+  landPeak: boolean;
+  currentQuality?: number;
+}): boolean {
+  if (opts.refileCount <= 0) return false;
+  if (opts.workPending || opts.firstDay || opts.landPeak) return false;
+  if (
+    opts.runPhase === "preview" ||
+    opts.runPhase === "process" ||
+    opts.runPhase === "update"
+  ) {
+    return false;
   }
-  if (refile <= 0) {
-    return polish === 1
-      ? "Clean up link wording on 1 note? Free, no API call. Your original capture text will not change."
-      : `Clean up link wording on older notes (about ${polish})? Free, no API call. Your original capture text will not change.`;
-  }
-  const cost = updateNotesBillingLine(billing);
-  const batch =
-    refile >= UPDATE_NOTES_BATCH_LIMIT ? ` ${updateNotesBatchWhy()}` : "";
-  if (polish <= 0) {
-    return `Update up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing? Titles and links may change. Your original capture text will not.${batch} ${cost}`;
-  }
-  return `We’ll clean up weak link wording for free, then refresh up to ${refile} note${refile === 1 ? "" : "s"} this pass with the same AI as filing. Titles and links may change. Your original capture text will not.${batch} ${cost}`;
+  const current = opts.currentQuality ?? CURRENT_ATOMS_QUALITY;
+  if (opts.dismissedQuality >= current) return false;
+  return true;
+}
+
+/** Persist the quality-era heard key after a wave that actually refiled. */
+export function rememberUpdateNotesHeard(opts: {
+  updated: number;
+  save: (key: string, value: string) => void;
+  current?: number;
+}): boolean {
+  if (opts.updated <= 0) return false;
+  persistUpdateNotesHeard(opts.save, opts.current);
+  return true;
 }
 
 /** True when this device will file past captures without a Process tap. */
@@ -629,14 +632,6 @@ export type FilingHeroMode =
   | "enable_auto"
   | "auto_on"
   | "auto_running";
-
-/** Filing path for wait-card branching (from resolveFilingAuth + status). */
-export type FilingPathKind =
-  | "none"
-  | "byok"
-  | "plus_active"
-  | "plus_exhausted"
-  | "plus_lapsed";
 
 export type FilingHeroAction =
   | "open_settings"

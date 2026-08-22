@@ -1,9 +1,7 @@
 import {
   ItemView,
   Menu,
-  Modal,
   Notice,
-  Setting,
   TFile,
   WorkspaceLeaf,
 } from "obsidian";
@@ -16,7 +14,7 @@ import {
   backfillOfferCopy,
   countUnprocessedSince,
   CORE_PLUGINS_SETTINGS_TAB_ID,
-  countUpdateWorkRemaining,
+  countEligibleUpdateNotes,
   extractSourceDay,
   filingHeroCopy,
   filingPathFromAuth,
@@ -28,14 +26,16 @@ import {
   isDayOnlyCreated,
   isGeneratedAtomContent,
   listAtomLibraryEntries,
+  persistUpdateNotesHeard,
   planCreatedOrderBackfill,
   queuePeekTexts,
   shouldShowBackfillOffer,
+  shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
-  updateNotesConfirmCopy,
   updateNotesStripCopy,
   waitingSubtitle,
+  LS_UPDATE_NOTES_DISMISSED_Q,
   type AtomLibraryEntry,
   type BackfillOfferCopy,
   type FilingHeroAction,
@@ -87,13 +87,11 @@ import {
   resolveAtomPersonName,
 } from "../pipeline/personInvite";
 import { PersonNoteSuggestModal } from "./personNoteSuggestModal";
+import { openUpdateNotesConfirm } from "./updateNotesConfirm";
 import {
   discoverPersonHubs,
   type PersonHubFile,
 } from "../pipeline/enrich/people";
-import {
-  CURRENT_ATOMS_QUALITY,
-} from "../pipeline/atomQuality";
 import {
   isPlusLimitDismissedToday,
   localCalendarDay,
@@ -118,7 +116,6 @@ import {
   type BackfillDaily,
   type BackfillPeriod,
 } from "../pipeline/backfillOffer";
-import { UPDATE_NOTES_BATCH_LIMIT } from "../pipeline/refreshAtoms";
 import {
   formatAskMirrorRefusalLine,
   formatAskMirrorServerCount,
@@ -228,7 +225,6 @@ import {
 
 export const ATOMS_HOME_VIEW_TYPE = "atoms-home";
 
-const LS_UPDATE_NOTES_DISMISSED_Q = "atoms-update-notes-dismissed-q";
 const LS_ENTITY_INVITE_SNOOZE = "atoms-entity-invite-snooze";
 const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
@@ -265,10 +261,8 @@ export class AtomsHomeView extends ItemView {
   private inboxStuck: InboxStuckSummary | null = null;
   /** Raw counts behind inboxStuck, kept so Dismiss can re-summarize without a re-read. */
   private inboxStuckCounts: InboxCounts | null = null;
-  /** Update work remaining: refile debt + polishable (for strip). */
-  private eligibleUpdateCount = 0;
+  /** Update refile debt (q < CURRENT) for the news strip. */
   private updateRefileCount = 0;
-  private updatePolishableCount = 0;
   /** Unprocessed bullets on today's daily only (for force-test UI). */
   private todayUnprocessedCount = 0;
   /** Core Daily Notes or Periodic Notes daily. First-day card branches on this. */
@@ -760,15 +754,9 @@ export class AtomsHomeView extends ItemView {
     }));
     this.personHubTitles = this.personHubs.map((h) => h.title);
     this.refreshEntitySurfaces();
-    const work = countUpdateWorkRemaining(
-      inputs.map((i) => ({
-        content: i.content,
-        title: titleFromAtomPath(i.path),
-      })),
+    this.updateRefileCount = countEligibleUpdateNotes(
+      inputs.map((i) => i.content),
     );
-    this.eligibleUpdateCount = work.total;
-    this.updateRefileCount = work.refile;
-    this.updatePolishableCount = work.polishable;
     this.resurfaceThrottle = pruneThrottle(
       parseThrottleJson(
         this.app.loadLocalStorage(LS_RESURFACE_THROTTLE) as string | null,
@@ -2474,15 +2462,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Show when not mid-run. Hide during preview/process/update and under land peak.
-    if (
-      !firstDay &&
-      this.runPhase !== "preview" &&
-      this.runPhase !== "process" &&
-      this.runPhase !== "update" &&
-      !this.landPeak &&
-      this.shouldShowUpdateNotesStrip()
-    ) {
+    if (this.shouldShowUpdateNotesStrip()) {
       this.renderUpdateNotesStrip(scroll);
     }
 
@@ -2810,20 +2790,18 @@ export class AtomsHomeView extends ItemView {
   }
 
   private shouldShowUpdateNotesStrip(): boolean {
-    if (this.eligibleUpdateCount <= 0) return false;
-    if (this.dismissedUpdateQuality() >= CURRENT_ATOMS_QUALITY) return false;
-    return true;
+    return shouldShowUpdateNotesNews({
+      refileCount: this.updateRefileCount,
+      dismissedQuality: this.dismissedUpdateQuality(),
+      workPending: shouldShowWaitCard(this.unprocessedCount),
+      firstDay: this.isFirstDay(),
+      runPhase: this.runPhase,
+      landPeak: !!this.landPeak,
+    });
   }
 
   private renderUpdateNotesStrip(scroll: HTMLElement): void {
-    const refileBatch = Math.min(
-      this.updateRefileCount,
-      UPDATE_NOTES_BATCH_LIMIT,
-    );
-    const copy = updateNotesStripCopy(
-      this.eligibleUpdateCount,
-      UPDATE_NOTES_BATCH_LIMIT,
-    );
+    const copy = updateNotesStripCopy();
     const card = flatCard(scroll, { className: "atoms-home-update-notes" });
     card.createEl("h2", { text: copy.title });
     card.createEl("p", { text: copy.body });
@@ -2834,21 +2812,14 @@ export class AtomsHomeView extends ItemView {
       grade: "primary",
       label: this.busy ? "…" : copy.button,
       disabled: this.busy,
-      onClick: () =>
-        this.confirmUpdateNotes({
-          refileBatch,
-          polishable: this.updatePolishableCount,
-        }),
+      onClick: () => this.confirmUpdateNotes(),
     });
     button(actions, {
       grade: "quiet",
       label: "Not now",
       disabled: this.busy,
       onClick: () => {
-        this.app.saveLocalStorage(
-          LS_UPDATE_NOTES_DISMISSED_Q,
-          String(CURRENT_ATOMS_QUALITY),
-        );
+        persistUpdateNotesHeard((k, v) => this.app.saveLocalStorage(k, v));
         this.render();
       },
     });
@@ -2999,36 +2970,16 @@ export class AtomsHomeView extends ItemView {
     this.render();
   }
 
-  private confirmUpdateNotes(opts: {
-    refileBatch: number;
-    polishable: number;
-  }): void {
-    const auth = this.plugin.resolveFilingAuth();
-    const billing =
-      auth.mode === "plus" && auth.status !== "exhausted"
-        ? "plus"
-        : auth.mode === "byok"
-          ? "byok"
-          : "none";
-    const modal = new Modal(this.app);
-    modal.titleEl.setText("Filing got smarter");
-    modal.contentEl.createEl("p", {
-      text: updateNotesConfirmCopy({ ...opts, billing }),
+  private confirmUpdateNotes(): void {
+    if (this.plugin.filingPassInFlight()) return;
+    openUpdateNotesConfirm({
+      app: this.app,
+      n: this.updateRefileCount,
+      billing: filingPathFromAuth(this.plugin.resolveUpdateNotesAuth()),
+      onConfirm: (limit) => {
+        void this.plugin.runUpdateNotes({ limit });
+      },
     });
-    new Setting(modal.contentEl)
-      .addButton((b) =>
-        b.setButtonText("Cancel").onClick(() => modal.close()),
-      )
-      .addButton((b) =>
-        b
-          .setButtonText("Update")
-          .setCta()
-          .onClick(() => {
-            modal.close();
-            void this.plugin.runUpdateNotes();
-          }),
-      );
-    modal.open();
   }
 
   /** iOS: Capture Atom shortcut. Android: the Play listing. */

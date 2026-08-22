@@ -6,6 +6,7 @@ import {
 import { Modal } from "../mocks/obsidian";
 import {
   LS_PLUS_SESSION,
+  projectPlusIdentityAuth,
   serializePlusSession,
   type FilingAuth,
   type PlusSession,
@@ -26,6 +27,11 @@ export interface SettingTabOptions {
   settings?: Partial<LinkerSettings>;
   /** Tags the vault already uses, one file each, for the "found in your vault" ranking. */
   vaultTags?: string[];
+  /**
+   * Extra markdown files with metadataCache frontmatter. The File group's Update notes
+   * row estimates refile debt from `generated-by` and `atoms-quality`.
+   */
+  files?: Array<{ path: string; frontmatter?: Record<string, unknown> }>;
   /** Device-local keys the tab should find already written (auto-run state, egress ack). */
   local?: Record<string, unknown>;
   /**
@@ -66,8 +72,22 @@ export function settingTab(opts: SettingTabOptions = {}): {
   for (const [key, value] of Object.entries(opts.local ?? {})) local.set(key, value);
   // One markdown file per requested tag: the ranking only reads counts, so a file apiece is the
   // smallest vault that still exercises it.
-  const files = (opts.vaultTags ?? []).map((tag, i) => ({ path: `tagged-${i}.md`, tag }));
-  const caches = new Map(files.map((f) => [f.path, { tags: [{ tag: f.tag }] }]));
+  const tagFiles = (opts.vaultTags ?? []).map((tag, i) => ({
+    path: `tagged-${i}.md`,
+    tag,
+  }));
+  const extraFiles = opts.files ?? [];
+  const files = [
+    ...tagFiles.map((f) => ({ path: f.path })),
+    ...extraFiles.map((f) => ({ path: f.path })),
+  ];
+  const caches = new Map<
+    string,
+    { tags?: Array<{ tag: string }>; frontmatter?: Record<string, unknown> | null }
+  >(tagFiles.map((f) => [f.path, { tags: [{ tag: f.tag }] }]));
+  for (const f of extraFiles) {
+    caches.set(f.path, { frontmatter: f.frontmatter ?? null });
+  }
   const app = {
     loadLocalStorage: (key: string) => local.get(key) ?? null,
     saveLocalStorage: (key: string, value: unknown) => {
@@ -91,7 +111,14 @@ export function settingTab(opts: SettingTabOptions = {}): {
     manifest: { version: "9.9.9" },
     settings,
     resolveFilingAuth: () => opts.auth ?? { mode: "none" },
+    resolveUpdateNotesAuth: () =>
+      projectPlusIdentityAuth({
+        byokApiKey:
+          opts.apiKey ?? (opts.auth?.mode === "byok" ? opts.auth.apiKey : null),
+        plusSession: opts.session ?? null,
+      }),
     getApiKey: () => opts.apiKey ?? null,
+    filingPassInFlight: () => false,
     // The Proxy's no-op fallback returns `undefined`, and these two are handed to
     // `fireAndForgetAsk`, which calls `.catch` on what it is given.
     syncAskMirror: () => Promise.resolve({ ok: false, message: "test double" }),

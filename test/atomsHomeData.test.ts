@@ -31,9 +31,14 @@ import {
   personNameFromClaimTitle,
   planCreatedOrderBackfill,
   shouldShowBackfillOffer,
+  rememberUpdateNotesHeard,
+  persistUpdateNotesHeard,
+  shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   titleFromAtomPath,
   updateNotesConfirmCopy,
+  updateNotesQuotedN,
+  updateNotesSettingsAnswer,
   updateNotesStripCopy,
   waitingSubtitle,
 } from "../src/home/atomsHomeData";
@@ -644,29 +649,128 @@ new
   });
 });
 
+describe("shouldShowUpdateNotesNews", () => {
+  const idle = {
+    refileCount: 4,
+    dismissedQuality: -1,
+    workPending: false,
+    firstDay: false,
+    runPhase: "idle" as const,
+    landPeak: false,
+  };
+
+  it("is true when refile debt exists on idle Home and this quality is unheard", () => {
+    expect(shouldShowUpdateNotesNews(idle)).toBe(true);
+  });
+
+  it("is false while Process is waiting", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, workPending: true })).toBe(
+      false,
+    );
+  });
+
+  it("is false after this quality was heard", () => {
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, dismissedQuality: 9 }),
+    ).toBe(false);
+  });
+
+  it("is false when only polishable work remains", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, refileCount: 0 })).toBe(false);
+  });
+
+  it("is true again after CURRENT moves past the heard key", () => {
+    expect(
+      shouldShowUpdateNotesNews({
+        ...idle,
+        dismissedQuality: 8,
+        currentQuality: 9,
+      }),
+    ).toBe(true);
+  });
+
+  it("is false on first day, land peak, or a filing run phase", () => {
+    expect(shouldShowUpdateNotesNews({ ...idle, firstDay: true })).toBe(false);
+    expect(shouldShowUpdateNotesNews({ ...idle, landPeak: true })).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "process" }),
+    ).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "preview" }),
+    ).toBe(false);
+    expect(
+      shouldShowUpdateNotesNews({ ...idle, runPhase: "update" }),
+    ).toBe(false);
+  });
+});
+
+describe("rememberUpdateNotesHeard", () => {
+  it("writes CURRENT when updated is greater than 0", () => {
+    const writes: Record<string, string> = {};
+    expect(
+      rememberUpdateNotesHeard({
+        updated: 3,
+        save: (k, v) => {
+          writes[k] = v;
+        },
+      }),
+    ).toBe(true);
+    expect(writes["atoms-update-notes-dismissed-q"]).toBe("9");
+  });
+
+  it("does not write when updated is 0", () => {
+    const writes: Record<string, string> = {};
+    expect(
+      rememberUpdateNotesHeard({
+        updated: 0,
+        save: (k, v) => {
+          writes[k] = v;
+        },
+      }),
+    ).toBe(false);
+    expect(writes).toEqual({});
+  });
+
+  it("persistUpdateNotesHeard writes CURRENT without an updated gate", () => {
+    const writes: Record<string, string> = {};
+    persistUpdateNotesHeard((k, v) => {
+      writes[k] = v;
+    });
+    expect(writes["atoms-update-notes-dismissed-q"]).toBe("9");
+  });
+});
+
 describe("updateNotesStripCopy", () => {
-  it("locks product copy when the whole set fits one pass", () => {
-    const c = updateNotesStripCopy(3);
-    expect(c.title).toBe("Filing got smarter");
+  it("is one news card: Update notes plus this quality's reason, no count", () => {
+    const c = updateNotesStripCopy();
+    expect(c.title).toBe("Update notes");
     expect(c.button).toBe("Update");
-    expect(c.body).toContain("3 older notes this pass");
-    expect(c.body).not.toMatch(/\bmodel\b/i);
-    expect(c.body).not.toMatch(/Up to 15 per Update/i);
+    expect(c.body).toBe(
+      "Readings of the same thing can link now. Your original text stays.",
+    );
+    expect(c.body).not.toMatch(/\d/);
+    expect(c.body).not.toMatch(/tap again/i);
+    expect(c.body).not.toMatch(/Filing got smarter/i);
+  });
+});
+
+describe("updateNotesSettingsAnswer", () => {
+  it("is the short quality answer while refile debt remains", () => {
+    expect(updateNotesSettingsAnswer(1)).toBe("Readings can link");
+    expect(updateNotesSettingsAnswer(40)).toBe("Readings can link");
   });
 
-  it("names the 15-cap when more remain than one pass", () => {
-    const c = updateNotesStripCopy(30);
-    expect(c.body).toContain("30 older notes");
-    expect(c.body).toMatch(/Up to 15 per Update/i);
-    expect(c.body).toMatch(/short and cost stays predictable/i);
-    expect(c.body).toMatch(/tap again/i);
+  it("is Up to date when there is no refile debt", () => {
+    expect(updateNotesSettingsAnswer(0)).toBe("Up to date");
   });
+});
 
-  it("uses calm large-N body without guilt count, still names the batch", () => {
-    const c = updateNotesStripCopy(800);
-    expect(c.body).toMatch(/matter most/i);
-    expect(c.body).not.toContain("800");
-    expect(c.body).toMatch(/Up to 15 per Update/i);
+describe("updateNotesQuotedN", () => {
+  it("caps at the batch limit", () => {
+    expect(updateNotesQuotedN(40)).toBe(15);
+    expect(updateNotesQuotedN(3)).toBe(3);
+    expect(updateNotesQuotedN(1)).toBe(1);
+    expect(updateNotesQuotedN(0)).toBe(0);
   });
 });
 
@@ -685,44 +789,59 @@ describe("alsoAbout strip copy", () => {
 });
 
 describe("updateNotesConfirmCopy", () => {
-  it("polish-only does not mention Anthropic key or Plus", () => {
-    const t = updateNotesConfirmCopy({ refileBatch: 0, polishable: 12 });
-    expect(t.toLowerCase()).toMatch(/free/);
-    expect(t).not.toMatch(/Anthropic/i);
-    expect(t).not.toMatch(/Plus/i);
+  const sacred =
+    "Titles and links may change. Your original capture text will not.";
+
+  it("Plus spend confirm quotes N and does not re-pitch the quality", () => {
+    const n = updateNotesQuotedN(40);
+    const c = updateNotesConfirmCopy({ n, billing: "plus_active" });
+    expect(n).toBe(15);
+    expect(c.title).toBe("Update 15 notes?");
+    expect(c.body).toContain("15 of this month");
+    expect(c.body).toContain("filings");
+    expect(c.body).toContain(sacred);
+    expect(c.title + c.body).not.toMatch(/Filing got smarter/i);
+    expect(c.title + c.body).not.toMatch(/Readings/i);
+    expect(c.body).not.toMatch(/tap again/i);
   });
 
-  it("refile on Plus names monthly filings, not a personal key", () => {
-    const t = updateNotesConfirmCopy({
-      refileBatch: 15,
-      polishable: 0,
-      billing: "plus",
-    });
-    expect(t).toMatch(/Atoms Plus/i);
-    expect(t).toMatch(/monthly filings/i);
-    expect(t).not.toMatch(/Anthropic/i);
-    expect(t).toMatch(/Up to 15 per Update/i);
-    expect(t).toMatch(/this pass/i);
+  it("singular N uses note, not notes", () => {
+    const c = updateNotesConfirmCopy({ n: 1, billing: "plus_active" });
+    expect(c.title).toBe("Update 1 note?");
+    expect(c.body).toContain("1 of this month");
+    expect(c.body).not.toMatch(/1 notes/);
   });
 
-  it("refile on BYOK names the Anthropic key", () => {
-    const t = updateNotesConfirmCopy({
-      refileBatch: 15,
-      polishable: 0,
-      billing: "byok",
-    });
-    expect(t).toMatch(/Anthropic/i);
-    expect(t).not.toMatch(/Atoms Plus/i);
+  it("BYOK names the Anthropic key and does not mention filings", () => {
+    const c = updateNotesConfirmCopy({ n: 15, billing: "byok" });
+    expect(c.title).toBe("Update 15 notes?");
+    expect(c.body).toMatch(/Anthropic/i);
+    expect(c.body).toContain(sacred);
+    expect(c.body).not.toMatch(/filings/i);
+    expect(c.body).not.toMatch(/Atoms Plus/i);
   });
 
-  it("refile with no auth does not claim a key", () => {
-    const t = updateNotesConfirmCopy({
-      refileBatch: 3,
-      polishable: 2,
-      billing: "none",
-    });
-    expect(t).toMatch(/Sign in to Atoms Plus or add an API key/i);
-    expect(t).not.toMatch(/Uses your Anthropic/i);
+  it("spent-meter Plus keeps Plus identity and does not ask for a key", () => {
+    const c = updateNotesConfirmCopy({ n: 15, billing: "plus_exhausted" });
+    expect(c.title).toBe("Update 15 notes?");
+    expect(c.body).toMatch(/Atoms Plus/i);
+    expect(c.body).toMatch(/used up/i);
+    expect(c.body).not.toMatch(/Sign in/i);
+    expect(c.body).not.toMatch(/API key/i);
+    expect(c.body).not.toMatch(/Anthropic/i);
+  });
+
+  it("ended Plus period asks them to subscribe in Settings", () => {
+    const c = updateNotesConfirmCopy({ n: 15, billing: "plus_lapsed" });
+    expect(c.body).toMatch(/Subscribe in Settings/i);
+    expect(c.body).not.toMatch(/API key/i);
+  });
+
+  it("no engine asks to sign in or add a key", () => {
+    const c = updateNotesConfirmCopy({ n: 3, billing: "none" });
+    expect(c.body).toMatch(/Sign in to Atoms Plus or add an API key/i);
+    expect(c.body).not.toMatch(/Uses your Anthropic/i);
+    expect(c.body).not.toMatch(/used up/i);
   });
 });
 

@@ -38,6 +38,18 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 - **Source:** `filingHeroCopy` in `src/atomsHomeData.ts`.
 - **QA:** Enable flow must not write to `data.json` auto-run flags.
 
+### Update notes (Home news + Settings row)
+
+- **When (Home):** Calm Home, refile debt (`atoms-quality` below CURRENT on linker atoms), not first-day, not under land peak, **not while the Process wait card is showing**. One news moment per quality until Not now or `updated > 0`.
+- **UI (Home):** `.atoms-home-update-notes` — title `Update notes`, body = this quality's full reason (q9: `Readings of the same thing can link now. Your original text stays.`), **Update** / **Not now**. No count on the strip.
+- **Confirm:** Shared `openUpdateNotesConfirm` — title `Update N notes?` (N = min(debt, 15)). Cancel / Escape / outside is free. Live Plus names filings; leftover BYOK on spent Plus must still read as Plus, not the API key.
+- **When (Settings):** File group destination immediately after Filing. Answer `Readings can link` or `Up to date`. Tap recounts; zero debt is a silent no-op.
+- **Heard key:** `atoms-update-notes-dismissed-q`. Written on Not now and on `report.updated > 0` only.
+- **Command:** `atoms:update-notes` — name `Update notes`; no confirm (force path).
+- **Source:** `src/home/updateNotesConfirm.ts`, `shouldShowUpdateNotesNews` in `atomsHomeData.ts`, `renderUpdateNotesStrip` in `atomsHomeView.ts`, `renderUpdateNotesRow` in `settings.ts`.
+- **QA:** Planting `atoms-quality: 8` linker atoms is labeled UI-chrome (new Process output stamps CURRENT). Seeded dailies keep the wait card in the hero — **marker** those captures (eval-zero of `unprocessedCount` does not survive `refresh()`). Read heard via `app.loadLocalStorage("atoms-update-notes-dismissed-q")`, never `window.localStorage`. Paid classify is Not Tested unless a key/Plus session exists. Do not run live Update notes just to hide the strip; Not now or `persistUpdateNotesHeard` via eval is labeled chrome for the quiet-Home frame. Settings frames at `is-phone`; scroll the File group then screenshot immediately.
+- **Do not:** Expect the strip beside a Process wait card. Expect Settings `dev:screenshot` on desktop (popout) — take Settings frames at `is-phone`.
+
 ### Settings → Atoms
 
 - **Entrypoint:** Settings tab id `atoms`.
@@ -50,7 +62,7 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 |---|---|---|
 | Status | `Get started` (nobody files yet) / `Status` (somebody does) | Unconfigured: **one** destination row named after the next setup step, subtitle `Required` — `Turn on Daily Notes` (→ Obsidian's core-plugins tab) or `Filing` (→ **engine**, same noun as the File row since #538). Filing: `File automatically` + `Next run` status row |
 | Leg 1 | `1 · Capture` | `Daily notes` (status, On/Off) · `Capture on your phone` (opens the procedure **sheet**) · `Custom shortcut link` lives on Advanced now |
-| Leg 2 | `2 · File` | `Filing` (→ engine; renamed from `Who does the filing` in 0.8.1) · `File automatically when Obsidian opens` **only while setup is unfinished** · `Atom folder` · `Tag vocabulary · N active` (→ vocabulary) · `List atoms on hub notes` · `Refresh hub lists` (hub lists on) |
+| Leg 2 | `2 · File` | `Filing` (→ engine; renamed from `Who does the filing` in 0.8.1) · **`Update notes`** (0.8.16 — immediately after Filing; answer `Readings can link` while refile debt remains, `Up to date` when none; tap recounts then opens the spend confirm Home uses) · `File automatically when Obsidian opens` **only while setup is unfinished** · `Atom folder` · `Tag vocabulary · N active` (→ vocabulary) · `List atoms on hub notes` · `Refresh hub lists` (hub lists on) |
 | Leg 3 | `3 · Resurface` | `Atoms home` · *(Plus)* the Ask entry rows |
 | Leg 3 | `Ask` | Signed out: `Ask in Claude and ChatGPT` / `Off`, read-only, no chevron. Signed in: the mirror rows + `Connect Claude or ChatGPT` |
 | Utility | `Your data` | `Privacy and consents` (conditional, → privacy) · `Advanced` (→ advanced) |

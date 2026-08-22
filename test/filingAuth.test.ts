@@ -14,6 +14,7 @@ import {
   plusIsExhausted,
   plusLapse,
   plusNeedsPeriodRefresh,
+  projectPlusIdentityAuth,
   readPlusSession,
   resolveFilingAuth,
   serializePlusSession,
@@ -120,6 +121,37 @@ describe("resolveFilingAuth", () => {
     });
     expect(auth.mode).toBe("plus");
     expect(plusCanClassify(auth)).toBe(true);
+  });
+});
+
+describe("projectPlusIdentityAuth", () => {
+  it("exhausted Plus with leftover key stays plus (Update notes, not engine fallback)", () => {
+    const auth = projectPlusIdentityAuth({
+      byokApiKey: "sk-test",
+      plusSession: { ...activeSession, status: "exhausted", remaining: 0 },
+    });
+    expect(auth.mode).toBe("plus");
+    if (auth.mode === "plus") {
+      expect(auth.status).toBe("exhausted");
+      expect(plusIsExhausted(auth)).toBe(true);
+    }
+  });
+
+  it("pure BYOK is unchanged", () => {
+    expect(
+      projectPlusIdentityAuth({ byokApiKey: "sk-test", plusSession: null }),
+    ).toEqual({ mode: "byok", apiKey: "sk-test" });
+  });
+
+  it("active Plus is unchanged even with a stored key", () => {
+    const auth = projectPlusIdentityAuth({
+      byokApiKey: "sk-test",
+      plusSession: activeSession,
+    });
+    expect(auth.mode).toBe("plus");
+    if (auth.mode === "plus") {
+      expect(auth.status).toBe("active");
+    }
   });
 });
 

@@ -144,6 +144,7 @@ import {
 } from "../platform/resume";
 import {
   plusNeedsPeriodRefresh,
+  projectPlusIdentityAuth,
   readPlusSession,
   resolveFilingAuth,
   writePlusSession,
@@ -157,6 +158,7 @@ import {
   type PlusBaseVerifyCache,
 } from "../platform/plusBaseVerify";
 import { CURRENT_ATOMS_QUALITY } from "../pipeline/atomQuality";
+import { rememberUpdateNotesHeard } from "../home/atomsHomeData";
 import {
   formatConnectivityConsole,
   runConnectivityTest,
@@ -188,7 +190,6 @@ import {
   runRefreshEligibleAtoms,
   type RefreshReport,
 } from "../pipeline/refreshAtoms";
-import { isEligibleForUpdate } from "../pipeline/atomQuality";
 import { formatUpdateSummary } from "../home/runProgress";
 import { stripLegacyAskMirrorHashes } from "../platform/askMirror";
 import { askPrivacyAckIsCurrent, settleAckRecords } from "../shared/askAck";
@@ -626,13 +627,15 @@ export default class AtomsPlugin extends Plugin {
     const usingFixtures = !!(opts?.fixtureResults && opts.fixtureResults.length);
     const linker = await listLinkerAtoms(this.app, this.settings.atomFolder);
     const needsApi =
-      usingFixtures || linker.some((a) => isEligibleForUpdate(a.content));
+      usingFixtures || linker.some((a) => a.quality < CURRENT_ATOMS_QUALITY);
     let apiKey = usingFixtures
       ? this.getApiKey() || "fixture"
       : this.getApiKey() || "polish-only";
     let plusDeps: import("../pipeline/classify").ClassifyDeps["plus"];
     if (needsApi && !usingFixtures) {
-      const classifyAuth = await this.requireClassifyAuth();
+      const classifyAuth = await this.requireClassifyAuth(
+        this.resolveUpdateNotesAuth(),
+      );
       if (!classifyAuth) return;
       apiKey = classifyAuth.apiKey || "plus";
       plusDeps = classifyAuth.plus;
@@ -669,6 +672,11 @@ export default class AtomsPlugin extends Plugin {
         },
       });
       this.lastRefreshReport = report;
+      rememberUpdateNotesHeard({
+        updated: report.updated,
+        save: (k, v) => this.app.saveLocalStorage(k, v),
+      });
+      this.settingTab?.refreshFromExternalSettings();
       const polished = report.polished ?? 0;
       const summary = formatUpdateSummary(
         report.updated,
@@ -1432,6 +1440,15 @@ export default class AtomsPlugin extends Plugin {
     const load = (k: string): unknown => this.app.loadLocalStorage(k) as unknown;
     if (!readDeviceAutoRunState(load).enabled) return today;
     return readAutoFilingSince(load, today);
+  }
+
+  /**
+   * Silent hold: Process, Update notes, auto-run, or backfill is already writing.
+   * Settings uses this so a second tap does not stack a spend confirm. Callers that
+   * should tell the user why use `backfillBusy` instead.
+   */
+  filingPassInFlight(): boolean {
+    return this.autoRunInFlight || this.backfillInFlight || this.manualFilingInFlight;
   }
 
   /**
@@ -2543,6 +2560,17 @@ export default class AtomsPlugin extends Plugin {
   }
 
   /**
+   * Update notes confirm + classify. Plus identity outranks a leftover API key.
+   * Process still uses `resolveFilingAuth` (engine fallback).
+   */
+  resolveUpdateNotesAuth(): FilingAuth {
+    return projectPlusIdentityAuth({
+      byokApiKey: this.getApiKey(),
+      plusSession: readPlusSession(this.app),
+    });
+  }
+
+  /**
    * One quiet `/v1/me` when the stored period ended after the last confirmed refresh (#442).
    *
    * This is the half of #442 that is not copy. Nothing announces an expiry — the only automatic
@@ -2619,10 +2647,11 @@ export default class AtomsPlugin extends Plugin {
    * BYOK or Plus credentials for Process/Preview/Update/auto-run (U3).
    * Returns null after Notice when blocked.
    */
-  private async requireClassifyAuth(): Promise<
+  private async requireClassifyAuth(
+    auth: FilingAuth = this.resolveFilingAuth(),
+  ): Promise<
     import("../platform/classifyAuth").ClassifyAuthOk | null
   > {
-    const auth = this.resolveFilingAuth();
     const resolved = await resolveClassifyAuth(auth, {
       verifyBase: (i) => this.runPlusBaseGate(i),
       plusBaseUrl: this.settings.plusBaseUrl,
