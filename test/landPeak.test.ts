@@ -173,6 +173,42 @@ describe("spoken land atom", () => {
     expect(d.tally).toBe("6 filed · 2 noise");
   });
 
+  it("unwraps wikilinks so the Done card does not show raw [[brackets]]", () => {
+    expect(
+      formatLandSentence({
+        note: "My car",
+        reason: "new reading in the [[My car]] series",
+      }),
+    ).toBe("new reading in the My car series");
+    const atoms = landAtomsFromWriteEntries([
+      writeAtom("My car is at 73137 Miles", {
+        links: [
+          {
+            note: "My car",
+            reason: "new reading in the [[My car]] series",
+          },
+        ],
+      }),
+    ]);
+    const d = landDisplayFromPeak(buildLandPeak({ source: "process", atoms }));
+    expect(d.sentence).toBe("new reading in the My car series");
+    expect(d.sentence).not.toMatch(/\[\[/);
+    expect(d.sentenceParts).toEqual([
+      { kind: "text", text: "new reading in the " },
+      { kind: "link", text: "My car" },
+      { kind: "text", text: " series" },
+    ]);
+  });
+
+  it("uses piped-wikilink alias as the spoken name", () => {
+    expect(
+      formatLandSentence({
+        note: "My car",
+        reason: "logged against [[My car|the car]]",
+      }),
+    ).toBe("logged against the car");
+  });
+
   it("AE2 blank reason uses the note name", () => {
     expect(
       formatLandSentence({ note: "Alex", reason: "" }),
@@ -182,6 +218,7 @@ describe("spoken land atom", () => {
     ]);
     const d = landDisplayFromPeak(buildLandPeak({ source: "process", atoms }));
     expect(d.sentence).toBe("Alex");
+    expect(d.sentenceParts).toEqual([{ kind: "link", text: "Alex" }]);
   });
 
   it("AE3 sticker reason is still spoken", () => {

@@ -531,10 +531,23 @@ export class AtomsHomeView extends ItemView {
       textControl(el, {
         className: "atoms-home-land-sentence",
         build: (btn) => {
-          btn.createEl("p", {
+          const why = btn.createEl("p", {
             cls: "atoms-home-land-sentence-why",
-            text: d.sentence ?? "",
           });
+          if (d.sentenceParts) {
+            for (const seg of d.sentenceParts) {
+              if (seg.kind === "link") {
+                why.createSpan({
+                  cls: "atoms-home-land-wiki",
+                  text: seg.text,
+                });
+              } else {
+                why.appendText(seg.text);
+              }
+            }
+          } else {
+            why.appendText(d.sentence ?? "");
+          }
           btn.createSpan({
             cls: "atoms-home-landed-title",
             text: featured.title,

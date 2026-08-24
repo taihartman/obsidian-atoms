@@ -1291,6 +1291,10 @@
   color: var(--text-normal);
 }
 
+.atoms-home-land-wiki {
+  color: var(--link-color);
+}
+
 .atoms-home-land-tally {
   margin: 0 0 12px;
   font-size: 0.82rem;
