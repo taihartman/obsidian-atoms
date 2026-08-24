@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="A filed note: How video creators hold attention. Open loops, stakes. Tagged reference and marketing.">
+  <!--
+    The quiet half of the pair. This note is meant to look unremarkable:
+    small tags, one title, one line of substance, and a lot of room. The
+    work it does later is not visible here, which is the point.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif">
+    <text x="96" y="140" font-size="28" fill="rgba(235,235,245,0.42)">reference · marketing</text>
+
+    <text x="92" y="256" font-size="56" font-weight="600" letter-spacing="-1.4" fill="#ffffff">How video creators hold attention</text>
+
+    <text x="96" y="322" font-size="30" fill="rgba(235,235,245,0.5)">open loops · stakes</text>
+  </g>
+</svg>

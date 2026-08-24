@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="440" viewBox="0 0 1040 440" role="img" aria-label="The outline that came back: open on the blank where his name should be, close it fast with the name, open the bigger question, pay it off at the end.">
+  <!--
+    The working half. Four plain lines, no columns and no arrows: the reader
+    already lived the letter these describe, so showing the letter beside them
+    would only diagram a thing they remember. Label small, lines even.
+  -->
+  <rect x="0.5" y="0.5" width="1039" height="439" rx="28" fill="#121214" stroke="rgba(84,84,88,0.38)"/>
+
+  <g font-family="system-ui,-apple-system,&quot;Helvetica Neue&quot;,sans-serif">
+    <text x="96" y="118" font-size="28" fill="rgba(235,235,245,0.42)">the outline that came back</text>
+
+    <g font-size="36" fill="#ffffff" letter-spacing="-0.6">
+      <text x="92" y="212">Open on the blank where his name should be</text>
+      <text x="92" y="268">Close it fast with the name</text>
+      <text x="92" y="324">Open the bigger question</text>
+      <text x="92" y="380">Pay it off at the end</text>
+    </g>
+  </g>
+</svg>
