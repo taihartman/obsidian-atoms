@@ -126,6 +126,14 @@ export interface HomeOccupancyOpts {
     readingPath: string;
     readingBody: string;
   } | null;
+  hubInvite?: {
+    kind: "person" | "list";
+    label: string;
+    memberPaths: string[];
+    memberTitles: string[];
+    existingNote: boolean;
+    measured?: boolean;
+  } | null;
   autoRun?: {
     enabled?: boolean;
     egressAcked?: boolean;
@@ -225,6 +233,9 @@ Origin body
       }
       if (opts.loopCloseOffer !== undefined) {
         view.loopCloseOffer = opts.loopCloseOffer;
+      }
+      if (opts.hubInvite !== undefined) {
+        view.hubInvite = opts.hubInvite;
       }
       if (opts.autoRun) {
         autoRun = { ...autoRun, ...opts.autoRun };

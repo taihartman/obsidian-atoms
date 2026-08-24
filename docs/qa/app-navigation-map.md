@@ -22,7 +22,7 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 - **How to reach:** Command palette → “Open home” (plugin name shown beside it).
 - **Source:** `src/home/atomsHomeView.ts`, `src/home/atomsHomeData.ts`.
 - **Fixture:** Seeded past unprocessed for wait card; atoms in `Atoms/` for library / For you.
-- **Notes:** One hero: Ready / automatic filing / resurface when calm. Progress + **land peak** after Process/Update/auto-run (home open). Land peak freezes resurface, wait card, and Update strip until Done.
+- **Notes:** One hero: blocked wait (need-key / limit / enable-auto / auto-running) **or** one question (loop-close > hub invite > Together / resurface) **or** land peak. auto_on leftovers are a subtitle count; Process lives in More. Progress + **land peak** after Process/Update/auto-run (home open). Land peak freezes resurface, wait card, and Update strip until Done.
 
 ### Land peak (post-write Done)
 
@@ -33,10 +33,10 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 ### Wait card / automatic filing
 
-- **When:** Past unprocessed &gt; 0.
-- **Modes:** need key → open settings; enable auto → privacy modal; auto on → Process secondary.
-- **Source:** `filingHeroCopy` in `src/atomsHomeData.ts`.
-- **QA:** Enable flow must not write to `data.json` auto-run flags.
+- **When:** Past unprocessed &gt; 0 **and** filing is blocked or broken (`shouldShowWaitHero`). auto_on never occupies.
+- **Modes:** need key → Try Plus / own key; plus limit / lapse → Subscribe / Get More; enable auto → privacy modal; auto running → Filing past thoughts. auto_on leftovers: subtitle count only; Process / Preview / Sync in More (`Process (n)`).
+- **Source:** `shouldShowWaitHero` / `filingHeroCopy` in `src/home/atomsHomeData.ts`; More items in `showMoreMenu`.
+- **QA:** Enable flow must not write to `data.json` auto-run flags. With leftovers + auto on, assert no `.atoms-home-wait-card` and no quiet Process row. Loop-close beats hub invite; after Keep it open, measured overlap (told pair) beats Show list.
 
 ### Update notes (Home news + Settings row)
 

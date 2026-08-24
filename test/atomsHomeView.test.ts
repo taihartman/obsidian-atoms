@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   renderedHomeView,
   type HomeOpenFixture,
@@ -73,6 +73,10 @@ function pressBack(home: RenderedHomeHarness): void {
   (back as HTMLButtonElement).click();
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("AtomsHomeView shared header shell", () => {
   it("renders main home with one header, one scroll region, and all header controls", () => {
     const home = renderedHomeView();
@@ -139,6 +143,60 @@ describe("AtomsHomeView shared header shell", () => {
     expect(home.root.querySelector(".atoms-home-wait-card")).toBeNull();
     expect(home.root.querySelector(".atoms-home-loop-close")).not.toBeNull();
     expect(home.root.querySelector(".atoms-home-quiet-process")).toBeNull();
+  });
+
+  it("Keep it open disables the swapped invite so a second tap cannot accept it", () => {
+    vi.useFakeTimers();
+    const home = renderedHomeView();
+    home.setOccupancy({
+      unprocessedCount: 22,
+      windowUnprocessedCount: 0,
+      autoRun: { enabled: true, egressAcked: true, hasKey: true },
+      filingAuth: { mode: "byok" },
+      loopCloseOffer: {
+        loopPath: "Atoms/Car at 73042.md",
+        loopTitle: "Car at 73042 miles, needs a return to QGS automotive",
+        loopBody: "My miles in my car at 73042",
+        readingPath: "Atoms/Car odometer 73089.md",
+        readingBody: "My car is at 73089 miles",
+      },
+      hubInvite: {
+        kind: "list",
+        label: "My car",
+        memberPaths: [
+          "Atoms/Car at 73042.md",
+          "Atoms/Car odometer 73089.md",
+        ],
+        memberTitles: [
+          "Car at 73042 miles, needs a return to QGS automotive",
+          "Car odometer reads 73089 miles",
+        ],
+        existingNote: false,
+        measured: true,
+      },
+    });
+    home.render();
+
+    const keep = [...home.root.querySelectorAll("button")].find((b) =>
+      /Keep it open/i.test(b.textContent ?? ""),
+    );
+    expect(keep).toBeDefined();
+    keep?.click();
+
+    const invite = home.root.querySelector(".atoms-home-entity-invite");
+    expect(invite).not.toBeNull();
+    const primary = invite?.querySelector(
+      ".atoms-ui-btn--primary",
+    ) as HTMLButtonElement;
+    expect(primary.disabled).toBe(true);
+    expect(primary.textContent).toMatch(/Track My car/i);
+
+    vi.advanceTimersByTime(500);
+    const armed = home.root.querySelector(
+      ".atoms-home-entity-invite .atoms-ui-btn--primary",
+    ) as HTMLButtonElement;
+    expect(armed.disabled).toBe(false);
+    vi.useRealTimers();
   });
 
   it("returns nested entity siblings to its originating atom", () => {

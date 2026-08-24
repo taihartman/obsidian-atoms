@@ -236,6 +236,8 @@ const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
 /** A decline is permanent for the pair, not a snooze (#589 KD4). */
 const LOOP_CLOSE_TOLD_DAYS = 36500;
+/** After Keep it open, ignore taps on the swapped hero for one double-click window. */
+const HERO_SWAP_GUARD_MS = 500;
 
 type FilterMode = "all" | "linked" | "skipped";
 
@@ -351,6 +353,9 @@ export class AtomsHomeView extends ItemView {
   private hubInviteBusy = false;
   private loopCloseOffer: LoopCloseOffer | null = null;
   private loopCloseBusy = false;
+  /** True for HERO_SWAP_GUARD_MS after Keep it open so a second tap cannot accept the invite. */
+  private heroSwapGuard = false;
+  private heroSwapTimer: number | null = null;
   /** Unseen-join Together news. Null after Open/Not now until the next Home open. */
   private togetherNews: TogetherNewsCard | null = null;
   private togetherNewsHeldThisVisit = false;
@@ -418,6 +423,10 @@ export class AtomsHomeView extends ItemView {
     if (this.firstFillTimer != null) {
       window.clearTimeout(this.firstFillTimer);
       this.firstFillTimer = null;
+    }
+    if (this.heroSwapTimer != null) {
+      window.clearTimeout(this.heroSwapTimer);
+      this.heroSwapTimer = null;
     }
     // The filing card can pose a consent sheet, and a sheet with no view behind it is still
     // clickable — accepting one armed unattended sends from a screen the user had already closed.
@@ -1446,10 +1455,24 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
+  private armHeroSwapGuard(): void {
+    if (this.heroSwapTimer != null) {
+      window.clearTimeout(this.heroSwapTimer);
+      this.heroSwapTimer = null;
+    }
+    this.heroSwapGuard = true;
+    this.heroSwapTimer = window.setTimeout(() => {
+      this.heroSwapTimer = null;
+      this.heroSwapGuard = false;
+      this.render();
+    }, HERO_SWAP_GUARD_MS);
+  }
+
   private onDeclineLoopClose(offer: LoopCloseOffer): void {
     if (this.loopCloseBusy) return;
     this.stampLoopCloseTold(loopClosePairId(offer.loopPath, offer.readingPath));
     this.loopCloseOffer = null;
+    this.armHeroSwapGuard();
     this.render();
   }
 
@@ -1482,6 +1505,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
     const actions = actionRow(card);
+    const inviteLocked = this.hubInviteBusy || this.heroSwapGuard;
     button(actions, {
       grade: "primary",
       label: this.hubInviteBusy
@@ -1489,20 +1513,21 @@ export class AtomsHomeView extends ItemView {
           ? "Adding…"
           : "Creating…"
         : copy.createLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => void this.onAcceptHubInvite(inv),
     });
     button(actions, {
       grade: "secondary",
       label: copy.alreadyLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => this.onPickDifferentHub(inv),
     });
     button(actions, {
       grade: "quiet",
       label: copy.dismissLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => {
+        if (this.heroSwapGuard) return;
         this.snoozeHubInvite(inv);
         this.hubInvite = null;
         this.refreshEntitySurfaces();
@@ -1524,7 +1549,7 @@ export class AtomsHomeView extends ItemView {
   }
 
   private onPickDifferentHub(inv: HubAssociationCandidate): void {
-    if (this.hubInviteBusy) return;
+    if (this.hubInviteBusy || this.heroSwapGuard) return;
     const folder = this.plugin.settings.atomFolder || "Atoms";
     new PersonNoteSuggestModal(
       this.app,
@@ -1545,6 +1570,7 @@ export class AtomsHomeView extends ItemView {
   private async onAcceptHubInvite(
     inv: HubAssociationCandidate,
   ): Promise<void> {
+    if (this.heroSwapGuard) return;
     if (inv.kind === "person") {
       await this.onAddPersonNote(inv);
       return;
