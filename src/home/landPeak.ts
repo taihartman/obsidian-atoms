@@ -2,6 +2,11 @@
  * Post-write land peak — pure copy + payload helpers (Land, then remember).
  */
 
+import {
+  wikiDisplaySegments,
+  type WikiDisplaySegment,
+} from "../shared/wikiDisplay";
+
 export type LandSource = "process" | "update" | "autorun";
 
 export type LandedLink = {
@@ -34,17 +39,38 @@ export type LandPeak = {
 
 export const LAND_TITLE_CAP = 3;
 
+export type SpokenSegment = WikiDisplaySegment;
+
 export type LandDisplay = {
   headline: string;
   body: string;
   rows: LandedAtom[];
   moreCount: number;
   sentence: string | null;
+  /** Segments for the Home card so wikilinks render as names, not `[[…]]`. */
+  sentenceParts: SpokenSegment[] | null;
   featured: LandedAtom | null;
   tally: string;
   /** True when update run had failures (error-toned Done card). */
   isFailure?: boolean;
 };
+
+export function spokenLandSentence(link: LandedLink): {
+  sentence: string;
+  parts: SpokenSegment[];
+} {
+  const raw = link.reason.trim();
+  if (raw) {
+    const parts = wikiDisplaySegments(raw);
+    const sentence = parts.map((s) => s.text).join("");
+    if (sentence) return { sentence, parts };
+  }
+  const note = link.note.trim();
+  return {
+    sentence: note,
+    parts: note ? [{ kind: "link", text: note }] : [],
+  };
+}
 
 export function namedLinksOf(atom: LandedAtom): LandedLink[] {
   return (atom.links ?? []).filter((l) => l.note.trim().length > 0);
@@ -66,8 +92,7 @@ export function pickSpokenLink(atom: LandedAtom): LandedLink | null {
 }
 
 export function formatLandSentence(link: LandedLink): string {
-  const reason = link.reason.trim();
-  return reason || link.note.trim();
+  return spokenLandSentence(link).sentence;
 }
 
 export function formatLandTally(filed: number, skipped: number): string {
@@ -155,8 +180,10 @@ export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
   const processLike = peak.source === "process" || peak.source === "autorun";
   const featured = processLike ? pickSpokenLandAtom(peak.atoms) : null;
   const spoken = featured ? pickSpokenLink(featured) : null;
+  const spokenOut = processLike && spoken ? spokenLandSentence(spoken) : null;
   const sentence =
-    processLike && spoken ? formatLandSentence(spoken) : null;
+    spokenOut && spokenOut.sentence ? spokenOut.sentence : null;
+  const sentenceParts = sentence && spokenOut ? spokenOut.parts : null;
   const tally = processLike ? formatLandTally(peak.atomCount, skipped) : "";
   const rows = processLike
     ? featured
@@ -189,6 +216,7 @@ export function landDisplayFromPeak(peak: LandPeak): LandDisplay {
     rows,
     moreCount,
     sentence,
+    sentenceParts,
     featured,
     tally,
     isFailure:

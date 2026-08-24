@@ -21,7 +21,8 @@ Shared presentation for Atoms home. Visual authority: [`docs/design-handoff/toke
 | `button(parent, { grade, label, onClick, disabled? })` | `primary` · `secondary` · `quiet` |
 | `flatCard(parent)` | Neutral grouped card (hairline, radius 16) |
 | `statusCard(parent, { tone })` | Transient soft-fill only: `wait` · `progress` · `done` · `error` |
-| `claimQuote(parent, { text, maxLines? })` | Serif claim body; CSS quote chrome outside the text node |
+| `claimQuote(parent, { text, maxLines? })` | Serif claim body; CSS quote chrome outside the text node; `[[wikilink]]` unwraps to a link-colored name |
+| `appendWikiDisplay(parent, text)` | Same unwrap for any Home HTML node (Done sentence, snippets, skipped rows) |
 | `kicker(parent, { text, variant? })` | Caps eyebrow; `variant: "mind"` = purple **text only** |
 | `citatorLine(parent, { relationLabel, peerTitle, onPeerClick? })` | Typographic supersession row (no pill chips) |
 | `linkChip(parent, { label, kind })` | Soft-fill `person` · `work` · `neutral` only |
