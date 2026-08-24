@@ -24,9 +24,21 @@ Home with leftover captures plus a Show list invite. Authority: mock `docs/desig
 
 Add to Show list 86×56. Choose different note… 86×74. Not now 86×44. `clip: false`. First live frame at min-height 44 overflowed wrapped labels into the next control; growing the box fixed it.
 
+## Car pair (#594)
+
+Fixture-plumbing: two generated atoms matching the #589 unit pair (73042 open loop, 73089 reading). Show list snoozed so it does not steal `invites[0]`.
+
+1. Home with 22 waiting: wait card gone, quiet Process, **Does this close a loop?** with both captures verbatim. `Track My car?` collected but not painted.
+2. **Keep it open** via the live view. Loop card gone. **Track My car?** paints: Series kicker, 2 readings, Track My car / Already have it… / Not now.
+
+| File | What it proves |
+|---|---|
+| `docs/qa/screenshots/invite-inherits-hero/loop-close.png` | Occupancy + loop-close first |
+| `docs/qa/screenshots/invite-inherits-hero/track-my-car.png` | After Keep it open, Track My car is the hero |
+
 ## Not tested
 
-Need-key / limit / enable-auto still occupying. Loop-close then Track My car sequence. Adversarial edit/delete. Phone WebView (this is desktop `is-phone` at 195px).
+Need-key / limit / enable-auto still occupying. Adversarial edit/delete. Real phone WebView. Close it (redeem) path.
 
 ## Learnings
 
