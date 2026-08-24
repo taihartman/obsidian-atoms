@@ -177,7 +177,7 @@ describe("AtomsHomeView shared header shell", () => {
     });
     home.render();
 
-    const keep = [...home.root.querySelectorAll("button")].find((b) =>
+    const keep = Array.from(home.root.querySelectorAll("button")).find((b) =>
       /Keep it open/i.test(b.textContent ?? ""),
     );
     expect(keep).toBeDefined();
