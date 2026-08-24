@@ -1403,6 +1403,15 @@ main[data-story="self"] .s-people {
   color: var(--muted);
 }
 
+.notes-archive-link {
+  margin: 1rem 0 0;
+  font-size: 0.95rem;
+}
+
+.foot-notes .notes-archive-link {
+  margin-top: 0.85rem;
+}
+
 .foot-notes {
   margin-bottom: 1.75rem;
   padding-bottom: 1.5rem;

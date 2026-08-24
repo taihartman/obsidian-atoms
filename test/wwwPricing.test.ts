@@ -243,6 +243,30 @@ describe("navigation", () => {
     expect(notesAt).toBeGreaterThan(pricingAt);
   });
 
+  it("the Field notes band links the archive so a phone can reach it without the top nav", () => {
+    // Under 720px `.topbar-links` is display:none. The #notes band is the
+    // remaining homepage path to /notes/; a topbar-only assertion would pass
+    // while a phone still had nowhere to go.
+    const start = index.indexOf('id="notes"');
+    const how = index.indexOf('id="how"');
+    expect(start).toBeGreaterThan(-1);
+    expect(how).toBeGreaterThan(start);
+    const band = index.slice(start, how);
+    expect(band).toContain('href="/notes/"');
+    expect(band).toContain("Read past Field notes");
+    expect(band).not.toMatch(/newsletter/i);
+  });
+
+  it("the footer Field notes block also links the archive", () => {
+    const start = index.indexOf('class="foot-notes"');
+    const end = index.indexOf("</footer>");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const foot = index.slice(start, end);
+    expect(foot).toContain('href="/notes/"');
+    expect(foot).toContain("Read past Field notes");
+  });
+
   it("sends the primary call to action to the price, not past it", () => {
     // Regression guard: "Get Atoms" used to jump straight to #install, so the
     // most-clicked link on the page skipped pricing entirely.
