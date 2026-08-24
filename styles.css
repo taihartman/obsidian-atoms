@@ -1653,8 +1653,9 @@
   flex: 1 1 100%;
 }
 
-/* Home lives in the mobile left sidebar (~300px). Side-by-side CTAs squeeze
-   "Choose different note…" against Not now. One column, 44px targets. */
+/* Home lives in the mobile left sidebar (~195–300px). Side-by-side CTAs squeeze
+   "Choose different note…" against Not now. One column, 44px minimum targets
+   that grow when a label wraps so lines do not paint into the next button. */
 .atoms-home .atoms-ui-action-row {
   flex-direction: column;
   align-items: stretch;
@@ -1664,6 +1665,21 @@
 .atoms-home .atoms-ui-action-row .atoms-ui-btn--secondary,
 .atoms-home .atoms-ui-action-row .atoms-ui-btn--quiet {
   flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  padding: 10px 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.atoms-home-last-catchup-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.atoms-home-last-catchup-row .atoms-ui-btn,
+.atoms-home-last-catchup-row .atoms-home-sync-everything {
   width: 100%;
 }
 
