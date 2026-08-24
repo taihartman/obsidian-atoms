@@ -447,6 +447,18 @@ export function shouldShowWaitHero(input: {
   return input.mode !== "auto_on";
 }
 
+/**
+ * More offers Process/Preview for leftover captures. The wait card already
+ * owns conversion on need_key / plus_limit; those modes stay off the menu.
+ */
+export function shouldOfferProcessInMore(input: {
+  unprocessedCount: number;
+  mode: FilingHeroMode | null;
+}): boolean {
+  if (input.unprocessedCount <= 0) return false;
+  return input.mode !== "need_key" && input.mode !== "plus_limit";
+}
+
 export interface InboxStuckSummary {
   /** Calm one-liner naming each stuck state, load-bearing states first. */
   text: string;

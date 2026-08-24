@@ -34,6 +34,7 @@ import {
   rememberUpdateNotesHeard,
   persistUpdateNotesHeard,
   shouldShowUpdateNotesNews,
+  shouldOfferProcessInMore,
   shouldShowWaitCard,
   shouldShowWaitHero,
   titleFromAtomPath,
@@ -340,6 +341,33 @@ describe("shouldShowWaitCard / relative time", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  it("zero leftover captures never occupy wait", () => {
+    expect(
+      shouldShowWaitHero({
+        unprocessedCount: 0,
+        mode: "need_key",
+      }),
+    ).toBe(false);
+  });
+
+  it("More Process skips need_key and plus_limit", () => {
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "auto_on" }),
+    ).toBe(true);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "enable_auto" }),
+    ).toBe(true);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "need_key" }),
+    ).toBe(false);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "plus_limit" }),
+    ).toBe(false);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 0, mode: "auto_on" }),
+    ).toBe(false);
   });
 
   it("formats relative times", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
+  pickHomeHubInvite,
   isNamedListHubTitle,
   pairingId,
   pickListNamedHub,
@@ -389,6 +390,32 @@ describe("measured-thing invites (#589)", () => {
     });
     expect(copy.title).toBe("Track My car?");
     expect(copy.kicker).toBe("Series");
+  });
+
+  it("Keep it open prefers measured overlap over Show list", () => {
+    const anime = atom(
+      "Atoms/Want to watch anime Psycho-Pass.md",
+      "Want to watch anime Psycho-Pass",
+      "I want to watch the anime psycho pass",
+    );
+    const invites = collectHubAssociationInvites({
+      atoms: [reading1, reading2, anime],
+      vaultTitles: ["Show list"],
+      personHubTitles: [],
+    });
+    expect(invites[0]?.label).toBe("Show list");
+    expect(
+      pickHomeHubInvite(invites, {
+        loopPath: reading1.path,
+        readingPath: reading2.path,
+      })?.label,
+    ).toBe("My car");
+    expect(
+      pickHomeHubInvite(invites, null, [
+        `${reading1.path}::${reading2.path}`.toLowerCase(),
+      ])?.label,
+    ).toBe("My car");
+    expect(pickHomeHubInvite(invites, null)?.label).toBe("Show list");
   });
 
   it("an existing My car note pairs from a single unlinked reading", () => {

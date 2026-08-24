@@ -116,9 +116,29 @@ export type HomeOpenFixture =
       interactionNoted: boolean;
     };
 
+export interface HomeOccupancyOpts {
+  unprocessedCount?: number;
+  windowUnprocessedCount?: number;
+  loopCloseOffer?: {
+    loopPath: string;
+    loopTitle: string;
+    loopBody: string;
+    readingPath: string;
+    readingBody: string;
+  } | null;
+  autoRun?: {
+    enabled?: boolean;
+    egressAcked?: boolean;
+    hasKey?: boolean;
+    inFlight?: boolean;
+  };
+  filingAuth?: { mode: string; status?: string };
+}
+
 export interface RenderedHomeHarness {
   root: HTMLElement;
   setOpen(open: HomeOpenFixture | null): void;
+  setOccupancy(opts: HomeOccupancyOpts): void;
   render(): void;
   refresh(): Promise<void>;
 }
@@ -141,22 +161,24 @@ tags: []
 ---
 Origin body
 `;
+  let autoRun = {
+    enabled: false,
+    egressAcked: false,
+    hasKey: false,
+    inFlight: false,
+  };
+  let filingAuth: { mode: string; status?: string } = { mode: "none" };
   const plugin = {
     settings: {
       atomFolder: "Atoms",
       captureShortcutInstallUrl: "",
       enableHubProjection: false,
     },
-    getAutoRunSnapshot: () => ({
-      enabled: false,
-      egressAcked: false,
-      hasKey: false,
-      inFlight: false,
-    }),
+    getAutoRunSnapshot: () => autoRun,
     getBacklogGatePending: () => 0,
     getLastCatchupLine: () => null,
     isEgressNoticePending: () => false,
-    resolveFilingAuth: () => ({ mode: "none" }),
+    resolveFilingAuth: () => filingAuth,
   };
   const view = new AtomsHomeView(
     undefined as never,
@@ -193,6 +215,23 @@ Origin body
     root,
     setOpen: (open) => {
       view.homeOpen = open;
+    },
+    setOccupancy: (opts) => {
+      if (opts.unprocessedCount != null) {
+        view.unprocessedCount = opts.unprocessedCount;
+      }
+      if (opts.windowUnprocessedCount != null) {
+        view.windowUnprocessedCount = opts.windowUnprocessedCount;
+      }
+      if (opts.loopCloseOffer !== undefined) {
+        view.loopCloseOffer = opts.loopCloseOffer;
+      }
+      if (opts.autoRun) {
+        autoRun = { ...autoRun, ...opts.autoRun };
+      }
+      if (opts.filingAuth) {
+        filingAuth = opts.filingAuth;
+      }
     },
     render,
     refresh,

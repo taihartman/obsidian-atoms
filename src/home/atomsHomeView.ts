@@ -31,6 +31,7 @@ import {
   queuePeekTexts,
   shouldShowBackfillOffer,
   shouldShowUpdateNotesNews,
+  shouldOfferProcessInMore,
   shouldShowWaitCard,
   shouldShowWaitHero,
   titleFromAtomPath,
@@ -63,6 +64,7 @@ import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
   hubInviteLinkReason,
+  pickHomeHubInvite,
   pairingId,
   seedHubListMarkdown,
   type HubAssociationCandidate,
@@ -1315,12 +1317,15 @@ export class AtomsHomeView extends ItemView {
       snoozedPersonNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
       enableHubProjection: this.plugin.settings.enableHubProjection === true,
     });
-    this.hubInvite = invites[0] ?? null;
-
     this.loopCloseOffer =
       collectLoopCloseOffers(atoms, {
         told: this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
       })[0] ?? null;
+    this.hubInvite = pickHomeHubInvite(
+      invites,
+      this.loopCloseOffer,
+      this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
+    );
 
     if (this.togetherNewsHeldThisVisit) {
       this.togetherNews = null;
@@ -2306,36 +2311,8 @@ export class AtomsHomeView extends ItemView {
     const filingAuth = this.plugin.resolveFilingAuth();
 
     // One wait copy for the pass. Blocked/broken still occupy the hero; auto_on
-    // yields to a loop-close or hub invite and keeps Process as a quiet row.
-    const snap = this.plugin.getAutoRunSnapshot();
-    const limitDismissed = isPlusLimitDismissedToday(
-      readPlusLimitDismissDay(this.app),
-      localCalendarDay(),
-    );
-    const lapse = plusLapse(filingAuth);
-    const waitCopy = shouldShowWaitCard(this.unprocessedCount)
-      ? (filingHeroCopy({
-          pastUnprocessed: this.unprocessedCount,
-          windowUnprocessed: this.windowUnprocessedCount,
-          hasKey: snap.hasKey,
-          autoEnabled: snap.enabled,
-          egressAcked: snap.egressAcked,
-          inFlight: snap.inFlight,
-          filingPath: filingPathFromAuth(filingAuth),
-          plusLimitDismissedToday: limitDismissed,
-          plusLapseKind: lapse?.kind,
-        }) ??
-        ({
-          mode: "enable_auto",
-          eyebrow: "Ready",
-          title: `${this.unprocessedCount} Captures Waiting`,
-          body: "Process when you are ready.",
-          primaryLabel: "Process",
-          primaryAction: "process",
-          secondaryLabel: "Preview",
-          secondaryAction: "preview",
-        } satisfies FilingHeroCopy))
-      : null;
+    // yields to a loop-close or hub invite. Process lives in More.
+    const waitCopy = this.pastWaitCopy(filingAuth);
     const waitHero =
       !!waitCopy &&
       !this.landPeak &&
@@ -2738,12 +2715,51 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
+  private pastWaitCopy(filingAuth: FilingAuth): FilingHeroCopy | null {
+    if (!shouldShowWaitCard(this.unprocessedCount)) return null;
+    const snap = this.plugin.getAutoRunSnapshot();
+    const limitDismissed = isPlusLimitDismissedToday(
+      readPlusLimitDismissDay(this.app),
+      localCalendarDay(),
+    );
+    const lapse = plusLapse(filingAuth);
+    return (
+      filingHeroCopy({
+        pastUnprocessed: this.unprocessedCount,
+        windowUnprocessed: this.windowUnprocessedCount,
+        hasKey: snap.hasKey,
+        autoEnabled: snap.enabled,
+        egressAcked: snap.egressAcked,
+        inFlight: snap.inFlight,
+        filingPath: filingPathFromAuth(filingAuth),
+        plusLimitDismissedToday: limitDismissed,
+        plusLapseKind: lapse?.kind,
+      }) ??
+      ({
+        mode: "enable_auto",
+        eyebrow: "Ready",
+        title: `${this.unprocessedCount} Captures Waiting`,
+        body: "Process when you are ready.",
+        primaryLabel: "Process",
+        primaryAction: "process",
+        secondaryLabel: "Preview",
+        secondaryAction: "preview",
+      } satisfies FilingHeroCopy)
+    );
+  }
+
   private showMoreMenu(ev: MouseEvent): void {
     const menu = new Menu();
     menu.addItem((i) =>
       i.setTitle("Open today's note").onClick(() => void this.onOpenToday()),
     );
-    if (this.unprocessedCount > 0) {
+    const waitCopy = this.pastWaitCopy(this.plugin.resolveFilingAuth());
+    if (
+      shouldOfferProcessInMore({
+        unprocessedCount: this.unprocessedCount,
+        mode: waitCopy?.mode ?? null,
+      })
+    ) {
       menu.addItem((i) =>
         i
           .setTitle(`Process (${this.unprocessedCount})`)

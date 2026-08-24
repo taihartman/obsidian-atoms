@@ -119,6 +119,28 @@ describe("AtomsHomeView shared header shell", () => {
     expect(home.root.querySelector(".atoms-home-back")).toBeNull();
   });
 
+  it("auto_on leftovers yield the wait card to loop-close", () => {
+    const home = renderedHomeView();
+    home.setOccupancy({
+      unprocessedCount: 22,
+      windowUnprocessedCount: 0,
+      autoRun: { enabled: true, egressAcked: true, hasKey: true },
+      filingAuth: { mode: "byok" },
+      loopCloseOffer: {
+        loopPath: "Atoms/Car at 73042.md",
+        loopTitle: "Car at 73042 miles, needs a return to QGS automotive",
+        loopBody: "My miles in my car at 73042",
+        readingPath: "Atoms/Car odometer 73089.md",
+        readingBody: "My car is at 73089 miles",
+      },
+    });
+    home.render();
+
+    expect(home.root.querySelector(".atoms-home-wait-card")).toBeNull();
+    expect(home.root.querySelector(".atoms-home-loop-close")).not.toBeNull();
+    expect(home.root.querySelector(".atoms-home-quiet-process")).toBeNull();
+  });
+
   it("returns nested entity siblings to its originating atom", () => {
     const home = renderedHomeView();
     home.setOpen(entityDetail("Atoms/Origin atom.md"));
