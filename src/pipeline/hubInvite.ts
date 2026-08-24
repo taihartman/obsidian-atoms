@@ -251,6 +251,40 @@ export function collectHubAssociationInvites(opts: {
   return [...people, ...lists];
 }
 
+/**
+ * Home occupancy: people and list pairings rank before measured invites, so
+ * Show list would steal Track My car after Keep it open. Prefer the measured
+ * invite whose members overlap the live loop-close pair or a told pair
+ * (Keep it open stamps told; the next refresh has no live offer).
+ */
+export function pickHomeHubInvite(
+  invites: HubAssociationCandidate[],
+  loopClose?: { loopPath: string; readingPath: string } | null,
+  toldPairIds?: Iterable<string>,
+): HubAssociationCandidate | null {
+  const paths = new Set<string>();
+  if (loopClose) {
+    paths.add(loopClose.loopPath.toLowerCase());
+    paths.add(loopClose.readingPath.toLowerCase());
+  }
+  if (toldPairIds) {
+    for (const id of toldPairIds) {
+      const [a, b] = id.split("::");
+      if (a) paths.add(a);
+      if (b) paths.add(b);
+    }
+  }
+  if (paths.size > 0) {
+    const overlap = invites.find(
+      (i) =>
+        i.measured === true &&
+        i.memberPaths.some((p) => paths.has(p.toLowerCase())),
+    );
+    if (overlap) return overlap;
+  }
+  return invites[0] ?? null;
+}
+
 export function hubAssociationInviteCopy(opts: {
   kind: HubAssociationKind;
   label: string;

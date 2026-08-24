@@ -434,6 +434,31 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
 }
 
+/**
+ * Automatic filing already names leftover captures in the subtitle. The orange
+ * wait card occupies only when filing is blocked or broken. auto_on never
+ * occupies: Process lives in ⋯.
+ */
+export function shouldShowWaitHero(input: {
+  unprocessedCount: number;
+  mode: FilingHeroMode;
+}): boolean {
+  if (input.unprocessedCount <= 0) return false;
+  return input.mode !== "auto_on";
+}
+
+/**
+ * More offers Process/Preview for leftover captures. The wait card already
+ * owns conversion on need_key / plus_limit; those modes stay off the menu.
+ */
+export function shouldOfferProcessInMore(input: {
+  unprocessedCount: number;
+  mode: FilingHeroMode | null;
+}): boolean {
+  if (input.unprocessedCount <= 0) return false;
+  return input.mode !== "need_key" && input.mode !== "plus_limit";
+}
+
 export interface InboxStuckSummary {
   /** Calm one-liner naming each stuck state, load-bearing states first. */
   text: string;

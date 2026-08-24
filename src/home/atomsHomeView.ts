@@ -31,7 +31,9 @@ import {
   queuePeekTexts,
   shouldShowBackfillOffer,
   shouldShowUpdateNotesNews,
+  shouldOfferProcessInMore,
   shouldShowWaitCard,
+  shouldShowWaitHero,
   titleFromAtomPath,
   updateNotesStripCopy,
   waitingSubtitle,
@@ -62,6 +64,7 @@ import {
   collectHubAssociationInvites,
   hubAssociationInviteCopy,
   hubInviteLinkReason,
+  pickHomeHubInvite,
   pairingId,
   seedHubListMarkdown,
   type HubAssociationCandidate,
@@ -175,6 +178,7 @@ import {
   type ContinueParentPending,
 } from "../platform/continueParent";
 import { openSettingsTab } from "../platform/obsidianSettings";
+import { lastCatchupIsQuiet } from "../platform/resume";
 import {
   ANDROID_COMPANION_STORE_URL,
   CAPTURE_ATOM_VERSION,
@@ -232,6 +236,8 @@ const LS_PERSON_INVITE_SNOOZE = "atoms-person-invite-snooze";
 const LS_LOOP_CLOSE_TOLD = "atoms-loop-close-told";
 /** A decline is permanent for the pair, not a snooze (#589 KD4). */
 const LOOP_CLOSE_TOLD_DAYS = 36500;
+/** After Keep it open, ignore taps on the swapped hero for one double-click window. */
+const HERO_SWAP_GUARD_MS = 500;
 
 type FilterMode = "all" | "linked" | "skipped";
 
@@ -347,6 +353,9 @@ export class AtomsHomeView extends ItemView {
   private hubInviteBusy = false;
   private loopCloseOffer: LoopCloseOffer | null = null;
   private loopCloseBusy = false;
+  /** True for HERO_SWAP_GUARD_MS after Keep it open so a second tap cannot accept the invite. */
+  private heroSwapGuard = false;
+  private heroSwapTimer: number | null = null;
   /** Unseen-join Together news. Null after Open/Not now until the next Home open. */
   private togetherNews: TogetherNewsCard | null = null;
   private togetherNewsHeldThisVisit = false;
@@ -414,6 +423,10 @@ export class AtomsHomeView extends ItemView {
     if (this.firstFillTimer != null) {
       window.clearTimeout(this.firstFillTimer);
       this.firstFillTimer = null;
+    }
+    if (this.heroSwapTimer != null) {
+      window.clearTimeout(this.heroSwapTimer);
+      this.heroSwapTimer = null;
     }
     // The filing card can pose a consent sheet, and a sheet with no view behind it is still
     // clickable — accepting one armed unattended sends from a screen the user had already closed.
@@ -1067,7 +1080,7 @@ export class AtomsHomeView extends ItemView {
 
   private renderLastCatchupLine(scroll: HTMLElement): void {
     const line = this.plugin.getLastCatchupLine();
-    if (!line) return;
+    if (!line || lastCatchupIsQuiet(line)) return;
     const row = scroll.createDiv({ cls: "atoms-home-last-catchup-row" });
     row.createEl("p", {
       cls: "atoms-home-last-catchup",
@@ -1313,12 +1326,15 @@ export class AtomsHomeView extends ItemView {
       snoozedPersonNames: this.readSnoozeMap(LS_PERSON_INVITE_SNOOZE),
       enableHubProjection: this.plugin.settings.enableHubProjection === true,
     });
-    this.hubInvite = invites[0] ?? null;
-
     this.loopCloseOffer =
       collectLoopCloseOffers(atoms, {
         told: this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
       })[0] ?? null;
+    this.hubInvite = pickHomeHubInvite(
+      invites,
+      this.loopCloseOffer,
+      this.readSnoozeMap(LS_LOOP_CLOSE_TOLD),
+    );
 
     if (this.togetherNewsHeldThisVisit) {
       this.togetherNews = null;
@@ -1439,10 +1455,24 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
+  private armHeroSwapGuard(): void {
+    if (this.heroSwapTimer != null) {
+      window.clearTimeout(this.heroSwapTimer);
+      this.heroSwapTimer = null;
+    }
+    this.heroSwapGuard = true;
+    this.heroSwapTimer = window.setTimeout(() => {
+      this.heroSwapTimer = null;
+      this.heroSwapGuard = false;
+      this.render();
+    }, HERO_SWAP_GUARD_MS);
+  }
+
   private onDeclineLoopClose(offer: LoopCloseOffer): void {
     if (this.loopCloseBusy) return;
     this.stampLoopCloseTold(loopClosePairId(offer.loopPath, offer.readingPath));
     this.loopCloseOffer = null;
+    this.armHeroSwapGuard();
     this.render();
   }
 
@@ -1475,6 +1505,7 @@ export class AtomsHomeView extends ItemView {
       }
     }
     const actions = actionRow(card);
+    const inviteLocked = this.hubInviteBusy || this.heroSwapGuard;
     button(actions, {
       grade: "primary",
       label: this.hubInviteBusy
@@ -1482,20 +1513,21 @@ export class AtomsHomeView extends ItemView {
           ? "Adding…"
           : "Creating…"
         : copy.createLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => void this.onAcceptHubInvite(inv),
     });
     button(actions, {
       grade: "secondary",
       label: copy.alreadyLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => this.onPickDifferentHub(inv),
     });
     button(actions, {
-      grade: "secondary",
+      grade: "quiet",
       label: copy.dismissLabel,
-      disabled: this.hubInviteBusy,
+      disabled: inviteLocked,
       onClick: () => {
+        if (this.heroSwapGuard) return;
         this.snoozeHubInvite(inv);
         this.hubInvite = null;
         this.refreshEntitySurfaces();
@@ -1517,7 +1549,7 @@ export class AtomsHomeView extends ItemView {
   }
 
   private onPickDifferentHub(inv: HubAssociationCandidate): void {
-    if (this.hubInviteBusy) return;
+    if (this.hubInviteBusy || this.heroSwapGuard) return;
     const folder = this.plugin.settings.atomFolder || "Atoms";
     new PersonNoteSuggestModal(
       this.app,
@@ -1538,6 +1570,7 @@ export class AtomsHomeView extends ItemView {
   private async onAcceptHubInvite(
     inv: HubAssociationCandidate,
   ): Promise<void> {
+    if (this.heroSwapGuard) return;
     if (inv.kind === "person") {
       await this.onAddPersonNote(inv);
       return;
@@ -2303,106 +2336,93 @@ export class AtomsHomeView extends ItemView {
     // it, and nothing between them can change what it answers.
     const filingAuth = this.plugin.resolveFilingAuth();
 
-    // Work first when past captures wait — automatic filing story (not homework-only).
-    // Suppress while land peak is up (one hero: Done owns the screen).
-    if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
-      const snap = this.plugin.getAutoRunSnapshot();
-      const limitDismissed = isPlusLimitDismissedToday(
-        readPlusLimitDismissDay(this.app),
-        localCalendarDay(),
-      );
-      const lapse = plusLapse(filingAuth);
-      const hero =
-        filingHeroCopy({
-          pastUnprocessed: this.unprocessedCount,
-          windowUnprocessed: this.windowUnprocessedCount,
-          hasKey: snap.hasKey,
-          autoEnabled: snap.enabled,
-          egressAcked: snap.egressAcked,
-          inFlight: snap.inFlight,
-          filingPath: filingPathFromAuth(filingAuth),
-          plusLimitDismissedToday: limitDismissed,
-          plusLapseKind: lapse?.kind,
-        }) ??
-        ({
-          mode: "enable_auto",
-          eyebrow: "Ready",
-          title: `${this.unprocessedCount} Captures Waiting`,
-          body: "Process when you are ready.",
-          primaryLabel: "Process",
-          primaryAction: "process",
-          secondaryLabel: "Preview",
-          secondaryAction: "preview",
-        } satisfies FilingHeroCopy);
+    // One wait copy for the pass. Blocked/broken still occupy the hero; auto_on
+    // yields to a loop-close or hub invite. Process lives in More.
+    const waitCopy = this.pastWaitCopy(filingAuth);
+    const waitHero =
+      !!waitCopy &&
+      !this.landPeak &&
+      shouldShowWaitHero({
+        unprocessedCount: this.unprocessedCount,
+        mode: waitCopy.mode,
+      });
 
+    const bindWaitAction = (
+      actions: HTMLElement,
+      label: string | null,
+      action: FilingHeroAction,
+      primary: boolean,
+      quiet?: boolean,
+    ) => {
+      if (!label || !action) return;
+      button(actions, {
+        grade: primary ? "primary" : quiet ? "quiet" : "secondary",
+        label: this.busy ? "…" : label,
+        disabled: this.busy,
+        onClick: () => {
+          if (action === "open_settings" || action === "open_plus") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          if (action === "open_byok_settings") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          // Same destination as Get More: Settings opens on the account row, which now names
+          // the ended period and carries Subscribe.
+          if (action === "get_more" || action === "subscribe") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          if (action === "dismiss_limit") {
+            writePlusLimitDismissDay(this.app, localCalendarDay());
+            this.render();
+            return;
+          }
+          if (action === "enable_auto") {
+            this.confirmEnableAutomaticFiling();
+            return;
+          }
+          if (action === "preview") void this.onPreview(false);
+          if (action === "process") void this.onProcess(false);
+        },
+      });
+    };
+
+    if (waitHero && waitCopy) {
       const card = statusCard(scroll, {
         tone: "wait",
         className:
-          hero.mode === "plus_limit"
+          waitCopy.mode === "plus_limit"
             ? "atoms-home-wait-card atoms-home-wait-card--limit"
             : "atoms-home-wait-card",
       });
       card.createEl("p", {
         cls: "atoms-home-card-eyebrow",
-        text: hero.eyebrow,
+        text: waitCopy.eyebrow,
       });
-      card.createEl("h2", { text: hero.title });
-      card.createEl("p", { text: hero.body });
+      card.createEl("h2", { text: waitCopy.title });
+      card.createEl("p", { text: waitCopy.body });
       const actions = actionRow(card, {
         className: "atoms-home-wait-actions",
       });
-
-      const bindAction = (
-        label: string | null,
-        action: FilingHeroAction,
-        primary: boolean,
-        quiet?: boolean,
-      ) => {
-        if (!label || !action) return;
-        button(actions, {
-          grade: primary ? "primary" : quiet ? "quiet" : "secondary",
-          label: this.busy ? "…" : label,
-          disabled: this.busy,
-          onClick: () => {
-            if (action === "open_settings" || action === "open_plus") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            if (action === "open_byok_settings") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            // Same destination as Get More: Settings opens on the account row, which now names
-            // the ended period and carries Subscribe.
-            if (action === "get_more" || action === "subscribe") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            if (action === "dismiss_limit") {
-              writePlusLimitDismissDay(this.app, localCalendarDay());
-              this.render();
-              return;
-            }
-            if (action === "enable_auto") {
-              this.confirmEnableAutomaticFiling();
-              return;
-            }
-            if (action === "preview") void this.onPreview(false);
-            if (action === "process") void this.onProcess(false);
-          },
-        });
-      };
-
-      bindAction(hero.primaryLabel, hero.primaryAction, true);
-      bindAction(
-        hero.secondaryLabel,
-        hero.secondaryAction,
-        false,
-        hero.secondaryQuiet,
+      bindWaitAction(
+        actions,
+        waitCopy.primaryLabel,
+        waitCopy.primaryAction,
+        true,
       );
-
-      // enable_auto already has Process secondary — also offer Preview
-      if (hero.mode === "enable_auto" && hero.secondaryAction !== "preview") {
+      bindWaitAction(
+        actions,
+        waitCopy.secondaryLabel,
+        waitCopy.secondaryAction,
+        false,
+        waitCopy.secondaryQuiet,
+      );
+      if (
+        waitCopy.mode === "enable_auto" &&
+        waitCopy.secondaryAction !== "preview"
+      ) {
         button(actions, {
           grade: "secondary",
           label: this.busy ? "…" : "Preview",
@@ -2427,24 +2447,11 @@ export class AtomsHomeView extends ItemView {
       }
     }
 
-    // Drain health: held / pending only. Missing times are normal — never alarm.
-    if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
-      const stuck = flatCard(scroll, {
-        className: "atoms-home-inbox-stuck",
-      });
-      stuck.createEl("p", {
-        cls: "atoms-home-card-eyebrow",
-        text: "Inbox",
-      });
-      stuck.createEl("p", { text: this.inboxStuck.text });
-    }
-
-    // One hero: Ready when pending; person invite > packing Make > Together / resurface
-    const workPending = shouldShowWaitCard(this.unprocessedCount);
+    // One hero: blocked wait occupies; otherwise loop-close > invite > Together / resurface
     if (
       !firstDay &&
       this.runPhase === "idle" &&
-      !workPending &&
+      !waitHero &&
       !this.landPeak
     ) {
       if (this.loopCloseOffer) {
@@ -2463,43 +2470,6 @@ export class AtomsHomeView extends ItemView {
           void this.runFirstCatalogFill();
         }, 0);
       }
-    }
-
-    if (this.shouldShowUpdateNotesStrip()) {
-      this.renderUpdateNotesStrip(scroll);
-    }
-
-    // Same suppression as the strip above: a quiet card, and never while a run is on screen.
-    if (
-      !firstDay &&
-      this.runPhase !== "preview" &&
-      this.runPhase !== "process" &&
-      this.runPhase !== "update" &&
-      !this.landPeak
-    ) {
-      const offer = this.backfillOfferModel(filingAuth);
-      if (offer) this.renderBackfillOffer(scroll, offer);
-    }
-
-    if (this.showShortcutBanner()) {
-      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
-      const text = banner.createDiv();
-      text.createEl("strong", {
-        text:
-          this.shortcutAcked == null
-            ? "Capture shortcut"
-            : "Shortcut update",
-      });
-      text.createSpan({
-        text: `v${CAPTURE_ATOM_VERSION}`,
-        cls: "atoms-home-update-meta",
-      });
-      button(banner, {
-        grade: "secondary",
-        label: labelPhoneCaptureCta(this.shortcutAcked),
-        className: "atoms-home-update-btn",
-        onClick: () => this.onInstallShortcut(),
-      });
     }
 
     if (firstDay && firstDayCopy) {
@@ -2568,15 +2538,13 @@ export class AtomsHomeView extends ItemView {
           this.render();
         },
       });
-    }
 
     for (const d of this.libraryPressDetach) d();
     this.libraryPressDetach = [];
 
     if (this.filter === "skipped") {
       this.renderSkippedLibrary(scroll, firstDay);
-      return;
-    }
+    } else {
 
     const visible = this.visibleEntries();
     if (!visible.length) {
@@ -2649,6 +2617,55 @@ export class AtomsHomeView extends ItemView {
           text: formatRelativeTime(e.mtime, now),
         });
       }
+    }
+    }
+    }
+
+    if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
+      const stuck = flatCard(scroll, {
+        className: "atoms-home-inbox-stuck",
+      });
+      stuck.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Inbox",
+      });
+      stuck.createEl("p", { text: this.inboxStuck.text });
+    }
+
+    if (this.shouldShowUpdateNotesStrip()) {
+      this.renderUpdateNotesStrip(scroll);
+    }
+
+    if (
+      !firstDay &&
+      this.runPhase !== "preview" &&
+      this.runPhase !== "process" &&
+      this.runPhase !== "update" &&
+      !this.landPeak
+    ) {
+      const offer = this.backfillOfferModel(filingAuth);
+      if (offer) this.renderBackfillOffer(scroll, offer);
+    }
+
+    if (this.showShortcutBanner()) {
+      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
+      const text = banner.createDiv();
+      text.createEl("strong", {
+        text:
+          this.shortcutAcked == null
+            ? "Capture shortcut"
+            : "Shortcut update",
+      });
+      text.createSpan({
+        text: `v${CAPTURE_ATOM_VERSION}`,
+        cls: "atoms-home-update-meta",
+      });
+      button(banner, {
+        grade: "secondary",
+        label: labelPhoneCaptureCta(this.shortcutAcked),
+        className: "atoms-home-update-btn",
+        onClick: () => this.onInstallShortcut(),
+      });
     }
   }
 
@@ -2724,11 +2741,62 @@ export class AtomsHomeView extends ItemView {
     }
   }
 
+  private pastWaitCopy(filingAuth: FilingAuth): FilingHeroCopy | null {
+    if (!shouldShowWaitCard(this.unprocessedCount)) return null;
+    const snap = this.plugin.getAutoRunSnapshot();
+    const limitDismissed = isPlusLimitDismissedToday(
+      readPlusLimitDismissDay(this.app),
+      localCalendarDay(),
+    );
+    const lapse = plusLapse(filingAuth);
+    return (
+      filingHeroCopy({
+        pastUnprocessed: this.unprocessedCount,
+        windowUnprocessed: this.windowUnprocessedCount,
+        hasKey: snap.hasKey,
+        autoEnabled: snap.enabled,
+        egressAcked: snap.egressAcked,
+        inFlight: snap.inFlight,
+        filingPath: filingPathFromAuth(filingAuth),
+        plusLimitDismissedToday: limitDismissed,
+        plusLapseKind: lapse?.kind,
+      }) ??
+      ({
+        mode: "enable_auto",
+        eyebrow: "Ready",
+        title: `${this.unprocessedCount} Captures Waiting`,
+        body: "Process when you are ready.",
+        primaryLabel: "Process",
+        primaryAction: "process",
+        secondaryLabel: "Preview",
+        secondaryAction: "preview",
+      } satisfies FilingHeroCopy)
+    );
+  }
+
   private showMoreMenu(ev: MouseEvent): void {
     const menu = new Menu();
     menu.addItem((i) =>
       i.setTitle("Open today's note").onClick(() => void this.onOpenToday()),
     );
+    const waitCopy = this.pastWaitCopy(this.plugin.resolveFilingAuth());
+    if (
+      shouldOfferProcessInMore({
+        unprocessedCount: this.unprocessedCount,
+        mode: waitCopy?.mode ?? null,
+      })
+    ) {
+      menu.addItem((i) =>
+        i
+          .setTitle(`Process (${this.unprocessedCount})`)
+          .onClick(() => void this.onProcess(false)),
+      );
+      menu.addItem((i) =>
+        i
+          .setTitle(`Preview (${this.unprocessedCount})`)
+          .onClick(() => void this.onPreview(false)),
+      );
+    }
     if (this.todayUnprocessedCount > 0) {
       menu.addItem((i) =>
         i
@@ -2743,6 +2811,11 @@ export class AtomsHomeView extends ItemView {
           .onClick(() => void this.onProcess(true)),
       );
     }
+    menu.addItem((i) =>
+      i.setTitle("Sync everything").onClick(() => {
+        void this.plugin.runSyncEverythingNow();
+      }),
+    );
     menu.addItem((i) =>
       i
         .setTitle(labelPhoneCaptureCta(this.shortcutAcked))

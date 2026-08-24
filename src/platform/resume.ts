@@ -477,3 +477,9 @@ export function formatLastCatchupLine(
   const detail = parts.length ? parts.join(" · ") : "caught up";
   return `${LAST_CATCHUP_LABEL} ${when}: ${detail}`;
 }
+
+/** Home hides a catch-up row that only says it is already fine. */
+export function lastCatchupIsQuiet(line: string | null): boolean {
+  if (!line) return true;
+  return /: caught up$/.test(line);
+}

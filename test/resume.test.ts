@@ -6,6 +6,7 @@ import {
   FILING_COOLDOWN_MS,
   FILING_LIVENESS_MS,
   formatLastCatchupLine,
+  lastCatchupIsQuiet,
   isQuarantined,
   LIVENESS_MS,
   pruneBudgetWindow,
@@ -246,5 +247,14 @@ describe("formatLastCatchupLine", () => {
     expect(line).toMatch(/5m ago/);
     expect(line).toMatch(/filed 2/);
     expect(line).toMatch(/7 in the last hour/);
+  });
+
+  it("Home hides a line that only says caught up", () => {
+    expect(
+      lastCatchupIsQuiet("Last catch-up just now: caught up"),
+    ).toBe(true);
+    expect(
+      lastCatchupIsQuiet("Last catch-up 5m ago: filed 2"),
+    ).toBe(false);
   });
 });

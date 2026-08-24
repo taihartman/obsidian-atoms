@@ -34,7 +34,9 @@ import {
   rememberUpdateNotesHeard,
   persistUpdateNotesHeard,
   shouldShowUpdateNotesNews,
+  shouldOfferProcessInMore,
   shouldShowWaitCard,
+  shouldShowWaitHero,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesQuotedN,
@@ -314,6 +316,58 @@ describe("shouldShowWaitCard / relative time", () => {
   it("wait card only when count > 0", () => {
     expect(shouldShowWaitCard(0)).toBe(false);
     expect(shouldShowWaitCard(3)).toBe(true);
+  });
+
+  it("auto_on never occupies: leftover captures live in the subtitle", () => {
+    expect(
+      shouldShowWaitHero({
+        unprocessedCount: 4,
+        mode: "auto_on",
+      }),
+    ).toBe(false);
+  });
+
+  it("wait still owns blocked and broken modes", () => {
+    for (const mode of [
+      "need_key",
+      "plus_limit",
+      "enable_auto",
+      "auto_running",
+    ] as const) {
+      expect(
+        shouldShowWaitHero({
+          unprocessedCount: 4,
+          mode,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("zero leftover captures never occupy wait", () => {
+    expect(
+      shouldShowWaitHero({
+        unprocessedCount: 0,
+        mode: "need_key",
+      }),
+    ).toBe(false);
+  });
+
+  it("More Process skips need_key and plus_limit", () => {
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "auto_on" }),
+    ).toBe(true);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "enable_auto" }),
+    ).toBe(true);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "need_key" }),
+    ).toBe(false);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 4, mode: "plus_limit" }),
+    ).toBe(false);
+    expect(
+      shouldOfferProcessInMore({ unprocessedCount: 0, mode: "auto_on" }),
+    ).toBe(false);
   });
 
   it("formats relative times", () => {

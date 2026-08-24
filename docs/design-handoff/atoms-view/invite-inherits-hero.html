@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atoms — invite inherits the hero (side panel mock)</title>
+  <style>
+    :root {
+      --bg: #000;
+      --grouped: #1c1c1e;
+      --elevated: #2c2c2e;
+      --sep: rgba(84, 84, 88, 0.55);
+      --label: #fff;
+      --secondary: rgba(235, 235, 245, 0.6);
+      --tertiary: rgba(235, 235, 245, 0.32);
+      --tint: #0a84ff;
+      --work: #64d2ff;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: #0a0a0c;
+      color: var(--label);
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 760px; margin: 0 auto; padding: 28px 18px 80px; }
+    h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .lede {
+      color: var(--secondary); max-width: 44rem; line-height: 1.5;
+      margin: 0 0 16px; font-size: 0.95rem;
+    }
+    .decisions {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      line-height: 1.45;
+    }
+    .decisions strong { color: var(--label); font-weight: 600; }
+    .decisions ul { margin: 8px 0 0; padding-left: 1.15rem; }
+    .decisions li { margin: 4px 0; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      align-items: start;
+      margin-bottom: 40px;
+    }
+    @media (max-width: 700px) {
+      .row { grid-template-columns: 1fr; justify-items: center; }
+    }
+    .cap {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--tertiary); text-align: center; margin-bottom: 10px;
+    }
+    /* 300px: mobile Obsidian left sidebar, not a full-bleed phone. */
+    .phone {
+      width: 300px; height: 780px; background: var(--bg); border-radius: 20px;
+      border: 4px solid #2a2a2c; box-shadow: 0 28px 70px rgba(0,0,0,0.55);
+      overflow: hidden; display: flex; flex-direction: column; margin: 0 auto;
+    }
+    .status-bar {
+      height: 44px; display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 6px; font-size: 0.72rem; font-weight: 600; flex-shrink: 0;
+    }
+    .nav { padding: 0 8px 10px 12px; flex-shrink: 0; }
+    .nav-top { display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+    .nav-btn {
+      border: none; background: transparent; color: var(--tint);
+      font-size: 1.15rem; min-width: 44px; min-height: 44px;
+    }
+    .large-title {
+      font-size: 1.7rem; font-weight: 700; letter-spacing: -0.045em;
+      margin: 0; line-height: 1.05;
+    }
+    .subtitle { font-size: 0.84rem; color: var(--secondary); margin: 5px 0 0; letter-spacing: -0.01em; }
+    .scroll { flex: 1; overflow: hidden; padding: 8px 12px 24px; }
+    .wait {
+      background: rgba(255, 159, 10, 0.1);
+      border: 1px solid rgba(255, 159, 10, 0.28);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .eyebrow {
+      font-size: 0.72rem; font-weight: 600; color: var(--tertiary);
+      margin: 0 0 4px; letter-spacing: 0.01em;
+    }
+    .wait h2, .invite h2, .loop h2 {
+      margin: 0 0 6px; font-size: 1.08rem; font-weight: 650; letter-spacing: -0.02em;
+    }
+    .wait p, .invite > p, .loop > p, .quiet p {
+      margin: 0 0 12px; font-size: 0.84rem; color: var(--secondary); line-height: 1.4;
+    }
+    .btns {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .btn-p { background: var(--tint); color: #fff; }
+    .btn-s { background: var(--elevated); color: var(--tint); }
+    .btn-q {
+      background: transparent;
+      color: var(--secondary);
+      font-weight: 500;
+      min-height: 44px;
+    }
+    .invite, .loop {
+      background: var(--grouped);
+      border: 1px solid var(--sep);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .kicker-list, .kicker-loop { color: var(--work) !important; }
+    .peek { list-style: none; margin: 0 0 12px; padding: 0; }
+    .peek li {
+      font-size: 0.88rem; font-weight: 500; padding: 6px 0;
+      border-bottom: 0.5px solid var(--sep); color: var(--label);
+    }
+    .peek li:last-child { border-bottom: none; }
+    .quiet {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(84, 84, 88, 0.45);
+      background: rgba(28, 28, 30, 0.7);
+    }
+    .quiet p { margin: 0; }
+    .leg { margin: 0 0 12px; }
+    .quote {
+      margin: 4px 0 0; font-size: 0.88rem; line-height: 1.4; color: var(--label);
+      font-family: ui-serif, Georgia, serif;
+    }
+    .lib-head { font-size: 0.9rem; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 8px; }
+    .list { background: var(--grouped); border-radius: 14px; overflow: hidden; border: 1px solid var(--sep); }
+    .lib-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px;
+      padding: 12px;
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .lib-row:last-child { border-bottom: none; }
+    .lib-row .t {
+      font-size: 0.9rem; font-weight: 550; letter-spacing: -0.015em;
+      overflow-wrap: anywhere;
+    }
+    .lib-row .time { font-size: 0.74rem; color: var(--tertiary); padding-top: 2px; }
+    .note {
+      font-size: 0.82rem; color: var(--secondary); line-height: 1.45;
+      max-width: 300px; margin: 12px auto 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Invite inherits the hero</h1>
+    <p class="lede">
+      Drawn at <strong>300px</strong>, the mobile Obsidian left sidebar, not a full phone.
+      Every action is a full-width 44px target. Nothing sits side by side.
+    </p>
+    <div class="decisions">
+      <strong>Why this occupancy</strong>
+      <ul>
+        <li>One hero in a 300px pane. A wait card plus an invite is two rooms. They clip each other.</li>
+        <li>The subtitle already says the count. Process stays a quiet stacked control so past captures still have a tap.</li>
+        <li>Need-key, trial ended, and monthly limit still own the hero. Those are blocked or broken.</li>
+        <li>One question. Loop-close first. Track My car after Keep it open.</li>
+        <li>Shipped action rows use <code>flex: 1 1 11rem</code>. In this pane, Choose different note and Not now share a row and squeeze. Stack instead.</li>
+      </ul>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="cap">Today · wait owns the room</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button class="nav-btn" type="button">⋯</button>
+              <button class="nav-btn" type="button">◎</button>
+              <span style="flex:1"></span>
+              <button class="nav-btn" type="button">⚙</button>
+            </div>
+            <h2 class="large-title">Atoms</h2>
+            <p class="subtitle">4 past thoughts will file automatically</p>
+          </div>
+          <div class="scroll">
+            <div class="wait">
+              <p class="eyebrow">Automatic</p>
+              <h2>4 Captures Waiting</h2>
+              <p>Automatic filing is on for this device. Past days file when you open Obsidian. Process only if you want them sooner.</p>
+              <div class="btns">
+                <button class="btn btn-p" type="button">Process now</button>
+                <button class="btn btn-s" type="button">Preview</button>
+              </div>
+            </div>
+            <div class="lib-head">Library</div>
+            <div class="list">
+              <div class="lib-row"><span class="t">Want to watch anime Frieren</span><span class="time">2h</span></div>
+              <div class="lib-row"><span class="t">Dried apricot for the movie</span><span class="time">1d</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Add to Show list? is already in memory. It never paints.</p>
+      </div>
+      <div>
+        <div class="cap">After · the question owns the room</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button class="nav-btn" type="button">⋯</button>
+              <button class="nav-btn" type="button">◎</button>
+              <span style="flex:1"></span>
+              <button class="nav-btn" type="button">⚙</button>
+            </div>
+            <h2 class="large-title">Atoms</h2>
+            <p class="subtitle">4 past thoughts will file automatically</p>
+          </div>
+          <div class="scroll">
+            <div class="quiet">
+              <p>Process only if you want them sooner.</p>
+              <button class="btn btn-s" type="button">Process now</button>
+            </div>
+            <div class="invite">
+              <p class="eyebrow kicker-list">Lists</p>
+              <h2>Add to Show list?</h2>
+              <p>Add this memory to Show list. Your writing on that note stays yours.</p>
+              <ul class="peek">
+                <li>Want to watch anime Frieren</li>
+              </ul>
+              <div class="btns">
+                <button class="btn btn-p" type="button">Add to Show list</button>
+                <button class="btn btn-s" type="button">Choose different note…</button>
+                <button class="btn btn-q" type="button">Not now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Three actions, one column. Choose different note never shares a row with Not now.</p>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="cap">Car pair · today, if anything is waiting</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button class="nav-btn" type="button">⋯</button>
+              <button class="nav-btn" type="button">◎</button>
+              <span style="flex:1"></span>
+              <button class="nav-btn" type="button">⚙</button>
+            </div>
+            <h2 class="large-title">Atoms</h2>
+            <p class="subtitle">4 past thoughts will file automatically</p>
+          </div>
+          <div class="scroll">
+            <div class="wait">
+              <p class="eyebrow">Automatic</p>
+              <h2>4 Captures Waiting</h2>
+              <p>Automatic filing is on for this device. Past days file when you open Obsidian. Process only if you want them sooner.</p>
+              <div class="btns">
+                <button class="btn btn-p" type="button">Process now</button>
+                <button class="btn btn-s" type="button">Preview</button>
+              </div>
+            </div>
+            <div class="lib-head">Library</div>
+            <div class="list">
+              <div class="lib-row"><span class="t">Car odometer reads 73089 miles</span><span class="time">2h</span></div>
+              <div class="lib-row"><span class="t">Car odometer reads 73042 miles</span><span class="time">1d</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Loops and Track My car are both collected. Neither draws.</p>
+      </div>
+      <div>
+        <div class="cap">Car pair · after, one question</div>
+        <div class="phone">
+          <div class="status-bar">9:41</div>
+          <div class="nav">
+            <div class="nav-top">
+              <button class="nav-btn" type="button">⋯</button>
+              <button class="nav-btn" type="button">◎</button>
+              <span style="flex:1"></span>
+              <button class="nav-btn" type="button">⚙</button>
+            </div>
+            <h2 class="large-title">Atoms</h2>
+            <p class="subtitle">4 past thoughts will file automatically</p>
+          </div>
+          <div class="scroll">
+            <div class="quiet">
+              <p>Process only if you want them sooner.</p>
+              <button class="btn btn-s" type="button">Process now</button>
+            </div>
+            <div class="loop">
+              <p class="eyebrow kicker-loop">Loops</p>
+              <h2>Does this close a loop?</h2>
+              <div class="leg">
+                <p class="eyebrow">Then</p>
+                <p class="quote">My car is at 73042 miles. I should check again after the trip.</p>
+              </div>
+              <div class="leg">
+                <p class="eyebrow">Now</p>
+                <p class="quote">My car is at 73089 miles</p>
+              </div>
+              <div class="btns">
+                <button class="btn btn-p" type="button">Close it</button>
+                <button class="btn btn-s" type="button">Keep it open</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">Keep it open, then Track My car? is the next hero. Still one question at a time.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
