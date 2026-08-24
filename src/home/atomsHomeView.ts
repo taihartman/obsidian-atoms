@@ -29,9 +29,11 @@ import {
   persistUpdateNotesHeard,
   planCreatedOrderBackfill,
   queuePeekTexts,
+  quietProcessLine,
   shouldShowBackfillOffer,
   shouldShowUpdateNotesNews,
   shouldShowWaitCard,
+  shouldShowWaitHero,
   titleFromAtomPath,
   updateNotesStripCopy,
   waitingSubtitle,
@@ -1492,7 +1494,7 @@ export class AtomsHomeView extends ItemView {
       onClick: () => this.onPickDifferentHub(inv),
     });
     button(actions, {
-      grade: "secondary",
+      grade: "quiet",
       label: copy.dismissLabel,
       disabled: this.hubInviteBusy,
       onClick: () => {
@@ -2303,17 +2305,17 @@ export class AtomsHomeView extends ItemView {
     // it, and nothing between them can change what it answers.
     const filingAuth = this.plugin.resolveFilingAuth();
 
-    // Work first when past captures wait — automatic filing story (not homework-only).
-    // Suppress while land peak is up (one hero: Done owns the screen).
-    if (shouldShowWaitCard(this.unprocessedCount) && !this.landPeak) {
-      const snap = this.plugin.getAutoRunSnapshot();
-      const limitDismissed = isPlusLimitDismissedToday(
-        readPlusLimitDismissDay(this.app),
-        localCalendarDay(),
-      );
-      const lapse = plusLapse(filingAuth);
-      const hero =
-        filingHeroCopy({
+    // One wait copy for the pass. Blocked/broken still occupy the hero; auto_on
+    // yields to a loop-close or hub invite and keeps Process as a quiet row.
+    const hasHumanQuestion = !!(this.loopCloseOffer || this.hubInvite);
+    const snap = this.plugin.getAutoRunSnapshot();
+    const limitDismissed = isPlusLimitDismissedToday(
+      readPlusLimitDismissDay(this.app),
+      localCalendarDay(),
+    );
+    const lapse = plusLapse(filingAuth);
+    const waitCopy = shouldShowWaitCard(this.unprocessedCount)
+      ? (filingHeroCopy({
           pastUnprocessed: this.unprocessedCount,
           windowUnprocessed: this.windowUnprocessedCount,
           hasKey: snap.hasKey,
@@ -2333,76 +2335,93 @@ export class AtomsHomeView extends ItemView {
           primaryAction: "process",
           secondaryLabel: "Preview",
           secondaryAction: "preview",
-        } satisfies FilingHeroCopy);
+        } satisfies FilingHeroCopy))
+      : null;
+    const waitHero =
+      !!waitCopy &&
+      !this.landPeak &&
+      shouldShowWaitHero({
+        unprocessedCount: this.unprocessedCount,
+        mode: waitCopy.mode,
+        hasHumanQuestion,
+      });
 
+    const bindWaitAction = (
+      actions: HTMLElement,
+      label: string | null,
+      action: FilingHeroAction,
+      primary: boolean,
+      quiet?: boolean,
+    ) => {
+      if (!label || !action) return;
+      button(actions, {
+        grade: primary ? "primary" : quiet ? "quiet" : "secondary",
+        label: this.busy ? "…" : label,
+        disabled: this.busy,
+        onClick: () => {
+          if (action === "open_settings" || action === "open_plus") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          if (action === "open_byok_settings") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          // Same destination as Get More: Settings opens on the account row, which now names
+          // the ended period and carries Subscribe.
+          if (action === "get_more" || action === "subscribe") {
+            openSettingsTab(this.app, "atoms");
+            return;
+          }
+          if (action === "dismiss_limit") {
+            writePlusLimitDismissDay(this.app, localCalendarDay());
+            this.render();
+            return;
+          }
+          if (action === "enable_auto") {
+            this.confirmEnableAutomaticFiling();
+            return;
+          }
+          if (action === "preview") void this.onPreview(false);
+          if (action === "process") void this.onProcess(false);
+        },
+      });
+    };
+
+    if (waitHero && waitCopy) {
       const card = statusCard(scroll, {
         tone: "wait",
         className:
-          hero.mode === "plus_limit"
+          waitCopy.mode === "plus_limit"
             ? "atoms-home-wait-card atoms-home-wait-card--limit"
             : "atoms-home-wait-card",
       });
       card.createEl("p", {
         cls: "atoms-home-card-eyebrow",
-        text: hero.eyebrow,
+        text: waitCopy.eyebrow,
       });
-      card.createEl("h2", { text: hero.title });
-      card.createEl("p", { text: hero.body });
+      card.createEl("h2", { text: waitCopy.title });
+      card.createEl("p", { text: waitCopy.body });
       const actions = actionRow(card, {
         className: "atoms-home-wait-actions",
       });
-
-      const bindAction = (
-        label: string | null,
-        action: FilingHeroAction,
-        primary: boolean,
-        quiet?: boolean,
-      ) => {
-        if (!label || !action) return;
-        button(actions, {
-          grade: primary ? "primary" : quiet ? "quiet" : "secondary",
-          label: this.busy ? "…" : label,
-          disabled: this.busy,
-          onClick: () => {
-            if (action === "open_settings" || action === "open_plus") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            if (action === "open_byok_settings") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            // Same destination as Get More: Settings opens on the account row, which now names
-            // the ended period and carries Subscribe.
-            if (action === "get_more" || action === "subscribe") {
-              openSettingsTab(this.app, "atoms");
-              return;
-            }
-            if (action === "dismiss_limit") {
-              writePlusLimitDismissDay(this.app, localCalendarDay());
-              this.render();
-              return;
-            }
-            if (action === "enable_auto") {
-              this.confirmEnableAutomaticFiling();
-              return;
-            }
-            if (action === "preview") void this.onPreview(false);
-            if (action === "process") void this.onProcess(false);
-          },
-        });
-      };
-
-      bindAction(hero.primaryLabel, hero.primaryAction, true);
-      bindAction(
-        hero.secondaryLabel,
-        hero.secondaryAction,
-        false,
-        hero.secondaryQuiet,
+      bindWaitAction(
+        actions,
+        waitCopy.primaryLabel,
+        waitCopy.primaryAction,
+        true,
       );
-
-      // enable_auto already has Process secondary — also offer Preview
-      if (hero.mode === "enable_auto" && hero.secondaryAction !== "preview") {
+      bindWaitAction(
+        actions,
+        waitCopy.secondaryLabel,
+        waitCopy.secondaryAction,
+        false,
+        waitCopy.secondaryQuiet,
+      );
+      if (
+        waitCopy.mode === "enable_auto" &&
+        waitCopy.secondaryAction !== "preview"
+      ) {
         button(actions, {
           grade: "secondary",
           label: this.busy ? "…" : "Preview",
@@ -2425,6 +2444,18 @@ export class AtomsHomeView extends ItemView {
           row.createEl("em", { text: p.date });
         }
       }
+    } else if (
+      waitCopy &&
+      !this.landPeak &&
+      this.runPhase === "idle" &&
+      hasHumanQuestion
+    ) {
+      const quiet = scroll.createDiv({ cls: "atoms-home-quiet-process" });
+      quiet.createEl("p", {
+        text: quietProcessLine(this.windowUnprocessedCount),
+      });
+      const actions = actionRow(quiet);
+      bindWaitAction(actions, "Process now", "process", false);
     }
 
     // Drain health: held / pending only. Missing times are normal — never alarm.
@@ -2439,12 +2470,11 @@ export class AtomsHomeView extends ItemView {
       stuck.createEl("p", { text: this.inboxStuck.text });
     }
 
-    // One hero: Ready when pending; person invite > packing Make > Together / resurface
-    const workPending = shouldShowWaitCard(this.unprocessedCount);
+    // One hero: blocked wait occupies; otherwise loop-close > invite > Together / resurface
     if (
       !firstDay &&
       this.runPhase === "idle" &&
-      !workPending &&
+      !waitHero &&
       !this.landPeak
     ) {
       if (this.loopCloseOffer) {

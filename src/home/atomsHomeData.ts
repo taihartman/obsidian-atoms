@@ -434,6 +434,28 @@ export function shouldShowWaitCard(unprocessedCount: number): boolean {
   return unprocessedCount > 0;
 }
 
+/**
+ * The orange wait card owns the hero unless automatic filing is already on
+ * *and* Home has a human question (loop-close or hub invite). Need-key,
+ * limit, enable-auto, and in-flight still occupy: those are blocked or broken.
+ */
+export function shouldShowWaitHero(input: {
+  unprocessedCount: number;
+  mode: FilingHeroMode;
+  hasHumanQuestion: boolean;
+}): boolean {
+  if (input.unprocessedCount <= 0) return false;
+  if (!input.hasHumanQuestion) return true;
+  return input.mode !== "auto_on";
+}
+
+/** Quiet Process line when wait yields the hero. Both sentences already ship on the wait card. */
+export function quietProcessLine(windowUnprocessed: number): string {
+  return windowUnprocessed <= 0
+    ? "Process when you are ready."
+    : "Process only if you want them sooner.";
+}
+
 export interface InboxStuckSummary {
   /** Calm one-liner naming each stuck state, load-bearing states first. */
   text: string;
