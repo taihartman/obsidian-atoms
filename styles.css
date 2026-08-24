@@ -1683,23 +1683,7 @@
   width: 100%;
 }
 
-.atoms-home-quiet-process {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
-  background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
-}
 
-.atoms-home-quiet-process > p {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
 
 /* Flat card */
 .atoms-ui-flat-card {

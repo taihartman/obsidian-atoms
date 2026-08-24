@@ -29,7 +29,6 @@ import {
   persistUpdateNotesHeard,
   planCreatedOrderBackfill,
   queuePeekTexts,
-  quietProcessLine,
   shouldShowBackfillOffer,
   shouldShowUpdateNotesNews,
   shouldShowWaitCard,
@@ -177,6 +176,7 @@ import {
   type ContinueParentPending,
 } from "../platform/continueParent";
 import { openSettingsTab } from "../platform/obsidianSettings";
+import { lastCatchupIsQuiet } from "../platform/resume";
 import {
   ANDROID_COMPANION_STORE_URL,
   CAPTURE_ATOM_VERSION,
@@ -1069,7 +1069,7 @@ export class AtomsHomeView extends ItemView {
 
   private renderLastCatchupLine(scroll: HTMLElement): void {
     const line = this.plugin.getLastCatchupLine();
-    if (!line) return;
+    if (!line || lastCatchupIsQuiet(line)) return;
     const row = scroll.createDiv({ cls: "atoms-home-last-catchup-row" });
     row.createEl("p", {
       cls: "atoms-home-last-catchup",
@@ -2307,7 +2307,6 @@ export class AtomsHomeView extends ItemView {
 
     // One wait copy for the pass. Blocked/broken still occupy the hero; auto_on
     // yields to a loop-close or hub invite and keeps Process as a quiet row.
-    const hasHumanQuestion = !!(this.loopCloseOffer || this.hubInvite);
     const snap = this.plugin.getAutoRunSnapshot();
     const limitDismissed = isPlusLimitDismissedToday(
       readPlusLimitDismissDay(this.app),
@@ -2343,7 +2342,6 @@ export class AtomsHomeView extends ItemView {
       shouldShowWaitHero({
         unprocessedCount: this.unprocessedCount,
         mode: waitCopy.mode,
-        hasHumanQuestion,
       });
 
     const bindWaitAction = (
@@ -2444,30 +2442,6 @@ export class AtomsHomeView extends ItemView {
           row.createEl("em", { text: p.date });
         }
       }
-    } else if (
-      waitCopy &&
-      !this.landPeak &&
-      this.runPhase === "idle" &&
-      hasHumanQuestion
-    ) {
-      const quiet = scroll.createDiv({ cls: "atoms-home-quiet-process" });
-      quiet.createEl("p", {
-        text: quietProcessLine(this.windowUnprocessedCount),
-      });
-      const actions = actionRow(quiet);
-      bindWaitAction(actions, "Process now", "process", false);
-    }
-
-    // Drain health: held / pending only. Missing times are normal — never alarm.
-    if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
-      const stuck = flatCard(scroll, {
-        className: "atoms-home-inbox-stuck",
-      });
-      stuck.createEl("p", {
-        cls: "atoms-home-card-eyebrow",
-        text: "Inbox",
-      });
-      stuck.createEl("p", { text: this.inboxStuck.text });
     }
 
     // One hero: blocked wait occupies; otherwise loop-close > invite > Together / resurface
@@ -2493,43 +2467,6 @@ export class AtomsHomeView extends ItemView {
           void this.runFirstCatalogFill();
         }, 0);
       }
-    }
-
-    if (this.shouldShowUpdateNotesStrip()) {
-      this.renderUpdateNotesStrip(scroll);
-    }
-
-    // Same suppression as the strip above: a quiet card, and never while a run is on screen.
-    if (
-      !firstDay &&
-      this.runPhase !== "preview" &&
-      this.runPhase !== "process" &&
-      this.runPhase !== "update" &&
-      !this.landPeak
-    ) {
-      const offer = this.backfillOfferModel(filingAuth);
-      if (offer) this.renderBackfillOffer(scroll, offer);
-    }
-
-    if (this.showShortcutBanner()) {
-      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
-      const text = banner.createDiv();
-      text.createEl("strong", {
-        text:
-          this.shortcutAcked == null
-            ? "Capture shortcut"
-            : "Shortcut update",
-      });
-      text.createSpan({
-        text: `v${CAPTURE_ATOM_VERSION}`,
-        cls: "atoms-home-update-meta",
-      });
-      button(banner, {
-        grade: "secondary",
-        label: labelPhoneCaptureCta(this.shortcutAcked),
-        className: "atoms-home-update-btn",
-        onClick: () => this.onInstallShortcut(),
-      });
     }
 
     if (firstDay && firstDayCopy) {
@@ -2598,15 +2535,13 @@ export class AtomsHomeView extends ItemView {
           this.render();
         },
       });
-    }
 
     for (const d of this.libraryPressDetach) d();
     this.libraryPressDetach = [];
 
     if (this.filter === "skipped") {
       this.renderSkippedLibrary(scroll, firstDay);
-      return;
-    }
+    } else {
 
     const visible = this.visibleEntries();
     if (!visible.length) {
@@ -2679,6 +2614,55 @@ export class AtomsHomeView extends ItemView {
           text: formatRelativeTime(e.mtime, now),
         });
       }
+    }
+    }
+    }
+
+    if (this.inboxStuck && this.runPhase === "idle" && !this.landPeak) {
+      const stuck = flatCard(scroll, {
+        className: "atoms-home-inbox-stuck",
+      });
+      stuck.createEl("p", {
+        cls: "atoms-home-card-eyebrow",
+        text: "Inbox",
+      });
+      stuck.createEl("p", { text: this.inboxStuck.text });
+    }
+
+    if (this.shouldShowUpdateNotesStrip()) {
+      this.renderUpdateNotesStrip(scroll);
+    }
+
+    if (
+      !firstDay &&
+      this.runPhase !== "preview" &&
+      this.runPhase !== "process" &&
+      this.runPhase !== "update" &&
+      !this.landPeak
+    ) {
+      const offer = this.backfillOfferModel(filingAuth);
+      if (offer) this.renderBackfillOffer(scroll, offer);
+    }
+
+    if (this.showShortcutBanner()) {
+      const banner = scroll.createDiv({ cls: "atoms-home-update-banner" });
+      const text = banner.createDiv();
+      text.createEl("strong", {
+        text:
+          this.shortcutAcked == null
+            ? "Capture shortcut"
+            : "Shortcut update",
+      });
+      text.createSpan({
+        text: `v${CAPTURE_ATOM_VERSION}`,
+        cls: "atoms-home-update-meta",
+      });
+      button(banner, {
+        grade: "secondary",
+        label: labelPhoneCaptureCta(this.shortcutAcked),
+        className: "atoms-home-update-btn",
+        onClick: () => this.onInstallShortcut(),
+      });
     }
   }
 
@@ -2759,6 +2743,18 @@ export class AtomsHomeView extends ItemView {
     menu.addItem((i) =>
       i.setTitle("Open today's note").onClick(() => void this.onOpenToday()),
     );
+    if (this.unprocessedCount > 0) {
+      menu.addItem((i) =>
+        i
+          .setTitle(`Process (${this.unprocessedCount})`)
+          .onClick(() => void this.onProcess(false)),
+      );
+      menu.addItem((i) =>
+        i
+          .setTitle(`Preview (${this.unprocessedCount})`)
+          .onClick(() => void this.onPreview(false)),
+      );
+    }
     if (this.todayUnprocessedCount > 0) {
       menu.addItem((i) =>
         i
@@ -2773,6 +2769,11 @@ export class AtomsHomeView extends ItemView {
           .onClick(() => void this.onProcess(true)),
       );
     }
+    menu.addItem((i) =>
+      i.setTitle("Sync everything").onClick(() => {
+        void this.plugin.runSyncEverythingNow();
+      }),
+    );
     menu.addItem((i) =>
       i
         .setTitle(labelPhoneCaptureCta(this.shortcutAcked))

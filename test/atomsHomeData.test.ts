@@ -36,7 +36,6 @@ import {
   shouldShowUpdateNotesNews,
   shouldShowWaitCard,
   shouldShowWaitHero,
-  quietProcessLine,
   titleFromAtomPath,
   updateNotesConfirmCopy,
   updateNotesQuotedN,
@@ -318,17 +317,16 @@ describe("shouldShowWaitCard / relative time", () => {
     expect(shouldShowWaitCard(3)).toBe(true);
   });
 
-  it("wait yields the hero when auto is on and a question exists", () => {
+  it("auto_on never occupies: leftover captures live in the subtitle", () => {
     expect(
       shouldShowWaitHero({
         unprocessedCount: 4,
         mode: "auto_on",
-        hasHumanQuestion: true,
       }),
     ).toBe(false);
   });
 
-  it("wait still owns blocked and broken modes even with a question", () => {
+  it("wait still owns blocked and broken modes", () => {
     for (const mode of [
       "need_key",
       "plus_limit",
@@ -339,25 +337,9 @@ describe("shouldShowWaitCard / relative time", () => {
         shouldShowWaitHero({
           unprocessedCount: 4,
           mode,
-          hasHumanQuestion: true,
         }),
       ).toBe(true);
     }
-  });
-
-  it("wait owns the hero when nothing is asking", () => {
-    expect(
-      shouldShowWaitHero({
-        unprocessedCount: 4,
-        mode: "auto_on",
-        hasHumanQuestion: false,
-      }),
-    ).toBe(true);
-  });
-
-  it("quiet Process reuses the wait-card sentences", () => {
-    expect(quietProcessLine(0)).toBe("Process when you are ready.");
-    expect(quietProcessLine(4)).toBe("Process only if you want them sooner.");
   });
 
   it("formats relative times", () => {
