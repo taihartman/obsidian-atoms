@@ -150,6 +150,7 @@ import {
 } from "../resurface/resurface";
 import {
   actionRow,
+  appendWikiDisplay,
   attachLongPress,
   backLink,
   button,
@@ -165,6 +166,7 @@ import {
   statusCard,
   textControl,
 } from "../ui";
+import { unwrapWikilinksForDisplay } from "../shared/wikiDisplay";
 import {
   clearContinueParent,
   continueChipLabel,
@@ -534,20 +536,7 @@ export class AtomsHomeView extends ItemView {
           const why = btn.createEl("p", {
             cls: "atoms-home-land-sentence-why",
           });
-          if (d.sentenceParts) {
-            for (const seg of d.sentenceParts) {
-              if (seg.kind === "link") {
-                why.createSpan({
-                  cls: "atoms-home-land-wiki",
-                  text: seg.text,
-                });
-              } else {
-                why.appendText(seg.text);
-              }
-            }
-          } else {
-            why.appendText(d.sentence ?? "");
-          }
+          appendWikiDisplay(why, d.sentence ?? "", d.sentenceParts);
           btn.createSpan({
             cls: "atoms-home-landed-title",
             text: featured.title,
@@ -656,10 +645,10 @@ export class AtomsHomeView extends ItemView {
       text: progressLabel(phase, this.runDone, this.runTotal || 1),
     });
     if (this.runSnippet) {
-      el.createEl("p", {
+      const snip = el.createEl("p", {
         cls: "atoms-home-progress-snippet",
-        text: this.runSnippet,
       });
+      appendWikiDisplay(snip, this.runSnippet);
     }
     const track = el.createDiv({ cls: "atoms-home-progress-track" });
     const fill = track.createDiv({ cls: "atoms-home-progress-fill" });
@@ -1117,10 +1106,10 @@ export class AtomsHomeView extends ItemView {
     const kickerText =
       card.cue === "connected" ? connectedKicker(card) : cueLabel(card.cue);
     kicker(el, { text: kickerText });
-    el.createEl("p", {
+    const snippet = el.createEl("p", {
       cls: "atoms-home-resurface-snippet",
-      text: card.bodySnippet,
     });
+    appendWikiDisplay(snippet, card.bodySnippet);
     if (card.cue === "connected") {
       const bridge = connectedBridge(card);
       if (bridge) {
@@ -2431,7 +2420,8 @@ export class AtomsHomeView extends ItemView {
         });
         for (const p of this.peek) {
           const row = listRow(peekList, { className: "atoms-home-qcell" });
-          row.createSpan({ text: p.text || "(empty)" });
+          const peekText = row.createSpan();
+          appendWikiDisplay(peekText, p.text || "(empty)");
           row.createEl("em", { text: p.date });
         }
       }
@@ -2697,7 +2687,7 @@ export class AtomsHomeView extends ItemView {
         role: "button",
       });
       row.setAttr("tabindex", "0");
-      row.setAttr("title", e.snippet);
+      row.setAttr("title", unwrapWikilinksForDisplay(e.snippet));
       this.libraryPressDetach.push(
         attachLongPress(row, {
           onTap: () => {
@@ -2720,7 +2710,8 @@ export class AtomsHomeView extends ItemView {
         }
       });
       const main = row.createDiv({ cls: "atoms-home-cell-main" });
-      main.createDiv({ cls: "atoms-home-cell-title", text: e.snippet });
+      const skippedTitle = main.createDiv({ cls: "atoms-home-cell-title" });
+      appendWikiDisplay(skippedTitle, e.snippet);
       const meta = main.createDiv({ cls: "atoms-home-cell-meta" });
       meta.createSpan({
         cls: "atoms-home-cell-source",

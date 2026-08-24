@@ -7,6 +7,7 @@ export {
 export type { AttachLongPressOpts } from "./longPress";
 export {
   actionRow,
+  appendWikiDisplay,
   backLink,
   button,
   claimQuote,

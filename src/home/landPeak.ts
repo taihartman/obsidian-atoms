@@ -2,6 +2,11 @@
  * Post-write land peak — pure copy + payload helpers (Land, then remember).
  */
 
+import {
+  wikiDisplaySegments,
+  type WikiDisplaySegment,
+} from "../shared/wikiDisplay";
+
 export type LandSource = "process" | "update" | "autorun";
 
 export type LandedLink = {
@@ -34,10 +39,7 @@ export type LandPeak = {
 
 export const LAND_TITLE_CAP = 3;
 
-export type SpokenSegment = {
-  kind: "text" | "link";
-  text: string;
-};
+export type SpokenSegment = WikiDisplaySegment;
 
 export type LandDisplay = {
   headline: string;
@@ -53,40 +55,13 @@ export type LandDisplay = {
   isFailure?: boolean;
 };
 
-/**
- * `[[Title]]`, `[[Title|alias]]`, optional `#heading`. Display text is alias, else title.
- * Reasons are markdown for atom files; Home is HTML, so brackets stay raw unless unwrapped.
- */
-const WIKILINK_DISPLAY_RE =
-  /\[\[([^\]|#]+)(?:#[^|\]]+)?(?:\|([^\]]+))?\]\]/g;
-
-export function spokenReasonSegments(source: string): SpokenSegment[] {
-  const text = source ?? "";
-  const out: SpokenSegment[] = [];
-  WIKILINK_DISPLAY_RE.lastIndex = 0;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = WIKILINK_DISPLAY_RE.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push({ kind: "text", text: text.slice(last, m.index) });
-    }
-    const shown = (m[2] ?? m[1] ?? "").trim();
-    if (shown) out.push({ kind: "link", text: shown });
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) {
-    out.push({ kind: "text", text: text.slice(last) });
-  }
-  return out;
-}
-
 export function spokenLandSentence(link: LandedLink): {
   sentence: string;
   parts: SpokenSegment[];
 } {
   const raw = link.reason.trim();
   if (raw) {
-    const parts = spokenReasonSegments(raw);
+    const parts = wikiDisplaySegments(raw);
     const sentence = parts.map((s) => s.text).join("");
     if (sentence) return { sentence, parts };
   }

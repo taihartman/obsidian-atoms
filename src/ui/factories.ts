@@ -3,6 +3,11 @@
  * Visual authority: docs/design-handoff/tokens/README.md
  */
 
+import {
+  wikiDisplaySegments,
+  type WikiDisplaySegment,
+} from "../shared/wikiDisplay";
+
 export type ButtonGrade = "primary" | "secondary" | "quiet";
 export type StatusTone = "wait" | "progress" | "done" | "error";
 export type LinkChipKind = "person" | "work" | "neutral";
@@ -152,7 +157,27 @@ export function statusCard(
   });
 }
 
-/** Serif claim body with CSS quote chrome. Text is never mutated. */
+/** Wikilink names as link-colored spans. Vault files keep `[[Title]]`. */
+export function appendWikiDisplay(
+  parent: HTMLElement,
+  source: string,
+  parts?: WikiDisplaySegment[] | null,
+): void {
+  const segs = parts ?? wikiDisplaySegments(source);
+  if (!segs.length) {
+    if (source) parent.appendText(source);
+    return;
+  }
+  for (const seg of segs) {
+    if (seg.kind === "link") {
+      parent.createSpan({ cls: "atoms-ui-wiki", text: seg.text });
+    } else {
+      parent.appendText(seg.text);
+    }
+  }
+}
+
+/** Serif claim body with CSS quote chrome. Vault text is never rewritten. */
 export function claimQuote(
   parent: HTMLElement,
   opts: {
@@ -162,9 +187,9 @@ export function claimQuote(
   },
 ): HTMLParagraphElement {
   const el = parent.createEl("p", {
-    text: opts.text,
     cls: mergeCls("atoms-ui-claim-quote", opts.className),
   });
+  appendWikiDisplay(el, opts.text);
   if (opts.maxLines != null && opts.maxLines > 0) {
     // Discrete classes only — community lint rejects runtime style assignment
     // even via setCssProps for this surface. Call sites use 4 or 8.
