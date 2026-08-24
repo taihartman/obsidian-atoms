@@ -1,0 +1,77 @@
+{
+  "subject": "I didn't outline the last letter",
+  "title": "I didn't outline the last letter",
+  "preheader": "I filed research on how videos hold attention, then forgot it. It shaped the last letter anyway.",
+  "tease": "I filed research on how videos hold attention, then forgot it. It shaped the last letter anyway.",
+  "blocks": [
+    {
+      "type": "tldr",
+      "lines": [
+        "I pasted in research about how video creators hold attention, then forgot about it. Sitting down to draft the last letter, it came back as the outline.",
+        "A filed note sits still. This one did work."
+      ]
+    },
+    {
+      "type": "p",
+      "text": "The letter you got last time, about Dom at the climbing gym and the name I couldn't come up with. I didn't outline that one."
+    },
+    {
+      "type": "p",
+      "text": "Before I wrote it I'd pasted a pile of research into my vault. A breakdown of how video creators hold attention: open loops, stakes, the reason people stay past the first few seconds. It went in messy, got filed, and I stopped thinking about it."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-filed-research.93d674f4.png",
+      "alt": "A filed note titled How video creators hold attention, tagged reference and marketing, with one line: open loops, stakes"
+    },
+    {
+      "type": "p",
+      "text": "Then I sat down to draft the letter and asked for help shaping it."
+    },
+    {
+      "type": "h2",
+      "text": "I never mentioned it"
+    },
+    {
+      "type": "p",
+      "text": "The outline that came back: open on the blank where his name should be, close it fast with the name, open the bigger question about why a notes app could do that at all, pay it off at the end."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-outline-came-back.5abac48c.png",
+      "alt": "The outline that came back: open on the blank where his name should be, close it fast with the name, open the bigger question, pay it off at the end"
+    },
+    {
+      "type": "p",
+      "text": "That is the research note. Picked up and used on the thing I was actually working on, because it was relevant, not because I remembered owning it."
+    },
+    {
+      "type": "h2",
+      "text": "Filing versus working"
+    },
+    {
+      "type": "p",
+      "text": "Every notes system I've had was good at the filing part. Tidy titles, the right folder, tags I never went back and searched. What I had was a well organized place for my thinking to sit."
+    },
+    {
+      "type": "p",
+      "text": "A note that gets filed is still a note sitting there. This one did something I wouldn't have known to ask for, because I'd forgotten it was mine."
+    },
+    {
+      "type": "h2",
+      "text": "The part it wouldn't use"
+    },
+    {
+      "type": "p",
+      "text": "Same session. My note about Dom described him by how I'd pick him out across a room, the way you'd describe anyone you met once and wanted to recognize again. Fine in my notes. It got left out of the letter, and I hadn't asked for that."
+    },
+    {
+      "type": "p",
+      "text": "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+    }
+  ],
+  "cta": {
+    "label": "Open tryatoms.app",
+    "href": "https://tryatoms.app"
+  }
+}
