@@ -510,10 +510,17 @@ describe("recall claims stay within what ships", () => {
   });
 
   it("promises the capture shortcut only where it ships", () => {
-    expect(index).toContain("shortcut on your iPhone");
-    // Android capture is "later" per the constitution. Do not promise it.
-    expect(index).not.toMatch(/Android[^<]{0,40}(shortcut|capture)/i);
-    expect(index).not.toMatch(/(shortcut|capture)[^<]{0,40}Android/i);
+    expect(index).toContain("shortcut on iPhone");
+    expect(index).toContain("Atoms Capture on Android");
+  });
+
+  it("answers Cowork, pictures, and quick capture without a topbar link", () => {
+    expect(index).toContain('id="questions"');
+    expect(index).toContain("Can I just use Cowork on my vault?");
+    expect(index).toContain("do not take photos");
+    expect(index).toContain("Quick capture is the first step");
+    const bar = index.slice(index.indexOf("<nav"), index.indexOf("</nav>"));
+    expect(bar).not.toContain("#questions");
   });
 
   it("never promises notifications, reminders, or a review queue", () => {

@@ -1139,6 +1139,27 @@ main[data-story="self"] .s-people {
   font-size: 0.94rem;
 }
 
+/* ---------- questions ---------- */
+
+.qa {
+  margin: 24px 0 0;
+}
+
+.qa-item {
+  padding: 18px 0;
+  border-top: 1px solid var(--sep-soft);
+}
+
+.qa-item:first-child {
+  border-top: 0;
+  padding-top: 6px;
+}
+
+.qa-item p {
+  margin-top: 8px;
+  font-size: 0.94rem;
+}
+
 /* ---------- claim ---------- */
 
 .claim {

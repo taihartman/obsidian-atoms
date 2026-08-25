@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Mock · How it works + Questions</title>
+    <link rel="stylesheet" href="../../../www/src/styles.css?v=2" />
+    <style>
+      /* Mock chrome only. Proposed landing CSS is .qa below. */
+      .mock-banner {
+        margin: 0;
+        padding: 10px var(--gutter);
+        background: var(--elev);
+        border-bottom: 1px solid var(--sep);
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: center;
+      }
+      .mock-banner strong {
+        color: var(--label);
+        font-weight: 650;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+      .unchanged {
+        padding: 36px 0;
+        border-top: 1px solid var(--sep-soft);
+        text-align: center;
+      }
+      .unchanged p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--faint);
+      }
+      .proposed-kicker,
+      .steps p.proposed-kicker {
+        margin: 0 0 8px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--tint-ink);
+      }
+      .qa {
+        margin: 24px 0 0;
+      }
+      .qa-item {
+        padding: 18px 0;
+        border-top: 1px solid var(--sep-soft);
+      }
+      .qa-item:first-child {
+        border-top: 0;
+        padding-top: 6px;
+      }
+      .qa-item p {
+        margin-top: 8px;
+        font-size: 0.94rem;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="mock-banner">
+      Mock · not live.
+      <strong>Blue “Proposed” marks the new copy.</strong>
+      Ask, Catch up, and Pricing are skipped.
+    </p>
+
+    <nav class="topbar is-stuck" aria-label="Sections">
+      <div class="topbar-in">
+        <a class="topbar-mark" href="#top">
+          <span class="sentinel" aria-hidden="true">↳</span> Atoms
+        </a>
+        <ul class="topbar-links">
+          <li><a href="#how" class="is-current">How it works</a></li>
+          <li><a href="#ask">Ask</a></li>
+          <li><a href="#backfill">Catch up</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+        <a class="btn btn--primary btn--bar" href="#pricing">Get Atoms</a>
+      </div>
+    </nav>
+
+    <main>
+      <section class="band" id="how">
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <h2>You only do the first step.</h2>
+
+          <ol class="steps">
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <p class="proposed-kicker">Proposed</p>
+                <h3>Catch it in five seconds</h3>
+                <p>
+                  A shortcut on iPhone (home screen, share sheet, or Siri), or
+                  Atoms Capture on Android. Type or talk. Your thought is added
+                  to Obsidian in a few seconds. You can open the daily later and
+                  add to it.
+                </p>
+                <p>
+                  On a desktop, type a line in today’s daily note. Either way,
+                  nothing new to learn and nowhere new to put it.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Come back and it is sorted</h3>
+                <p>
+                  Yesterday’s captures become notes with a real title and links
+                  to what they relate to. Let it happen on its own each time you
+                  open Obsidian, or keep it to one tap.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span class="sentinel" aria-hidden="true">↳</span>
+              <div>
+                <h3>Now you can find it</h3>
+                <p>Ask for it, or let it come back to you. Both are below.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <div class="unchanged">
+        <p>Ask · Catch up · Pricing · unchanged</p>
+      </div>
+
+      <section class="band" id="questions">
+        <div class="wrap">
+          <p class="proposed-kicker">Proposed</p>
+          <p class="eyebrow">Questions</p>
+          <h2>A few things people ask.</h2>
+
+          <div class="qa">
+            <div class="qa-item">
+              <h3>Can I just use Cowork on my vault?</h3>
+              <p>
+                Yes. Cowork is fine. Atoms is the part before you ask. A thought
+                is added to Obsidian in a few seconds, then titled and linked.
+                After that you can ask from Cowork, or from Claude or ChatGPT
+                with the connector. The connector is built for those filed
+                notes. It does not need Cowork running, and it does not need the
+                vault on the machine you are typing on.
+              </p>
+            </div>
+            <div class="qa-item">
+              <h3>What about pictures?</h3>
+              <p>
+                Capture is type or voice. The iPhone shortcut and Atoms Capture
+                do not take photos, and Atoms does not read the picture. If a
+                picture is already in your vault, it stays. If you wrote a line
+                about it, that line is what gets filed.
+              </p>
+            </div>
+            <div class="qa-item">
+              <h3>How does this help with quick capture?</h3>
+              <p>
+                Quick capture is the first step. Finding is what happens after.
+                Shortcut on iPhone, Atoms Capture on Android. Type or talk. Your
+                thought is added to Obsidian in a few seconds. You can open the
+                daily later and add to it. Then it gets processed and linked.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" id="install">
+        <div class="wrap">
+          <p class="eyebrow">Install</p>
+          <h2>Get Atoms</h2>
+          <p>
+            Atoms runs inside Obsidian (free). You install it from Obsidian’s
+            plugin directory, add your key or start a trial, and that is the
+            setup.
+          </p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
