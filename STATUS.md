@@ -7,7 +7,6 @@ Process: [`docs/collab.md`](docs/collab.md) · Issues/PRs on GitHub.
 
 | State | Issue | Owner | Branch | Plan | Hot files | Notes |
 |---|---|---|---|---|---|---|
-| In progress | #606 | Tai | `feat/www-landing-questions` | (amend: landing step 1 + Questions) | `www/src/index.html.tmpl`, `www/src/styles.css`, `test/wwwPricing.test.ts` | How it works names Android Capture. FAQ answers Cowork, pictures, quick capture. Mock approved. |
 | In review | #586 | Tai | `cursor/fix-duplicate-atoms-plus-byok-d208` | (debug: body+source capture identity; Plus key is usage fallback) | `src/pipeline/render.ts`, `src/pipeline/write.ts`, `src/pipeline/backfill.ts`, `src/platform/filingAuth.ts`, `src/settings/settings.ts`, `test/collision-integrity-repro.test.ts`, `test/render.test.ts`, `test/write.test.ts`, `test/filingAuth.test.ts`, `test/settings.test.ts` | Plus+BYOK does not dual-fire one Process. Plus first while it can classify; stored key files only after Plus is exhausted. Identity is body+source daily. Residual: both devices can still race before either atom syncs. |
 | Blocked | #579 | Tai | `cursor/plan-sidebar-header-4de5` | `docs/plans/2026-08-19-001-fix-persistent-sidebar-header-plan.md` | `src/home/atomsHomeView.ts`, `test/atomsHomeView.test.ts`, `test/helpers/homeView.ts`, `tsconfig.test.json`, `package.json`, `manifest.json`, `versions.json`, `docs/solutions/ui-bugs/shared-chrome-must-render-before-detail-branches.md`, `docs/qa/2026-08-19-persistent-sidebar-header-world-class-qa.md` | Code + automated checks complete. Merge-readiness blocked: Obsidian CLI and shared world-class/adversarial QA skills unavailable; live sidebar smoke and screenshots pending. |
 | In progress | #571 | Tai | `feat/watchlist-hub-membership` | `docs/plans/2026-08-17-2132-fix-watchlist-hub-membership-plan.md` | `src/pipeline/enrich/media.ts`, `src/pipeline/enrich/listHubs.ts`, `src/pipeline/hubInvite.ts` | Watchlist membership = named work + family on the work. Draft. |
@@ -27,6 +26,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-08-25 | #606 / #607 | Landing names Android capture and answers Cowork, pictures, and quick capture. www-only. |
 | 2026-08-24 | #594 / #604 | Home occupancy · **0.8.18**. Leftover captures stay a subtitle count; wait occupies only when filing is blocked; Process lives in More. Loop-close first, then Track My car after Keep it open (told-pair ranking; 500ms swap guard). Report: `docs/qa/2026-08-24-fix-594-invite-inherits-hero-world-class-qa.md`. |
 | 2026-08-24 | #602 / #603 | Home sidebar unwraps `[[wikilink]]` to a link-colored name · **0.8.17**. Done card, claim quotes, For you, progress, peek, skipped. Vault files still store wikilinks. Unit + CI green; live vault smoke not run. |
 | 2026-08-24 | #598 / #599 | Phone visitors can reach Field notes from the homepage. The `#notes` band and footer carry **Read past Field notes** → `/notes/`, because the top nav hides under 720px. www-only; no plugin bump. |
