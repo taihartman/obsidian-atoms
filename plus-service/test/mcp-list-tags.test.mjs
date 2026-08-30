@@ -246,6 +246,54 @@ describe("list_tags tool", () => {
     );
     assert.deepEqual(body.results, []);
     assert.match(String(body.hint || ""), /list_tags/);
+    assert.equal(body.omitted_below_threshold, 0);
+    assert.equal(body.omitted_by_limit, 0);
+    assert.equal(body.tag_pool, 0);
+    assert.equal(body.returned, 0);
+  });
+
+  it("search_atoms tagged browse returns tag-scope fills and truncation fields", async () => {
+    const store = await createStore({ mode: "memory" });
+    await store.grantPeriod("j@t.co", { status: "active", remaining: 10 });
+    await store.mirrorUpsert("j@t.co", [
+      {
+        path: "Atoms/Dom.md",
+        title: "Dom is the darker-skinned guy met climbing at CRG in trainer shoes",
+        body: "Dom is the darker-skinned guy met climbing at CRG in trainer shoes",
+        tags: ["person"],
+        created: "2026-07-01",
+      },
+      {
+        path: "Atoms/John.md",
+        title: "John is the porch neighbor who thought I was upstairs",
+        body: "John is that one dude that I walked by on the porch, who was wondering if I was his upstairs neighbor.",
+        tags: ["person"],
+        created: "2026-08-21",
+      },
+    ]);
+    const mcp = makeMcp(store, "j@t.co");
+    const body = parseToolJson(
+      await mcp._registeredTools.search_atoms.handler(
+        { query: "person met name", tags: ["person"], limit: 25 },
+        {},
+      ),
+    );
+    assert.equal(body.tag_pool, 2);
+    assert.equal(body.omitted_below_threshold, 0);
+    assert.equal(body.returned, 2);
+    const john = body.results.find((h) => String(h.title).startsWith("John "));
+    assert.ok(john);
+    assert.deepEqual(john.match_signals, ["tag_scope"]);
+
+    const limited = parseToolJson(
+      await mcp._registeredTools.search_atoms.handler(
+        { query: "person met name", tags: ["person"], limit: 1 },
+        {},
+      ),
+    );
+    assert.equal(limited.returned, 1);
+    assert.equal(limited.omitted_by_limit, 1);
+    assert.match(String(limited.hint || ""), /list_atoms/);
   });
 });
 

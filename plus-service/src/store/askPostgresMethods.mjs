@@ -6,7 +6,7 @@ import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
-  buildSearchHits,
+  rankSearchHits,
   normEmail,
   paginateMirrorList,
   prepareMirrorRow,
@@ -265,7 +265,7 @@ export function createAskPostgresMethods(pool, deps) {
       [e],
     );
     const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: true }));
-    return buildSearchHits(pubs, query, limit, opts);
+    return rankSearchHits(pubs, query, limit, opts);
   }
 
   async function mirrorNeighbors(email, idOrTitle) {

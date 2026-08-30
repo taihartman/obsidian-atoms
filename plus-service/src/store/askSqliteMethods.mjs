@@ -6,7 +6,7 @@ import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
-  buildSearchHits,
+  rankSearchHits,
   normEmail,
   paginateMirrorList,
   prepareMirrorRow,
@@ -262,7 +262,7 @@ export function createAskSqliteMethods(db, deps) {
     const e = normEmail(email);
     const rows = db.prepare("SELECT * FROM atom_mirror WHERE email = ?").all(e);
     const pubs = rows.map((r) => rowToPublicAtom(r, { includeBody: true }));
-    return buildSearchHits(pubs, query, limit, opts);
+    return rankSearchHits(pubs, query, limit, opts);
   }
 
   function mirrorNeighbors(email, idOrTitle) {

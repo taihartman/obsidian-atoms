@@ -165,6 +165,24 @@ export function createdSortKey(created) {
   return s;
 }
 
+/** Newer created first; missing created last. */
+function compareCreatedDesc(aCreated, bCreated) {
+  const ak = createdSortKey(aCreated);
+  const bk = createdSortKey(bCreated);
+  if (!ak && !bk) return 0;
+  if (!ak) return 1;
+  if (!bk) return -1;
+  return String(bk).localeCompare(String(ak));
+}
+
+function compareScoredHits(a, b) {
+  const scoreCmp = b.score - a.score;
+  if (scoreCmp) return scoreCmp;
+  const createdCmp = compareCreatedDesc(a.hit.created, b.hit.created);
+  if (createdCmp) return createdCmp;
+  return String(a.hit.title).localeCompare(String(b.hit.title));
+}
+
 /**
  * @param {{ path: string, title?: string, body?: string, tags?: string[], links?: {note:string,reason?:string}[], atomId?: string, kind?: string, created?: string }} atom
  */
@@ -1119,28 +1137,30 @@ export function revisionStatusFor(centerTitle, inboundIndex) {
 }
 
 /**
- * Score + rank public atoms into search hits with status + non-authoritative snippets.
- * @param {{ id?: string, title: string, path: string, kind?: string, tags?: string[], text?: string, links?: {note:string,reason?:string}[] }[]} pubs
+ * Score + rank public atoms into search hits with truncation stats.
+ * Tagged calls skip the relevance floor: every atom that carries all requested
+ * tags is eligible up to limit (browse, not search). Query still ranks.
+ * @param {{ id?: string, title: string, path: string, kind?: string, tags?: string[], text?: string, links?: {note:string,reason?:string}[], created?: string, updatedAt?: string }[]} pubs
  * @param {string} query
  * @param {number} limit
- * @param {{ tags?: string[], snippets?: boolean }} [opts]
+ * @param {{ tags?: string[], snippets?: boolean, relFloor?: number }} [opts]
+ * @returns {{ hits: object[], omitted_below_threshold: number, omitted_by_limit: number, tag_pool: number }}
  */
-export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
+export function rankSearchHits(pubs, query, limit = 8, opts = {}) {
   const lim = Math.min(Math.max(Number(limit) || 8, 1), 25);
   const tagFilter = opts.tags;
+  const taggedBrowse = Array.isArray(tagFilter) && tagFilter.length > 0;
   const includeSnippets = opts.snippets !== false;
   const relFloor =
     opts.relFloor == null ? SEARCH_REL_FLOOR : Number(opts.relFloor);
   const inboundIndex = buildInboundIndex(pubs);
   const scored = [];
+  let tag_pool = 0;
+  let omittedBelow = 0;
   for (const pub of pubs || []) {
     if (!matchesTagFilter(pub.tags, tagFilter)) continue;
-    const {
-      score: s,
-      confidence,
-      expandStrong,
-      match_signals,
-    } = scoreSearch(
+    if (taggedBrowse) tag_pool += 1;
+    const ranked = scoreSearch(
       {
         title: pub.title,
         path: pub.path,
@@ -1150,7 +1170,17 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       },
       query,
     );
-    if (!confidence || s <= 0) continue;
+    let { score: s, confidence, expandStrong, match_signals } = ranked;
+    const hasSignal = Boolean(match_signals?.length);
+    if (!confidence || s <= 0) {
+      if (!taggedBrowse) {
+        if (hasSignal) omittedBelow += 1;
+        continue;
+      }
+      s = 0;
+      confidence = "medium";
+      match_signals = ["tag_scope"];
+    }
     const rev = revisionStatusFor(pub.title, inboundIndex);
     /** @type {Record<string, unknown>} */
     const hit = {
@@ -1176,13 +1206,17 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
     if (rev.status === "contradicted") hit.contradicted_by = rev.contradicted_by;
     scored.push({ score: s, hit, expandStrong: Boolean(expandStrong) });
   }
-  scored.sort(
-    (a, b) => b.score - a.score || String(a.hit.title).localeCompare(String(b.hit.title)),
-  );
+  scored.sort(compareScoredHits);
   // Relative floor only among medium hits (vs top medium). High title/tag hits
   // always stay — otherwise a 1000 title score drops every body/expand medium.
+  // Tagged browse skips it: the caller already scoped the pool.
   let filtered = scored;
-  if (scored.length >= 2 && Number.isFinite(relFloor) && relFloor > 0) {
+  if (
+    !taggedBrowse &&
+    scored.length >= 2 &&
+    Number.isFinite(relFloor) &&
+    relFloor > 0
+  ) {
     const highs = scored.filter((x) => x.hit.confidence === "high");
     const mediums = scored.filter((x) => x.hit.confidence === "medium");
     if (mediums.length >= 2) {
@@ -1191,15 +1225,30 @@ export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
       const keptMed = mediums.filter(
         (x) => x.expandStrong || x.score >= floor,
       );
-      filtered = [...highs, ...(keptMed.length ? keptMed : [mediums[0]])];
-      filtered.sort(
-        (a, b) =>
-          b.score - a.score ||
-          String(a.hit.title).localeCompare(String(b.hit.title)),
-      );
+      const kept = keptMed.length ? keptMed : [mediums[0]];
+      omittedBelow += mediums.length - kept.length;
+      filtered = [...highs, ...kept];
+      filtered.sort(compareScoredHits);
     }
   }
-  return filtered.slice(0, lim).map((x) => x.hit);
+  const omitted_by_limit = Math.max(0, filtered.length - lim);
+  return {
+    hits: filtered.slice(0, lim).map((x) => x.hit),
+    omitted_below_threshold: taggedBrowse ? 0 : omittedBelow,
+    omitted_by_limit,
+    tag_pool,
+  };
+}
+
+/**
+ * Score + rank public atoms into search hits with status + non-authoritative snippets.
+ * @param {{ id?: string, title: string, path: string, kind?: string, tags?: string[], text?: string, links?: {note:string,reason?:string}[] }[]} pubs
+ * @param {string} query
+ * @param {number} limit
+ * @param {{ tags?: string[], snippets?: boolean }} [opts]
+ */
+export function buildSearchHits(pubs, query, limit = 8, opts = {}) {
+  return rankSearchHits(pubs, query, limit, opts).hits;
 }
 
 /**

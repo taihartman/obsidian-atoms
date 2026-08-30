@@ -28,6 +28,24 @@ function jsonTool(obj, isError = false) {
   };
 }
 
+/** Normalize mirrorSearch to hits + truncation stats (array legacy or ranked object). */
+function unpackSearch(result) {
+  if (Array.isArray(result)) {
+    return {
+      hits: result,
+      omitted_below_threshold: 0,
+      omitted_by_limit: 0,
+      tag_pool: 0,
+    };
+  }
+  return {
+    hits: Array.isArray(result?.hits) ? result.hits : [],
+    omitted_below_threshold: Number(result?.omitted_below_threshold) || 0,
+    omitted_by_limit: Number(result?.omitted_by_limit) || 0,
+    tag_pool: Number(result?.tag_pool) || 0,
+  };
+}
+
 /** Normalize mirrorStatus.updatedAt → ISO string or null. */
 function formatLastSynced(updatedAt) {
   if (updatedAt == null) return null;
@@ -141,7 +159,7 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Search atoms",
       description:
-        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each hit includes open_now (boolean) and loop {state,source}|null — when open_now is true the note is an intention left for later, not finished substance; never pitch it as a ready asset (label among candidates; redeem with relation redeems to close). Also: retrieval (lexical|lexical_expanded), expand_coverage, confidence high|medium, optional match_signals. Weak matches omitted. Empty ≠ vault absence. Snippets non-authoritative—fetch_atom for body claims. Numeric score is ranking only.",
+        "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each hit includes open_now (boolean) and loop {state,source}|null — when open_now is true the note is an intention left for later, not finished substance; never pitch it as a ready asset (label among candidates; redeem with relation redeems to close). Also: retrieval (lexical|lexical_expanded), expand_coverage, omitted_below_threshold, omitted_by_limit, tag_pool, confidence high|medium, optional match_signals (title|tag|body|expand|tag_scope). tags filters the pool: every atom with those tags is eligible up to limit, ranked by score then created; the relevance floor does not hide members. tag_scope means in the tag set, not a query hit — fetch before quoting. Recency / all-of-a-tag / newest → list_atoms (tags + sort_by=created order=desc), not a second search. Weak matches omitted only when tags is omitted. Empty ≠ vault absence. Snippets non-authoritative—fetch_atom for body claims. Numeric score is ranking only.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         query: z.string().describe("Search query"),
@@ -149,7 +167,9 @@ export function registerAskTools(mcp, ctx) {
         tags: z
           .array(z.string())
           .optional()
-          .describe("Only atoms that have all of these tags"),
+          .describe(
+            "Browse scope: only atoms that have all of these tags. Floor does not hide members; rank is score then created.",
+          ),
         snippets: z
           .boolean()
           .optional()
@@ -160,10 +180,14 @@ export function registerAskTools(mcp, ctx) {
     },
     async ({ query, limit, tags, snippets }) => {
       const st = await store.mirrorStatus(email);
-      const hits = await store.mirrorSearch(email, query, limit ?? 8, {
-        tags,
-        snippets,
-      });
+      const ranked = unpackSearch(
+        await store.mirrorSearch(email, query, limit ?? 8, {
+          tags,
+          snippets,
+        }),
+      );
+      const { hits, omitted_below_threshold, omitted_by_limit, tag_pool } =
+        ranked;
       const scope = absenceMeta();
       let expand_coverage = 0;
       if (typeof store.mirrorExpandCoverage === "function") {
@@ -174,6 +198,11 @@ export function registerAskTools(mcp, ctx) {
         retrieval === "lexical_expanded"
           ? "no confident match under lexical+expansion scoring"
           : "no confident lexical match";
+      const trunc = {
+        omitted_below_threshold,
+        omitted_by_limit,
+        tag_pool,
+      };
       if (!hits.length) {
         const tagFilter = Array.isArray(tags) && tags.length > 0;
         let emptyHint;
@@ -190,14 +219,23 @@ export function registerAskTools(mcp, ctx) {
                 results: [],
                 account: email,
                 mirror_count: st.count,
+                returned: 0,
+                limit: limit ?? 8,
                 retrieval,
                 expand_coverage,
+                ...trunc,
                 ...scope,
                 hint: emptyHint,
               }),
             },
           ],
         };
+      }
+      let hint;
+      if (omitted_by_limit > 0) {
+        hint = Array.isArray(tags) && tags.length
+          ? "more tagged notes exist than this limit—page with list_atoms using the same tags, sort_by=created, order=desc"
+          : "more matches exist than this limit";
       }
       return {
         content: [
@@ -212,7 +250,9 @@ export function registerAskTools(mcp, ctx) {
                 limit: limit ?? 8,
                 retrieval,
                 expand_coverage,
+                ...trunc,
                 ...scope,
+                hint,
               },
               null,
               2,

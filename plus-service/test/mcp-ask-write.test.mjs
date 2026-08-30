@@ -21,6 +21,10 @@ describe("MCP ask write helpers + store path", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /check my atoms/);
     assert.match(ASK_MCP_INSTRUCTIONS, /One look/);
     assert.match(ASK_MCP_INSTRUCTIONS, /Do not retry search_atoms/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /list_atoms, and mirror_status still apply/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /tag_scope/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /omitted_by_limit/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /omitted_below_threshold/);
     assert.match(ASK_MCP_INSTRUCTIONS, /thinking out loud/i);
     assert.match(ASK_MCP_INSTRUCTIONS, /generic advice/);
     assert.match(ASK_MCP_INSTRUCTIONS, /didn't I write/);
