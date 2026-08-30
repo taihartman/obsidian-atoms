@@ -45,6 +45,11 @@ import {
   type InboxStuckSummary,
 } from "./atomsHomeData";
 import {
+  HOME_VAULT_REFRESH_MS,
+  homeScrollScreen,
+  shouldSkipHomeVaultRefresh,
+} from "./homeScroll";
+import {
   applyRedeemsLink,
   collectLoopCloseOffers,
   loopCloseCardCopy,
@@ -291,6 +296,10 @@ export class AtomsHomeView extends ItemView {
   private libraryPressDetach: Array<() => void> = [];
   private shortcutAcked: string | null = null;
   private refreshTimer: number | null = null;
+  /** Last screen `render()` painted. Used to store scroll before `empty()`. */
+  private lastScrollScreen = "main";
+  /** Scroll position per screen. Same rule as Settings: a seen screen keeps its place. */
+  private scrollByScreen = new Map<string, number>();
   /** Session-only skips for From-the-brain Next (not durable). */
   private resurfaceSkipPaths = new Set<string>();
   private resurfaceCandidates: ResurfaceCandidate[] = [];
@@ -400,18 +409,19 @@ export class AtomsHomeView extends ItemView {
     container.empty();
     container.addClass("atoms-home");
     this.rootEl = container;
-    // Keep library in sync when process writes atoms / markers elsewhere
-    const scheduleRefresh = () => {
-      if (this.busy) return; // onProcess finally refreshes
-      if (this.refreshTimer != null) window.clearTimeout(this.refreshTimer);
-      this.refreshTimer = window.setTimeout(() => {
-        this.refreshTimer = null;
-        void this.refresh();
-      }, 400);
-    };
-    this.registerEvent(this.app.vault.on("create", scheduleRefresh));
-    this.registerEvent(this.app.vault.on("modify", scheduleRefresh));
-    this.registerEvent(this.app.vault.on("delete", scheduleRefresh));
+    // Keep library in sync when process writes atoms / markers elsewhere.
+    // Filing passes skip this path: Process patches in place, auto-run
+    // finishes with one refresh. The timer re-checks so a write queued
+    // just before Process cannot rebuild mid-run.
+    this.registerEvent(
+      this.app.vault.on("create", () => this.onVaultChangeForLibrary()),
+    );
+    this.registerEvent(
+      this.app.vault.on("modify", () => this.onVaultChangeForLibrary()),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", () => this.onVaultChangeForLibrary()),
+    );
     await this.refresh();
   }
 
@@ -437,6 +447,41 @@ export class AtomsHomeView extends ItemView {
   async refresh(): Promise<void> {
     await this.loadData();
     this.render();
+  }
+
+  /** Vault writes. Skip while a filing pass already owns the next paint. */
+  private onVaultChangeForLibrary(): void {
+    if (this.shouldSkipVaultRefresh()) return;
+    if (this.refreshTimer != null) window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = window.setTimeout(() => {
+      this.refreshTimer = null;
+      if (this.shouldSkipVaultRefresh()) return;
+      void this.refresh();
+    }, HOME_VAULT_REFRESH_MS);
+  }
+
+  private shouldSkipVaultRefresh(): boolean {
+    return shouldSkipHomeVaultRefresh({
+      busy: this.busy,
+      autoRunInFlight: this.plugin.getAutoRunSnapshot().inFlight,
+    });
+  }
+
+  /**
+   * Close over this paint's scroller. Querying later can land on the next
+   * screen after a navigation (Settings needed `hiding` for that). Re-apply
+   * after layout: a same-turn restore can clamp to 0 while the pane is still
+   * as tall as its content.
+   */
+  private restoreHomeScroll(scroll: HTMLElement, top: number): void {
+    scroll.scrollTop = top;
+    if (top <= 0) return;
+    window.requestAnimationFrame(() => {
+      scroll.scrollTop = top;
+    });
+    window.setTimeout(() => {
+      scroll.scrollTop = top;
+    }, 0);
   }
 
   /** Start a home-visible run (Preview, Process, or Update notes). */
@@ -2231,6 +2276,12 @@ export class AtomsHomeView extends ItemView {
   private render(): void {
     const root = this.rootEl;
     if (!root) return;
+    const nextScreen = homeScrollScreen(this.homeOpen);
+    const prev = root.querySelector(".atoms-home-scroll");
+    if (prev instanceof HTMLElement) {
+      this.scrollByScreen.set(this.lastScrollScreen, prev.scrollTop);
+    }
+    this.lastScrollScreen = nextScreen;
     root.empty();
 
     const firstDay = this.isFirstDay();
@@ -2297,9 +2348,13 @@ export class AtomsHomeView extends ItemView {
     });
 
     const scroll = root.createDiv({ cls: "atoms-home-scroll" });
+    const restoreScroll = () => {
+      this.restoreHomeScroll(scroll, this.scrollByScreen.get(nextScreen) ?? 0);
+    };
 
     if (this.homeOpen) {
       this.renderHomeOpen(scroll);
+      restoreScroll();
       return;
     }
 
@@ -2667,6 +2722,8 @@ export class AtomsHomeView extends ItemView {
         onClick: () => this.onInstallShortcut(),
       });
     }
+
+    restoreScroll();
   }
 
   private renderSkippedLibrary(scroll: HTMLElement, firstDay: boolean): void {

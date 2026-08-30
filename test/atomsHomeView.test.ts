@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { HOME_VAULT_REFRESH_MS } from "../src/home/homeScroll";
 import {
   renderedHomeView,
   type HomeOpenFixture,
@@ -71,6 +72,12 @@ function pressBack(home: RenderedHomeHarness): void {
   const back = home.root.querySelector(".atoms-home-back");
   expect(back).not.toBeNull();
   (back as HTMLButtonElement).click();
+}
+
+function homeScroller(home: RenderedHomeHarness): HTMLElement {
+  const scroll = home.root.querySelector(".atoms-home-scroll");
+  expect(scroll).not.toBeNull();
+  return scroll as HTMLElement;
 }
 
 afterEach(() => {
@@ -210,5 +217,125 @@ describe("AtomsHomeView shared header shell", () => {
     expect(home.root.querySelector(".atoms-home-open-title")?.textContent).toBe("Origin atom");
     expect(home.root.querySelector(".atoms-home-open-body")?.textContent).toBe("Origin body");
     expect(home.root.querySelectorAll(".atoms-home-back")).toHaveLength(1);
+  });
+});
+
+describe("AtomsHomeView scroll while filing", () => {
+  it("keeps the main library where it was across a full render", () => {
+    const home = renderedHomeView();
+    home.render();
+    homeScroller(home).scrollTop = 420;
+
+    home.render();
+
+    expect(homeScroller(home).scrollTop).toBe(420);
+  });
+
+  it("starts a detail at the top and restores the library on the way back", () => {
+    const home = renderedHomeView();
+    home.render();
+    homeScroller(home).scrollTop = 420;
+
+    home.setOpen(atomDetail);
+    home.render();
+    expect(homeScroller(home).scrollTop).toBe(0);
+
+    homeScroller(home).scrollTop = 80;
+    pressBack(home);
+    expect(homeScroller(home).scrollTop).toBe(420);
+  });
+
+  it("does not hand a second detail the first's scroll", () => {
+    const home = renderedHomeView();
+    home.setOpen(atomDetail);
+    home.render();
+    homeScroller(home).scrollTop = 260;
+
+    home.setOpen({
+      ...atomDetail,
+      path: "Atoms/Other.md",
+      title: "Other",
+    });
+    home.render();
+
+    expect(homeScroller(home).scrollTop).toBe(0);
+  });
+
+  it("re-applies scroll after layout would have clamped a same-turn restore", () => {
+    const queued: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        queued.push(cb);
+        return 1;
+      });
+    const home = renderedHomeView();
+    home.render();
+    homeScroller(home).scrollTop = 420;
+    home.render();
+
+    const scroller = homeScroller(home);
+    expect(scroller.scrollTop).toBe(420);
+    scroller.scrollTop = 0;
+    for (const cb of queued) cb(0);
+    expect(scroller.scrollTop).toBe(420);
+    raf.mockRestore();
+  });
+
+  it("keeps the library in place when Process begins", () => {
+    const home = renderedHomeView();
+    home.render();
+    homeScroller(home).scrollTop = 420;
+
+    home.beginRun("process");
+
+    expect(homeScroller(home).scrollTop).toBe(420);
+  });
+
+  it("does not refresh on a vault write while Process is running", () => {
+    vi.useFakeTimers();
+    const home = renderedHomeView();
+    home.beginRun("process");
+    home.refreshCalls = 0;
+
+    home.notifyVaultChange();
+    vi.advanceTimersByTime(HOME_VAULT_REFRESH_MS);
+
+    expect(home.refreshCalls).toBe(0);
+  });
+
+  it("does not refresh on a vault write while auto-run is filing", () => {
+    vi.useFakeTimers();
+    const home = renderedHomeView();
+    home.setOccupancy({ autoRun: { inFlight: true } });
+    home.refreshCalls = 0;
+
+    home.notifyVaultChange();
+    vi.advanceTimersByTime(HOME_VAULT_REFRESH_MS);
+
+    expect(home.refreshCalls).toBe(0);
+  });
+
+  it("drops a vault refresh that was armed before Process took the view", () => {
+    vi.useFakeTimers();
+    const home = renderedHomeView();
+    home.refreshCalls = 0;
+
+    home.notifyVaultChange();
+    home.beginRun("process");
+    vi.advanceTimersByTime(HOME_VAULT_REFRESH_MS);
+
+    expect(home.refreshCalls).toBe(0);
+  });
+
+  it("refreshes after the debounce when home is idle", () => {
+    vi.useFakeTimers();
+    const home = renderedHomeView();
+    home.refreshCalls = 0;
+
+    home.notifyVaultChange();
+    vi.advanceTimersByTime(HOME_VAULT_REFRESH_MS);
+
+    expect(home.refreshCalls).toBe(1);
   });
 });

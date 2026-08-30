@@ -149,6 +149,9 @@ export interface RenderedHomeHarness {
   setOccupancy(opts: HomeOccupancyOpts): void;
   render(): void;
   refresh(): Promise<void>;
+  beginRun(phase: "preview" | "process" | "update"): void;
+  notifyVaultChange(): void;
+  refreshCalls: number;
 }
 
 /**
@@ -215,16 +218,22 @@ Origin body
     (view.render as () => void).call(view);
   };
   view.loadData = async () => {};
+  const origRefresh = view.refresh as () => Promise<void>;
+  const harness = { refreshCalls: 0 } as RenderedHomeHarness;
+  view.refresh = async () => {
+    harness.refreshCalls += 1;
+    await origRefresh.call(view);
+  };
   const refresh = async () => {
     await (view.refresh as () => Promise<void>).call(view);
   };
 
-  return {
+  Object.assign(harness, {
     root,
-    setOpen: (open) => {
+    setOpen: (open: HomeOpenFixture | null) => {
       view.homeOpen = open;
     },
-    setOccupancy: (opts) => {
+    setOccupancy: (opts: HomeOccupancyOpts) => {
       if (opts.unprocessedCount != null) {
         view.unprocessedCount = opts.unprocessedCount;
       }
@@ -246,5 +255,12 @@ Origin body
     },
     render,
     refresh,
-  };
+    beginRun: (phase: "preview" | "process" | "update") => {
+      (view.beginRun as (p: typeof phase) => void).call(view, phase);
+    },
+    notifyVaultChange: () => {
+      (view.onVaultChangeForLibrary as () => void).call(view);
+    },
+  });
+  return harness;
 }
