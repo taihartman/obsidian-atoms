@@ -21,6 +21,7 @@ related:
   - docs/plans/2026-08-06-004-feat-ask-search-recall-and-agent-honesty-plan.md
   - docs/handoffs/2026-08-06-ask-search-handoff-2.md
   - docs/plans/2026-08-06-002-feat-ask-search-atoms-agent-signal-plan.md
+  - docs/solutions/logic-errors/a-tag-filter-is-browse-not-a-second-query.md
 ---
 
 # Ask search_atoms — silent empty after relevance floor + index-time expand

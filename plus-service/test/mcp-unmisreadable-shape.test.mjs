@@ -229,7 +229,7 @@ describe("mcp unmisreadable shape store", () => {
         await withStore(mode, async (store) => {
           await seedAccount(store, "s@ex.co");
           await seedAndrewPair(store, "s@ex.co");
-          const hits = await store.mirrorSearch("s@ex.co", "Andrew", 10);
+          const { hits } = await store.mirrorSearch("s@ex.co", "Andrew", 10);
           const parent = hits.find(
             (h) => h.title === "Andrew loves High School Musical",
           );

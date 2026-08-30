@@ -47,7 +47,7 @@ describe("MCP ask tools (in-process)", () => {
 
     // Call tool handlers via internal registry is awkward; use store methods
     // which tools wrap — assert tools registered and store path works.
-    const hits = await store.mirrorSearch("u@t.co", "tea");
+    const { hits } = await store.mirrorSearch("u@t.co", "tea");
     assert.ok(hits.length >= 1);
     assert.equal(hits[0].title, "Tea preference");
     const atom = await store.mirrorFetch("u@t.co", "Tea preference");
@@ -63,7 +63,7 @@ describe("MCP ask tools (in-process)", () => {
     await store.mirrorUpsert("a@t.co", [
       { path: "Atoms/S.md", title: "Secret", body: "A only" },
     ]);
-    assert.equal((await store.mirrorSearch("b@t.co", "Secret")).length, 0);
+    assert.equal((await store.mirrorSearch("b@t.co", "Secret")).hits.length, 0);
     assert.equal(await store.mirrorFetch("b@t.co", "Secret"), null);
   });
 });

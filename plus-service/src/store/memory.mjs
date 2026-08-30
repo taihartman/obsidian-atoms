@@ -23,7 +23,7 @@ import {
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
-  buildSearchHits,
+  rankSearchHits,
   normEmail,
   paginateMirrorList,
   prepareMirrorRow,
@@ -633,11 +633,12 @@ export function createMemoryStore() {
   function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
-    if (!bucket) return [];
-    const pubs = [...bucket.values()].map((row) =>
-      rowToPublicAtom(row, { includeBody: true }),
-    );
-    return buildSearchHits(pubs, query, limit, opts);
+    const pubs = bucket
+      ? [...bucket.values()].map((row) =>
+          rowToPublicAtom(row, { includeBody: true }),
+        )
+      : [];
+    return rankSearchHits(pubs, query, limit, opts);
   }
 
   /** Outgoing links + atoms that link to this title (backlinks). */

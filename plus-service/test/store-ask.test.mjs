@@ -64,7 +64,7 @@ describe("ask mirror + mcp store", () => {
               body: "something else",
             },
           ]);
-          const hits = await store.mirrorSearch("s@ex.co", "zebra", 8);
+          const { hits } = await store.mirrorSearch("s@ex.co", "zebra", 8);
           assert.ok(hits.length >= 2);
           assert.equal(hits[0].title, "Zebra habitat");
           assert.ok(hits[0].score > hits[1].score);
@@ -113,11 +113,12 @@ describe("ask mirror + mcp store", () => {
               tags: ["person"],
             },
           ]);
-          const hits = await store.mirrorSearch("t@ex.co", "Alpha", 8, {
+          const { hits, tag_pool } = await store.mirrorSearch("t@ex.co", "Alpha", 8, {
             tags: ["person"],
           });
           assert.equal(hits.length, 1);
           assert.equal(hits[0].title, "Alpha person");
+          assert.equal(tag_pool, 1);
         });
       });
 
