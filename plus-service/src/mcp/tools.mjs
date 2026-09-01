@@ -21,6 +21,43 @@ const HUB_NOT_SYNCED_HINT =
 const PENDING_HINT =
   "Queued. Lands when Obsidian is open (Ask + filing). Confirm with fetch_atom. Do not read outbox_id to the user unless they need to cancel.";
 
+const CREATE_ATOM_DESCRIPTION =
+  "Queue a new atom (outbox). Pending until Obsidian applies it. Body is a record — only what the user stated or supplied. Title may sharpen the body; it must not add claims. Links and tags are retrieval hints: propose them, including inferred connections to existing notes, and put the basis in reason. Set open_loop for an intention/IOU, not finished substance.";
+
+const CONTINUE_ATOM_DESCRIPTION =
+  "Queue a NEW child atom that continues/revises/contradicts a parent (parent body never modified). Parent must exist in the Ask mirror. Pending until Obsidian applies. Same field jobs as create_atom: child body is a record; title may sharpen without extra claims; extra links and tags are retrieval hints — propose inferred connections to existing notes and put the basis in reason.";
+
+const ATOM_TITLE_DESCRIBE =
+  "Declarative atom title. May summarize or sharpen the body. Must not assert anything the body does not support. Keep inferred connections on links, not in the title.";
+
+const ATOM_BODY_DESCRIBE =
+  "Atom body / capture text. Only what the user stated or supplied (forwarded text, dictated wording). Do not infer, embellish, or add facts. Light clarity (whitespace, obvious typo) is OK.";
+
+const ATOM_TAGS_DESCRIBE =
+  "Retrieval labels. Propose tags that will help this note surface later, including inferred ones. Prefer tags already in this mirror (list_tags). Do not use a person's name as a tag when a [[link]] works. Do not invent a flood of new labels.";
+
+const ATOM_LINKS_DESCRIBE =
+  "Retrieval hints, not assertions of fact. Propose connections proactively, including inferred ones from this conversation or from notes already fetched. A plausible link to an existing note is worth surfacing; a missing link is invisible. Do not invent a note title that is not already in this conversation or the mirror. Always fill reason.";
+
+const ATOM_LINK_NOTE_DESCRIBE =
+  "Existing atom or hub title (exact vault title when known).";
+
+const ATOM_LINK_REASON_DESCRIBE =
+  'Why this link exists. If you include a link, fill this. If the connection is inferred rather than stated in the body, say so and give the basis — "event date matches Christian\'s wedding" rather than "about Christian". Hedge when uncertain. The sentence must still teach the relationship if wikilinks were stripped.';
+
+const OPEN_LOOP_DESCRIBE =
+  "True when this note is an open loop (intention only). Marks atoms-loop active with source user.";
+
+const linkObject = z.object({
+  note: z.string().describe(ATOM_LINK_NOTE_DESCRIBE),
+  reason: z.string().optional().describe(ATOM_LINK_REASON_DESCRIBE),
+});
+
+const atomTitle = z.string().describe(ATOM_TITLE_DESCRIBE);
+const atomBody = z.string().describe(ATOM_BODY_DESCRIBE);
+const atomTags = z.array(z.string()).optional().describe(ATOM_TAGS_DESCRIBE);
+const atomLinks = z.array(linkObject).optional().describe(ATOM_LINKS_DESCRIBE);
+
 function jsonTool(obj, isError = false) {
   return {
     content: [{ type: "text", text: JSON.stringify(obj, null, 2) }],
@@ -383,26 +420,16 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Create atom",
       annotations: { readOnlyHint: false, destructiveHint: true },
-      description:
-        "Queue a new atom for the user's vault (outbox). Does NOT write instantly—status stays pending until Obsidian applies it. Prefer user-dictated body text; do not invent facts. Set open_loop when the note is an intention/IOU, not finished substance.",
+      description: CREATE_ATOM_DESCRIPTION,
       inputSchema: {
-        title: z.string().describe("Declarative atom title"),
-        body: z.string().describe("Atom body / capture text"),
-        tags: z.array(z.string()).optional(),
-        links: z
-          .array(
-            z.object({
-              note: z.string(),
-              reason: z.string().optional(),
-            }),
-          )
-          .optional(),
+        title: atomTitle,
+        body: atomBody,
+        tags: atomTags,
+        links: atomLinks,
         open_loop: z
           .boolean()
           .optional()
-          .describe(
-            "True when this note is an open loop (intention only). Marks atoms-loop active with source user.",
-          ),
+          .describe(OPEN_LOOP_DESCRIBE),
         client_request_id: z
           .string()
           .optional()
@@ -456,12 +483,11 @@ export function registerAskTools(mcp, ctx) {
     {
       title: "Continue atom",
       annotations: { readOnlyHint: false, destructiveHint: true },
-      description:
-        "Queue a NEW child atom that continues/revises/contradicts a parent (parent body never modified). Parent must exist in the Ask mirror. Pending until Obsidian applies.",
+      description: CONTINUE_ATOM_DESCRIPTION,
       inputSchema: {
         parent_title: z.string().describe("Existing mirrored atom title"),
-        title: z.string().describe("Title for the new child atom"),
-        body: z.string().describe("Child atom body"),
+        title: atomTitle,
+        body: atomBody,
         relation: z
           .enum([
             "continues",
@@ -480,15 +506,8 @@ export function registerAskTools(mcp, ctx) {
           .describe(
             "When relation is redeems: user's answer to what closing this loop looks like (logged on the child).",
           ),
-        tags: z.array(z.string()).optional(),
-        links: z
-          .array(
-            z.object({
-              note: z.string(),
-              reason: z.string().optional(),
-            }),
-          )
-          .optional(),
+        tags: atomTags,
+        links: atomLinks,
         client_request_id: z.string().optional(),
       },
     },

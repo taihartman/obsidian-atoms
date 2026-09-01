@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { McpServer } from "@modelcontextprotocol/server";
 import { createStore } from "../src/store.mjs";
+import { registerAskTools } from "../src/mcp/tools.mjs";
 import { ASK_MCP_INSTRUCTIONS } from "../src/mcp/instructions.mjs";
 import {
   validateOutboxPayload,
@@ -8,6 +10,27 @@ import {
   linksFromAtomBody,
   mergeLinksFromBody,
 } from "../src/store/askHelpers.mjs";
+
+function registeredWriteTools() {
+  const mcp = new McpServer(
+    { name: "t", version: "0" },
+    { instructions: ASK_MCP_INSTRUCTIONS },
+  );
+  registerAskTools(mcp, {
+    email: "t@t.co",
+    store: {},
+    scopes: ["atoms:read", "atoms:write"],
+  });
+  return mcp;
+}
+
+function writeToolSurface(mcp, name) {
+  const tool = mcp._registeredTools[name];
+  assert.ok(tool, `${name} must be registered`);
+  const schema = mcp.toolInputSchemaJson(name);
+  assert.ok(schema, `${name} must expose JSON Schema`);
+  return { tool, schema };
+}
 
 describe("MCP ask write helpers + store path", () => {
   it("instructions cover pending and compose rules", () => {
@@ -35,6 +58,60 @@ describe("MCP ask write helpers + store path", () => {
     assert.match(ASK_MCP_INSTRUCTIONS, /Stance first/);
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /Do not keep calling tools/);
     assert.doesNotMatch(ASK_MCP_INSTRUCTIONS, /tools cannot write/i);
+    assert.match(
+      ASK_MCP_INSTRUCTIONS,
+      /Body is a record: do not invent facts/,
+    );
+    assert.match(ASK_MCP_INSTRUCTIONS, /Links are retrieval hints/);
+    assert.match(ASK_MCP_INSTRUCTIONS, /Christian's wedding/);
+  });
+
+  it("create and continue split body record from inferred links", () => {
+    const mcp = registeredWriteTools();
+    const create = writeToolSurface(mcp, "create_atom");
+    const cont = writeToolSurface(mcp, "continue_atom");
+    const setLoop = mcp._registeredTools.set_loop;
+
+    assert.match(setLoop.description, /do not invent marks/);
+
+    for (const { name, surface } of [
+      { name: "create_atom", surface: create },
+      { name: "continue_atom", surface: cont },
+    ]) {
+      const { tool, schema } = surface;
+      const body = schema.properties?.body?.description ?? "";
+      const links = schema.properties?.links?.description ?? "";
+      const reason =
+        schema.properties?.links?.items?.properties?.reason?.description ?? "";
+      const linkRequired = schema.properties?.links?.items?.required ?? [];
+
+      assert.match(tool.description, /record/, `${name} tool`);
+      assert.match(tool.description, /retrieval/, `${name} tool`);
+      assert.match(tool.description, /inferred/, `${name} tool`);
+      assert.match(body, /Do not infer/, `${name} body`);
+      assert.match(links, /retrieval/i, `${name} links`);
+      assert.match(links, /inferred/i, `${name} links`);
+      assert.match(reason, /Christian's wedding/, `${name} reason`);
+      assert.ok(!linkRequired.includes("reason"), `${name} reason optional`);
+      assert.equal(
+        schema.properties?.links?.items?.properties?.inferred,
+        undefined,
+        `${name} has no inferred field`,
+      );
+    }
+
+    assert.deepEqual(
+      create.schema.properties.links,
+      cont.schema.properties.links,
+    );
+    assert.equal(
+      create.schema.properties.title.description,
+      cont.schema.properties.title.description,
+    );
+    assert.equal(
+      create.schema.properties.body.description,
+      cont.schema.properties.body.description,
+    );
   });
 
   it("instructions: a reminder or calendar entry is not a close", () => {

@@ -42,7 +42,10 @@ Read rules:
 Write rules (stance first: file only when they want it kept; set_loop only after they confirm):
 - create/continue/set_loop return status pending until Obsidian applies the outbox. Usually under a minute when the app is open (Ask + Allow filing).
 - NEVER claim you filed, saved, or updated a vault note until fetch_atom returns that atom (or the user confirms a land Notice). On pending, one short line: it's queued. Do not recite outbox_id, tool JSON, or the hint paragraph. Keep outbox_id only for cancel_pending if they ask to undo.
-- Do not invent facts in atom bodies. Prefer the user's dictated wording when they give exact text; light clarity is OK for new atoms only.
+- Body is a record: do not invent facts. Prefer the user's dictated wording when they give exact text; light clarity is OK for new atoms only.
+- Title may sharpen the body; it must not add claims the body does not support. Keep inferred connections on links, not in the title.
+- Links are retrieval hints, not claims. Propose them from this conversation and from notes already fetched, even when the body never names the target. A plausible link to an existing note is worth surfacing. Always fill reason with the basis; hedge when the connection is inferred ("event date matches Christian's wedding", not "about Christian"). Do not invent a note title that is not already in this conversation or the mirror.
+- Tags: same retrieval posture as links. Prefer tags already in this mirror (list_tags). Do not use a person's name as a tag when a link works.
 - continue_atom creates a NEW child atom with a relation link; never rewrite the parent body.
 - To close an open loop with substance, use continue_atom with relation redeems (optional close_answer). Do not use continues for that.
 - Parent for continue may be mirrored OR still pending from create_atom in this session.
