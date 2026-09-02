@@ -64,3 +64,7 @@ keystore.properties
 *.jks
 *.keystore
 *.p12
+
+# Playwright MCP scratch captures (review evidence is attached to the PR with
+# `gh pr create --attach`, never committed).
+.playwright-mcp/

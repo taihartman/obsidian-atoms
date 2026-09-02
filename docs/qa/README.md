@@ -96,7 +96,7 @@ Visual fidelity mocks (when UI change): `docs/design-handoff/atoms-view/`.
 ## Evidence Paths
 
 - QA reports: `docs/qa/YYYY-MM-DD-<branch>-world-class-qa.md`
-- Screenshots: `docs/qa/screenshots/<branch-or-feature>/<frame>.png`
+- Screenshots: attached to the PR via `gh pr create --attach` (not committed). `docs/qa/screenshots/<branch-or-feature>/<frame>.png` is for **baselines** only — references a later session must re-locate.
 - CLI transcript: paste into report Evidence section (no secrets / no raw API keys)
 
 ### PR body evidence (required)
@@ -106,9 +106,22 @@ For any PR that changes **user-visible UI** (Atoms home, For you, cards, pair-op
 1. Install to the throwaway vault (`./scripts/install-to-vault.sh`).
 2. Drive the happy path (CLI `atoms:open-home` + clicks via `obsidian eval`, or human).
 3. Capture frames with `obsidian vault="test vault" dev:screenshot path=docs/qa/screenshots/<feature>/0N-name.png`.
-4. Commit the PNGs under `docs/qa/screenshots/<feature>/` and **link them in the PR body** with **absolute** URLs — GitHub PR descriptions do **not** render repo-relative `![…](docs/…)` paths (broken image icon). After push:
+4. **Attach** the PNGs to the PR — don't commit them:
 
-   `![label](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/qa/screenshots/<feature>/01-….png)`
+   ```bash
+   gh pr create --attach '01-home.png#Home after Process' \
+                --attach '02-inbox.png#Inbox drained'
+   ```
+
+   Repeatable (50 files max per command), needs `gh` ≥ 2.99.0, and works the same on `gh pr edit` and `gh pr comment`. Uploads go to GitHub's asset CDN, so review evidence stays out of git history and the link survives branch deletion.
+
+   To put a frame in the Evidence table rather than appended at the end, reference it relatively in the body — `![Home after Process](./01-home.png)` — and gh rewrites that reference to the uploaded asset. Alt text already in the body wins over the `#` suffix; video renders as a player and takes no alt text.
+
+   If some uploads fail, the PR is **still created** with the ones that succeeded and the URL is still printed, but `gh` exits non-zero. Check stdout for the URL before retrying, or you'll open a duplicate.
+
+   Only **baselines** (a golden frame a later session must re-locate) get committed under `docs/qa/screenshots/<feature>/`, linked with an **absolute** URL pinned to `master` or a sha — never a feature branch, and never a repo-relative `![…](docs/…)` path, which renders as a broken image icon:
+
+   `![label](https://raw.githubusercontent.com/<owner>/<repo>/master/docs/qa/screenshots/<feature>/01-….png)`
 
 5. **Check** the matching Test plan boxes — never leave `- [ ]` after claiming the step ran.
 

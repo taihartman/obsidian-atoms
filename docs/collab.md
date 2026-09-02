@@ -91,7 +91,7 @@ When verifying **product** behavior (not pure unit tests):
 6. Implement only the claimed scope; keep STATUS.md hot-files honest
 7. Shipping tail (CLAUDE.md): simplify → code-review → compound → world-class-qa
 8. Ready for review → state In review; request the other human when product-facing
-9. PR body includes **Closes #N** (claimed Issue); **Test plan boxes checked** only after real runs; **UI PRs** include vault **screenshots** under `docs/qa/screenshots/…` linked in the body (see CLAUDE.md shipping tail + PR template)
+9. PR body includes **Closes #N** (claimed Issue); **Test plan boxes checked** only after real runs; **UI PRs** attach vault **screenshots** with `gh pr create --attach` (not committed; `docs/qa/screenshots/…` is for baselines only — see CLAUDE.md shipping tail + PR template)
 10. Merge via GitHub; delete branch; clear STATUS.md row
 ```
 
