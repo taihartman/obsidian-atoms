@@ -182,3 +182,53 @@ describe("F1 — backfill queues instead of blocking the response", () => {
     assert.ok(fetchCalls > 0);
   });
 });
+
+// Regression: the request once carried `temperature: 0`. Current Claude
+// models (Sonnet 5 and later) reject sampling parameters with a 400, so
+// every expand call failed upstream and the pool logged ok=0 with
+// hundreds of upstream_400 (prod, 2026-09-02). The prompt asks for a
+// deterministic list; the model does that without a sampling knob.
+describe("ask expand request shape", () => {
+  it("sends no sampling parameters to the Messages API", async () => {
+    let body = null;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (_url, init) => {
+      body = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify([
+                "how to set up the reverse proxy",
+                "reverse proxy config for staging",
+              ]),
+            },
+          ],
+        }),
+      };
+    };
+    try {
+      await withEnv(
+        { ASK_EXPAND_ENABLED: "1", ANTHROPIC_API_KEY: "sk-test" },
+        async () => {
+          const out = await generateExpandPhrases({
+            title: "A",
+            tags: [],
+            body: "some body",
+          });
+          assert.equal(out.ok, true);
+        },
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    assert.ok(body, "request must be sent");
+    for (const k of ["temperature", "top_p", "top_k"]) {
+      assert.equal(k in body, false, `${k} must not be sent`);
+    }
+    assert.ok(body.max_tokens >= 400, "max_tokens must leave room for output");
+  });
+});

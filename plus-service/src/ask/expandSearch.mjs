@@ -133,8 +133,11 @@ export async function generateExpandPhrases(atom) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 400,
-        temperature: 0,
+        // Backstop, not a target: adaptive thinking counts against this cap
+        // on current models, so leave headroom above the short phrase list.
+        max_tokens: 1024,
+        // No sampling params: Sonnet 5+ rejects `temperature` with a 400,
+        // which silently zeroed this pool in prod (see guardrails test).
         messages: [{ role: "user", content: prompt }],
       }),
       signal: AbortSignal.timeout(config.askExpandTimeoutMs),
