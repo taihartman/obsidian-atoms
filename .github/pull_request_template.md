@@ -19,20 +19,25 @@ Closes #
 
 <!-- For any change a human can see (home, For you, settings chrome, cards, copy): -->
 <!-- 1. Capture screenshots (or short clip) of the happy path after install to the throwaway vault. -->
-<!-- 2. Commit under docs/qa/screenshots/<branch-or-feature>/ and link them below. -->
+<!-- 2. Attach them with `gh pr create --attach 'shot.png#Alt text'` (gh >= 2.99.0). Do not commit them. -->
 <!-- 3. Mark every Test plan box that you actually ran. -->
 <!-- Pure logic / docs-only: write "N/A — no UI" and skip images. -->
 
 | Flow | Result | Evidence |
 |---|---|---|
-| | Pass / Fail / N/A | link or `docs/qa/screenshots/...` |
+| | Pass / Fail / N/A | attached screenshot, or link |
 
 Screenshots:
 
-<!-- GitHub PR *description* does NOT resolve repo-relative image paths (broken icon).
-     Use absolute raw URLs on the PR branch (after push):
-     ![label](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/docs/qa/screenshots/<feature>/01-….png)
-     Still commit the PNGs under docs/qa/screenshots/ so they live with the PR. -->
+<!-- Attach, don't commit. The flag is repeatable and also works on `gh pr edit` / `gh pr comment`:
+     gh pr create --attach '01-home.png#Home after Process' --attach '02-inbox.png#Inbox drained'
+     Uploads go to GitHub's asset CDN, so evidence stays out of git history.
+     Reference a file relatively — ![Home after Process](./01-home.png) — and gh rewrites that
+     reference to the uploaded asset, so it lands here instead of appended at the end.
+     Baselines a later session must re-locate DO get committed under docs/qa/screenshots/ — link
+     those with an absolute URL pinned to master or a sha (a repo-relative ![…](docs/…) path renders
+     as a broken icon, and a feature-branch URL dies when the branch is deleted):
+     ![label](https://raw.githubusercontent.com/<owner>/<repo>/master/docs/qa/screenshots/<feature>/01-….png) -->
 
 ## Plan / STATUS
 
