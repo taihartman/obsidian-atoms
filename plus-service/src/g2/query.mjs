@@ -83,7 +83,6 @@ export function createG2QueryAdapter({
     if (signal?.aborted) abort();
     else signal?.addEventListener?.("abort", abort, { once: true });
     const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
-    timer.unref?.();
     try {
       const response = await fetchImpl(url, {
         method: "POST",

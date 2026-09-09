@@ -117,7 +117,6 @@ export function createG2MetadataAdapter({
     if (input?.signal?.aborted) abort();
     else input?.signal?.addEventListener?.("abort", abort, { once: true });
     const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
-    timer.unref?.();
     try {
       const response = await fetchImpl(url, {
         method: "POST",
