@@ -226,7 +226,7 @@ for (const [mode, create] of postgresStoreRows()) {
         assert.match(raw.rows[0].transcript_enc, /^g2e:pg-k1:/);
         assert.equal(raw.rows[0].transcript_enc.includes("private transcript"), false);
         await client.query("UPDATE g2_transcriptions SET transcript_enc=left(transcript_enc,-1)||CASE right(transcript_enc,1) WHEN 'A' THEN 'B' ELSE 'A' END WHERE recording_id='pg-tx'");
-        await assert.rejects(() => store.g2TranscriptionGet(binding, "pg-tx"));
+        await assert.rejects(() => store.g2TranscriptionGet(authorized, "pg-tx"));
       } finally { await client.end().catch(() => {}); await store.close(); }
     });
 
