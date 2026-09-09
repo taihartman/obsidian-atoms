@@ -1,6 +1,6 @@
 import { webcrypto } from "node:crypto";
 import { IDBFactory } from "fake-indexeddb";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PcmRecorder } from "../src/audio/recorder";
 import { RecoveryJournal } from "../src/storage/recovery";
@@ -148,6 +148,42 @@ describe("G2 audio recovery", () => {
     await expect(final).resolves.toEqual({ type: "final", state: "completed", recordingId: "rec-ws", transcript: "verbatim" });
     transport.teardown("disclosure_withdrawn");
     expect(socket.closed).toEqual([1000, "disclosure_withdrawn"]);
+  });
+
+  it("closes and rejects a connection that never completes its handshake", async () => {
+    vi.useFakeTimers();
+    try {
+      const socket = {
+        readyState: 0,
+        bufferedAmount: 0,
+        binaryType: "",
+        onopen: null as (() => void) | null,
+        onmessage: null as ((event: MessageEvent) => void) | null,
+        onerror: null as (() => void) | null,
+        onclose: null as (() => void) | null,
+        send() {},
+        close: vi.fn(function (this: { readyState: number; onclose: (() => void) | null }) {
+          this.readyState = 3;
+          this.onclose?.();
+        }),
+      };
+      const transport = new G2WebSocketTransport({
+        endpoint: "https://plus.tryatoms.app/v1/g2/transcribe/stream",
+        ticket: "g2t_silent",
+        highWaterBytes: 64,
+        handshakeTimeoutMs: 25,
+        socketFactory: () => socket as unknown as WebSocket,
+      });
+
+      const connected = transport.connect();
+      const rejection = expect(connected).rejects.toThrow("socket_handshake_timeout");
+      await vi.advanceTimersByTimeAsync(25);
+
+      await rejection;
+      expect(socket.close).toHaveBeenCalledWith(1008, "socket_handshake_timeout");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("replays unacknowledged PCM after disconnect and rejects impossible server progress", async () => {

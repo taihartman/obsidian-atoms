@@ -60,6 +60,7 @@ type WebSocketTransportDependencies = {
   endpoint: string;
   ticket: string;
   highWaterBytes: number;
+  handshakeTimeoutMs?: number;
   socketFactory?: (url: string) => WebSocket;
 };
 
@@ -109,17 +110,28 @@ export class G2WebSocketTransport {
     this.socket = socket;
     return new Promise((resolve, reject) => {
       let settled = false;
+      let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+      const clearHandshakeTimer = () => {
+        if (handshakeTimer !== undefined) clearTimeout(handshakeTimer);
+        handshakeTimer = undefined;
+      };
       const failBeforeReady = (reason: string, code = 1008) => {
         if (!settled) {
           settled = true;
+          clearHandshakeTimer();
           reject(new Error(reason));
         }
         socket.close(code, reason);
       };
       socket.onerror = () => {
-        if (!settled) { settled = true; reject(new Error("socket_error")); }
+        if (!settled) {
+          settled = true;
+          clearHandshakeTimer();
+          reject(new Error("socket_error"));
+        }
       };
       socket.onclose = () => {
+        clearHandshakeTimer();
         if (this.socket === socket) this.socket = null;
         if (!settled) { settled = true; reject(new Error("socket_closed_before_ready")); }
         this.rejectFinal?.(new Error("socket_closed_before_final"));
@@ -152,6 +164,7 @@ export class G2WebSocketTransport {
           this.acknowledgedSequence = serverSequence;
           this.sendCursor = serverSequence;
           settled = true;
+          clearHandshakeTimer();
           resolve({ recordingId: message.recordingId, nextSequence: serverSequence });
           this.flush();
           return;
@@ -177,6 +190,11 @@ export class G2WebSocketTransport {
         }
         socket.close(1008, "malformed_control");
       };
+      const configuredTimeout = this.dependencies.handshakeTimeoutMs ?? 10_000;
+      const handshakeTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout
+        : 10_000;
+      handshakeTimer = setTimeout(() => failBeforeReady("socket_handshake_timeout"), handshakeTimeoutMs);
     });
   }
 

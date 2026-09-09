@@ -180,6 +180,7 @@ export async function handleG2WebSocketUpgrade({ req, socket, head, transcriptio
       try { command = JSON.parse(payload.toString("utf8")); } catch { finish(1008, "malformed_control"); return; }
       if (command?.type === "cancel") { finish(1000, "cancelled"); return; }
       if (command?.type !== "finalize" || Object.keys(command).length !== 1) { finish(1008, "malformed_control"); return; }
+      clearTimeout(idle);
       socket.pause();
       void transcription.finalize(opened.sessionId).then((result) => {
         if (closed) return;

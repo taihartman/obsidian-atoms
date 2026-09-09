@@ -4,9 +4,9 @@ import type { AppState, Source } from "./state";
 import { initialState, reduceAppState } from "./state";
 
 type CreatePort = {
-  restore(): Promise<{ state: string; prompt?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
-  confirm(): Promise<{ state: string; prompt?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
-  prepare?(recordingId: string, capturedAt: string): Promise<{ state: string; prompt?: string; message?: string }>;
+  restore(): Promise<{ state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
+  confirm(): Promise<{ state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
+  prepare?(recordingId: string, capturedAt: string): Promise<{ state: string; title?: string; message?: string }>;
   cancel?(): Promise<unknown>;
   refresh?(): Promise<{ state: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
 };
@@ -29,11 +29,6 @@ type Dependencies = {
   query: QueryPort;
   read: ReadPort;
 };
-
-function titleFromPrompt(prompt = ""): string {
-  const matched = /[“\"](.+?)[”\"]/.exec(prompt);
-  return matched?.[1] ?? prompt;
-}
 
 function requestFailure(error: unknown): Extract<AppState, { screen: "error" }> {
   const message = error instanceof Error ? error.message : "";
@@ -63,7 +58,7 @@ export class G2AppController {
     if (!status.setupReady) { this.show({ screen: "setup-required", selectedIndex: 0 }); return; }
     const recovered = await this.dependencies.create.restore();
     if (recovered.state === "prepared") {
-      this.show({ screen: "confirmation", title: titleFromPrompt(recovered.prompt), message: recovered.message, selectedIndex: 0 });
+      this.show({ screen: "confirmation", title: recovered.title ?? "", message: recovered.message, selectedIndex: 0 });
     } else if (recovered.state === "queued") {
       this.show({ screen: "queued", selectedIndex: 0, acceptedAt: recovered.acceptedAt, stillQueued: recovered.stillQueued });
     } else if (recovered.state === "saved") {
@@ -230,8 +225,8 @@ export class G2AppController {
     this.showRoot();
   }
 
-  private applyCreateView(view: { state: string; prompt?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }): void {
-    if (view.state === "prepared") this.show({ screen: "confirmation", title: titleFromPrompt(view.prompt), message: view.message, selectedIndex: 0 });
+  private applyCreateView(view: { state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }): void {
+    if (view.state === "prepared") this.show({ screen: "confirmation", title: view.title ?? "", message: view.message, selectedIndex: 0 });
     else if (view.state === "queued") this.show({ screen: "queued", selectedIndex: 0, acceptedAt: view.acceptedAt, stillQueued: view.stillQueued });
     else if (view.state === "saved") this.show({ screen: "saved", title: view.receipt?.title, selectedIndex: 0 });
     else if (view.state === "title_collision") this.show({ screen: "error", reason: "title-collision", primaryAction: "retry", selectedIndex: 0 });

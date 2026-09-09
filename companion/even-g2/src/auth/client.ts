@@ -107,7 +107,23 @@ export class G2HttpClient {
   async post<T>(path: string, body: unknown): Promise<T> {
     const response = await this.auth.authorized(path, body);
     if (response.status === 401 || response.status === 403) throw new Error("setup_required");
-    if (!response.ok) throw new Error(response.status === 429 ? "limit_reached" : "request_failed");
+    if (response.status === 429) throw new Error("limit_reached");
+    if (!response.ok) {
+      const recognizedStates = path === "/v1/g2/commit"
+        ? new Set(["queued", "saved", "title_collision", "setup_required", "expired", "confirmation_mismatch", "commit_unknown", "rejected"])
+        : path === "/v1/g2/status"
+          ? new Set(["queued", "saved", "rejected", "not_found", "setup_required"])
+          : null;
+      if (recognizedStates) {
+        try {
+          const result = await response.json() as { state?: unknown };
+          if (typeof result.state === "string" && recognizedStates.has(result.state)) return result as T;
+        } catch {
+          // Fall through to the bounded transport error below.
+        }
+      }
+      throw new Error("request_failed");
+    }
     return response.json() as Promise<T>;
   }
 }

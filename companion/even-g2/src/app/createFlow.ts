@@ -34,7 +34,7 @@ export type CreateRecoveryRecord = {
 
 export type CreateView = {
   state: CreateRecoveryRecord["state"] | "idle";
-  prompt?: string;
+  title?: string;
   message?: string;
   receipt?: DeliveryReceipt;
   acceptedAt?: string;
@@ -53,7 +53,7 @@ export class CreateFlow {
 
   private view(): CreateView {
     if (!this.record) return { state: "idle" };
-    if (this.record.state === "prepared") return { state: "prepared", prompt: CREATE_COPY.confirm(this.record.title) };
+    if (this.record.state === "prepared") return { state: "prepared", title: this.record.title };
     if (this.record.state === "queued") return { state: "queued", message: CREATE_COPY.queued, acceptedAt: this.record.acceptedAt, stillQueued: Boolean(this.record.acceptedAt && this.now() - Date.parse(this.record.acceptedAt) >= 15 * 60 * 1000) };
     if (this.record.state === "saved") return { state: "saved", message: CREATE_COPY.saved, receipt: this.record.receipt };
     if (this.record.state === "title_collision") return { state: "title_collision", message: CREATE_COPY.collision };
@@ -95,7 +95,7 @@ export class CreateFlow {
         commitKey,
       });
     } catch {
-      return { state: "prepared", prompt: CREATE_COPY.confirm(this.record.title), message: CREATE_COPY.waiting };
+      return { state: "prepared", title: this.record.title, message: CREATE_COPY.waiting };
     }
     if (result.state === "queued" && result.outboxId) {
       this.record.state = "queued";
@@ -131,6 +131,8 @@ export class CreateFlow {
         this.record.state = "revoked";
       } else if (result.state === "rejected") {
         this.record.state = "rejected";
+      } else if (result.state === "not_found") {
+        this.record.state = "commit_unknown";
       }
       if (this.record.state === "saved" && this.record.receipt) await this.recovery.clear();
       else await this.recovery.save(this.record);

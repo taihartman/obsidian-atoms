@@ -22,7 +22,7 @@ describe("G2 create flow", () => {
     const h = harness();
     const flow = new CreateFlow(h.api, h.recovery, () => "commit_one");
     const prepared = await flow.prepare("rec_one", "2026-09-08T17:14:03-04:00");
-    expect(prepared).toMatchObject({ state: "prepared", prompt: "Create “A thought from the walk”?" });
+    expect(prepared).toMatchObject({ state: "prepared", title: "A thought from the walk" });
     expect(h.saved()).toMatchObject({ state: "prepared", fingerprint: "fp", title: "A thought from the walk" });
     await flow.cancel();
     expect(h.commits).toEqual([]);
@@ -47,6 +47,17 @@ describe("G2 create flow", () => {
     await flow.prepare("rec_saved", "2026-09-08T17:14:03-04:00");
     expect(await flow.confirm()).toMatchObject({ state: "saved", message: "Saved to Atoms" });
     expect(h.saved()).toBeNull();
+  });
+
+  it("persists an unknown commit when status no longer recognizes the queued outbox", async () => {
+    const h = harness();
+    h.api.status = async () => ({ state: "not_found" });
+    const flow = new CreateFlow(h.api, h.recovery, () => "commit_unknown");
+    await flow.prepare("rec_unknown", "2026-09-08T17:14:03-04:00");
+    await flow.confirm();
+
+    expect(await flow.refresh()).toMatchObject({ state: "commit_unknown", message: "Waiting for a connection" });
+    expect(h.saved()).toMatchObject({ state: "commit_unknown", outboxId: "obx_one", commitKey: "commit_unknown" });
   });
 
   it("renders title collision and revoked access as truthful terminal states", async () => {

@@ -14,13 +14,13 @@ describe("G2 lifecycle controller", () => {
     const stopAudio = vi.fn();
     const closeSockets = vi.fn();
     const unsubscribe = vi.fn();
-    const create = { restore: vi.fn(async () => ({ state: "prepared" as const, prompt: "Create “Walk” ?" })), confirm: vi.fn(async () => ({ state: "queued" as const, message: "Queued" })) };
+    const create = { restore: vi.fn(async () => ({ state: "prepared" as const, title: "Walk “East”" })), confirm: vi.fn(async () => ({ state: "queued" as const, message: "Queued" })) };
     const query = { ask: vi.fn(async () => ({ state: "answered" as const, answer: "Friday", sources: [{ id: "atm-one", title: "Launch" }] })), openSource: vi.fn(() => "atm-one") };
     const read = { loadRecent: vi.fn(async () => ({ items: [{ id: "atm-two", title: "Walk" }], selectedIndex: 0, coverageComplete: true })), openById: vi.fn(async () => ({ text: "café 🌱", position: { offset: 0, next_offset: null } })) };
     const app = new G2AppController({ render, stopAudio, closeSockets, unsubscribe, create, query, read });
 
     await app.start({ paired: true, setupReady: true });
-    expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ screen: "confirmation" }));
+    expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ screen: "confirmation", title: "Walk “East”" }));
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(create.confirm).toHaveBeenCalledTimes(1);
 
