@@ -94,6 +94,13 @@ export function checkProductionReady() {
     !config.askMirrorKey,
     "ATOMS_ASK_MIRROR_KEY required in production (Ask atom mirror encryption)",
   );
+  if (config.g2TranscriptionEnabled) {
+    need(!config.openAiApiKey, "OPENAI_API_KEY required when G2 transcription is enabled");
+    need(
+      !config.g2ProviderControlsAccepted,
+      "G2_PROVIDER_CONTROLS_ACCEPTED=2026-09-09 required when G2 transcription is enabled",
+    );
+  }
 
   return errors.length ? { ok: false, errors } : { ok: true, errors: [] };
 }

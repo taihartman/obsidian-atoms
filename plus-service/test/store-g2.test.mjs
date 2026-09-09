@@ -6,6 +6,56 @@ const modes = askStoreModes();
 
 describe("G2 device store contract", () => {
   for (const mode of modes) {
+    it(`${mode}: G2_STREAM_AUDIO_011 leases and terminal results have one durable owner`, async () => {
+      await withStore(mode, async (store) => {
+        const binding = {
+          email: `lease-${mode}@atoms.test`,
+          familyId: "g2d-lease",
+          generation: 3,
+        };
+        const first = await store.g2TranscriptionClaim(binding, "rec-lease", "worker-a", 1_000, 30_000);
+        assert.equal(first.acquired, true);
+        const parked = await store.g2TranscriptionClaim(binding, "rec-lease", "worker-b", 2_000, 30_000);
+        assert.equal(parked.acquired, false);
+        const takeover = await store.g2TranscriptionClaim(binding, "rec-lease", "worker-b", 32_000, 30_000);
+        assert.equal(takeover.acquired, true);
+        assert.equal(await store.g2TranscriptionComplete(binding, "rec-lease", "worker-a", "stale"), false);
+        assert.equal(await store.g2TranscriptionComplete(binding, "rec-lease", "worker-b", "winner"), true);
+        const terminal = await store.g2TranscriptionGet(binding, "rec-lease");
+        assert.equal(terminal.state, "completed");
+        assert.equal(terminal.transcript, "winner");
+      });
+    });
+
+    it(`${mode}: G2_STREAM_TICKET_010 disclosure revision is device-controlled and monotonic`, async () => {
+      await withStore(mode, async (store) => {
+        const email = `disclosure-${mode}@atoms.test`;
+        store.ensureAccount(email);
+        await store.grantPeriod(email, { status: "active" });
+        const accepted = await store.g2SynchronizeDisclosure(email, {
+          baseRevision: 0,
+          freshGesture: true,
+          disclosure: { granted: true, version: "g2-voice-v1" },
+        });
+        assert.equal(accepted.revision, 1);
+        assert.equal(accepted.g2Disclosure.granted, true);
+        const withdrawn = await store.g2SynchronizeDisclosure(email, {
+          baseRevision: 0,
+          disclosure: { granted: false, version: "" },
+        });
+        assert.equal(withdrawn.revision, 2);
+        assert.equal(withdrawn.g2Disclosure.granted, false);
+        const staleGrant = await store.g2SynchronizeDisclosure(email, {
+          baseRevision: 1,
+          freshGesture: true,
+          disclosure: { granted: true, version: "g2-voice-v1" },
+        });
+        assert.equal(staleGrant.revision, 2);
+        assert.equal(staleGrant.g2Disclosure.granted, false);
+        assert.equal(staleGrant.regrantRequired, true);
+      });
+    });
+
     it(`${mode}: G2_SESSION_CONSENT_008 G2_SESSION_CONSENT_009 are monotonic and withdrawal wins`, async () => {
       await withStore(mode, async (store) => {
         assert.equal(typeof store.g2ReadConsent, "function");

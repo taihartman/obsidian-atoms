@@ -38,7 +38,11 @@ import {
 } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
-import { handleG2Routes } from "./g2/http.mjs";
+import { handleG2Routes, handleG2WebSocketUpgrade } from "./g2/http.mjs";
+import {
+  createG2TranscriptionService,
+  createOpenAiBatchTranscriptionProvider,
+} from "./g2/transcription.mjs";
 import {
   handleOauthRoutes,
   maybeFinishOauthAfterExchange,
@@ -57,6 +61,24 @@ try {
 }
 
 const store = await createStore();
+const g2Transcription = createG2TranscriptionService({
+  provider: createOpenAiBatchTranscriptionProvider({
+    apiKey: config.g2TranscriptionEnabled ? config.openAiApiKey : "",
+    url: config.openAiTranscriptionUrl,
+    model: config.openAiTranscriptionModel,
+  }),
+  maxConcurrentPerAccount: config.g2MaxConcurrentPerAccount,
+  repository: {
+    claim: (binding, recordingId, owner, leaseMs) =>
+      store.g2TranscriptionClaim(binding, recordingId, owner, Date.now(), leaseMs),
+    complete: (binding, recordingId, owner, transcript) =>
+      store.g2TranscriptionComplete(binding, recordingId, owner, transcript),
+    fail: (binding, recordingId, owner, state) =>
+      store.g2TranscriptionFail(binding, recordingId, owner, state),
+    get: (binding, recordingId) => store.g2TranscriptionGet(binding, recordingId),
+  },
+  logger: (row) => console.info("[g2-transcription]", JSON.stringify(row)),
+});
 
 /** Browser (Obsidian fetch) CORS — must allow Idempotency-Key or POST preflight fails. */
 const CORS_HEADERS = {
@@ -365,7 +387,7 @@ async function handler(req, res) {
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
   try {
-    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp })) return;
+    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription: g2Transcription })) return;
 
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
@@ -1190,6 +1212,16 @@ ${
 
 const server = createServer((req, res) => {
   void handler(req, res);
+});
+
+server.on("upgrade", (req, socket, head) => {
+  handleG2WebSocketUpgrade({
+    req,
+    socket,
+    head,
+    transcription: g2Transcription,
+    idleTimeoutMs: config.g2SocketIdleTimeoutMs,
+  });
 });
 
 server.listen(config.port, () => {

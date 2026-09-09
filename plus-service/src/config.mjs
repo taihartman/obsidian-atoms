@@ -70,6 +70,31 @@ export const config = {
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
+  /** Private-Beta G2 transcription stays inert until explicitly enabled. */
+  get g2TranscriptionEnabled() {
+    return env("G2_TRANSCRIPTION_ENABLED", "0") === "1";
+  },
+  get openAiApiKey() {
+    return env("OPENAI_API_KEY");
+  },
+  get openAiTranscriptionUrl() {
+    return env("OPENAI_TRANSCRIPTION_URL", "https://api.openai.com/v1/audio/transcriptions");
+  },
+  get openAiTranscriptionModel() {
+    return env("OPENAI_TRANSCRIPTION_MODEL", "gpt-4o-transcribe");
+  },
+  /** Operator attestation that current provider retention/disclosure was reviewed. */
+  get g2ProviderControlsAccepted() {
+    return env("G2_PROVIDER_CONTROLS_ACCEPTED", "") === "2026-09-09";
+  },
+  get g2MaxConcurrentPerAccount() {
+    const value = Number(env("G2_MAX_CONCURRENT_PER_ACCOUNT", "2"));
+    return Number.isInteger(value) && value >= 1 && value <= 4 ? value : 2;
+  },
+  get g2SocketIdleTimeoutMs() {
+    const value = Number(env("G2_SOCKET_IDLE_TIMEOUT_MS", "30000"));
+    return Number.isInteger(value) && value >= 50 && value <= 120_000 ? value : 30_000;
+  },
   /**
    * Ask search: index-time expand on mirror upsert (0 disables).
    *

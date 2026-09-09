@@ -128,6 +128,25 @@ export function mergeG2Consent(currentValue, update = {}) {
   return regrantRequired ? { ...next, regrantRequired: true } : next;
 }
 
+/** Merge the companion-owned voice/model disclosure without widening plugin authority. */
+export function mergeG2Disclosure(currentValue, update = {}) {
+  const current = publicG2Consent(currentValue);
+  const next = structuredClone(current);
+  const wanted = consentDecision(update.disclosure);
+  if (!wanted) return current;
+  const stale = update.baseRevision !== current.revision;
+  if (wanted.granted && (stale || update.freshGesture !== true)) {
+    return { ...current, regrantRequired: true };
+  }
+  if (
+    current.g2Disclosure.granted === wanted.granted &&
+    current.g2Disclosure.version === wanted.version
+  ) return current;
+  next.g2Disclosure = wanted;
+  next.revision = current.revision + 1;
+  return next;
+}
+
 /**
  * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
  * same keys are present whatever the verdict, so a caller never has to tell an

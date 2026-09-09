@@ -117,3 +117,29 @@ rows:
     owner: product-engineering
     lastVerified: 2026-09-08
     notes: Exact packaged-app Origin and no-store apply to success and error.
+  - id: G2_STREAM_TICKET_010
+    path: /v1/g2/transcribe/ticket
+    operation: create
+    allowedActors: [current g2a_ family member with matching DPoP proof, live Plus entitlement, and current G2 disclosure]
+    deniedActors: [wrong scope, withdrawn disclosure, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Very short-lived single-use ticket bound to account, device family, key thumbprint, exact Origin, recording ID, purpose, authorization generation, byte limit, and duration limit; disclosure revision advance or family revocation invalidates every matching unconsumed ticket; no audio is accepted by this route.
+    tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [pre-auth audio egress, ticket replay, cross-device ticket theft, stale authorization generation, tenant disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Additive endpoint. New clients keep completed audio staged when an older server lacks it. Ticket consumption never substitutes stale stored binding data for current disclosure/family authority.
+  - id: G2_STREAM_AUDIO_011
+    path: RFC6455 /v1/g2/transcribe/stream?ticket={single-use-ticket}; authenticated HTTPS status/retry/cancel compatibility routes
+    operation: call
+    allowedActors: [consumer of a current single-use stream ticket or current scoped g2a_ owner of the recording with matching DPoP proof]
+    deniedActors: [unused access without a ticket, replayed or stale ticket, wrong Origin, wrong account or device key, revoked generation, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Upgrade accepts only the exact packaged-app Origin and one ticket query key. The ticket is consumed before 101 and before any application bytes. Client text frames are bounded finalize/cancel controls; binary frames are uint32-be sequence followed by non-empty even-byte PCM16. Delivery is ack-driven; unacknowledged encrypted journal chunks replay from the server next-sequence after reconnect. Impossible forward state fails closed. Chunks are sequence-bound and limited to two minutes. One recording owns one leased provider call and durable terminal status; ambiguous completion requires status or explicit manual retry.
+    tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs, companion/even-g2/test/audio-recovery.test.ts]
+    threatsCovered: [pre-auth audio egress, duplicate provider egress, unbounded buffering, stale completion disclosure, cross-tenant recovery]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Literal RFC6455 upgrade is the companion audio path. Access and refresh bearers are forbidden in the URL. Wrong Origin, extra query credentials, ticket replay, malformed frames, idle timeout, sequence/backpressure or duration/size/concurrency breach close or refuse the connection. Revocation or disclosure withdrawal closes the socket, aborts the lease, and invalidates late completion.

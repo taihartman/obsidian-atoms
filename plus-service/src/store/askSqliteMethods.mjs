@@ -3,11 +3,11 @@
  */
 import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
-  G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, normalizeG2Scopes,
+  G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, mergeG2Disclosure, normalizeG2Scopes,
   publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
-import { encryptMirrorField } from "../mirror/crypto.mjs";
+import { decryptMirrorField, encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
@@ -129,6 +129,11 @@ CREATE TABLE IF NOT EXISTS g2_consent (
   ask_mirror_granted INTEGER NOT NULL, ask_mirror_version TEXT NOT NULL,
   ask_write_granted INTEGER NOT NULL, ask_write_version TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS g2_transcriptions (
+  recording_id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  generation INTEGER NOT NULL, state TEXT NOT NULL, lease_owner TEXT,
+  lease_until_ms INTEGER NOT NULL, transcript_enc TEXT
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -204,6 +209,7 @@ export function createAskSqliteMethods(db, deps) {
     db.prepare("UPDATE g2_device_families SET revoked = 1 WHERE family_id = ?").run(familyId);
     db.prepare("UPDATE g2_access_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
     db.prepare("UPDATE g2_refresh_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
+    db.prepare("UPDATE g2_transcriptions SET state='revoked', lease_owner=NULL, lease_until_ms=0, transcript_enc=NULL WHERE family_id=?").run(familyId);
   }
 
   function g2Refresh(token, jkt, opts = {}) {
@@ -269,6 +275,82 @@ export function createAskSqliteMethods(db, deps) {
       db.exec("COMMIT");
       return next;
     } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2SynchronizeDisclosure(email, update) {
+    const key = normEmail(email); db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = db.prepare("SELECT * FROM g2_consent WHERE email=?").get(key);
+      const next = mergeG2Disclosure(current, update);
+      if (next.revision !== publicG2Consent(current).revision) {
+        db.prepare(`INSERT INTO g2_consent VALUES (?,?,?,?,?,?,?,?)
+          ON CONFLICT(email) DO UPDATE SET revision=excluded.revision,
+          g2_disclosure_granted=excluded.g2_disclosure_granted,
+          g2_disclosure_version=excluded.g2_disclosure_version,
+          ask_mirror_granted=excluded.ask_mirror_granted,
+          ask_mirror_version=excluded.ask_mirror_version,
+          ask_write_granted=excluded.ask_write_granted,
+          ask_write_version=excluded.ask_write_version`).run(
+          key, next.revision, Number(next.g2Disclosure.granted), next.g2Disclosure.version,
+          Number(next.askMirror.granted), next.askMirror.version,
+          Number(next.askWrite.granted), next.askWrite.version,
+        );
+      }
+      db.exec("COMMIT"); return next;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function transcriptionRow(row) {
+    return row ? {
+      recordingId: row.recording_id, email: row.email, familyId: row.family_id,
+      generation: Number(row.generation), state: row.state, leaseOwner: row.lease_owner,
+      leaseUntil: Number(row.lease_until_ms), transcript: row.transcript_enc ? decryptMirrorField(row.transcript_enc) : null,
+    } : null;
+  }
+
+  function g2TranscriptionClaim(binding, recordingId, owner, now = Date.now(), leaseMs = 30_000) {
+    const idValue = String(recordingId); db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = transcriptionRow(db.prepare("SELECT * FROM g2_transcriptions WHERE recording_id=?").get(idValue));
+      if (current && (current.email !== normEmail(binding.email) || current.familyId !== binding.familyId || current.generation !== binding.generation)) {
+        db.exec("ROLLBACK"); return null;
+      }
+      if (current?.state === "completed" || (current?.state === "transcribing" && current.leaseUntil > now && current.leaseOwner !== owner)) {
+        db.exec("ROLLBACK"); return { ...current, acquired: false };
+      }
+      db.prepare(`INSERT INTO g2_transcriptions VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(recording_id) DO UPDATE SET state='transcribing', lease_owner=excluded.lease_owner,
+        lease_until_ms=excluded.lease_until_ms`).run(
+        idValue, normEmail(binding.email), binding.familyId, binding.generation,
+        "transcribing", owner, now + leaseMs, current?.transcript ? encryptMirrorField(current.transcript) : null,
+      );
+      db.exec("COMMIT");
+      return { ...(current ?? { recordingId: idValue, email: normEmail(binding.email), familyId: binding.familyId, generation: binding.generation, transcript: null }), state: "transcribing", leaseOwner: owner, leaseUntil: now + leaseMs, acquired: true };
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
+    return db.prepare(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
+      lease_until_ms=0, transcript_enc=? WHERE recording_id=? AND email=? AND family_id=?
+      AND generation=? AND lease_owner=? AND state='transcribing'`).run(
+      encryptMirrorField(String(transcript)), String(recordingId), normEmail(binding.email),
+      binding.familyId, binding.generation, owner,
+    ).changes > 0;
+  }
+
+  function g2TranscriptionFail(binding, recordingId, owner, state) {
+    return db.prepare(`UPDATE g2_transcriptions SET state=?, lease_owner=NULL, lease_until_ms=0
+      WHERE recording_id=? AND email=? AND family_id=? AND generation=? AND lease_owner=?`).run(
+      String(state), String(recordingId), normEmail(binding.email), binding.familyId, binding.generation, owner,
+    ).changes > 0;
+  }
+
+  function g2TranscriptionGet(binding, recordingId) {
+    const row = transcriptionRow(db.prepare(`SELECT * FROM g2_transcriptions WHERE recording_id=?
+      AND email=? AND family_id=? AND generation=?`).get(
+      String(recordingId), normEmail(binding.email), binding.familyId, binding.generation,
+    ));
+    return row;
   }
 
   function g2ConsumeProof(jti, expMs, now = Date.now()) {
@@ -1059,6 +1141,8 @@ export function createAskSqliteMethods(db, deps) {
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
-    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2ConsumeProof, g2ConsumeAttempt,
+    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2SynchronizeDisclosure,
+    g2TranscriptionClaim, g2TranscriptionComplete, g2TranscriptionFail, g2TranscriptionGet,
+    g2ConsumeProof, g2ConsumeAttempt,
   };
 }

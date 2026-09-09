@@ -13,6 +13,7 @@ import {
   G2_REFRESH_TTL_MS,
   normalizeG2Scopes,
   mergeG2Consent,
+  mergeG2Disclosure,
   publicG2Consent,
   publicG2Device,
   accountHasUsedTrial,
@@ -91,6 +92,8 @@ export function createMemoryStore() {
   const g2Attempts = new Map();
   /** email -> account-scoped consent revision */
   const g2Consents = new Map();
+  /** recording id -> leased provider ownership and terminal transcript */
+  const g2Transcriptions = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -1195,6 +1198,9 @@ export function createMemoryStore() {
     if (family) family.revoked = true;
     for (const row of g2Access.values()) if (row.familyId === familyId) row.revoked = true;
     for (const row of g2Refresh.values()) if (row.familyId === familyId) row.revoked = true;
+    for (const row of g2Transcriptions.values()) {
+      if (row.familyId === familyId) Object.assign(row, { state: "revoked", transcript: null, leaseOwner: null, leaseUntil: 0 });
+    }
   }
 
   function g2RefreshTokens(token, jkt, opts = {}) {
@@ -1242,6 +1248,52 @@ export function createMemoryStore() {
     return publicG2Consent(next).revision === next.revision && next.regrantRequired
       ? { ...publicG2Consent(next), regrantRequired: true }
       : publicG2Consent(next);
+  }
+
+  function g2SynchronizeDisclosure(email, update) {
+    const key = normEmail(email);
+    const next = mergeG2Disclosure(g2Consents.get(key), update);
+    if (next.revision > 0) g2Consents.set(key, next);
+    return next;
+  }
+
+  function sameTranscriptionBinding(row, binding) {
+    return row?.email === normEmail(binding.email) && row.familyId === binding.familyId && row.generation === binding.generation;
+  }
+
+  function g2TranscriptionClaim(binding, recordingId, owner, now = Date.now(), leaseMs = 30_000) {
+    let row = g2Transcriptions.get(String(recordingId));
+    if (row && !sameTranscriptionBinding(row, binding)) return null;
+    if (row?.state === "completed") return { ...row, acquired: false };
+    if (row?.state === "transcribing" && row.leaseUntil > now && row.leaseOwner !== owner) {
+      return { ...row, acquired: false };
+    }
+    row = {
+      recordingId: String(recordingId), email: normEmail(binding.email), familyId: binding.familyId,
+      generation: binding.generation, state: "transcribing", leaseOwner: owner,
+      leaseUntil: now + leaseMs, transcript: row?.transcript ?? null,
+    };
+    g2Transcriptions.set(row.recordingId, row);
+    return { ...row, acquired: true };
+  }
+
+  function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
+    const row = g2Transcriptions.get(String(recordingId));
+    if (!sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner || row.state !== "transcribing") return false;
+    Object.assign(row, { state: "completed", transcript: String(transcript), leaseOwner: null, leaseUntil: 0 });
+    return true;
+  }
+
+  function g2TranscriptionFail(binding, recordingId, owner, state) {
+    const row = g2Transcriptions.get(String(recordingId));
+    if (!sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner) return false;
+    Object.assign(row, { state, leaseOwner: null, leaseUntil: 0 });
+    return true;
+  }
+
+  function g2TranscriptionGet(binding, recordingId) {
+    const row = g2Transcriptions.get(String(recordingId));
+    return sameTranscriptionBinding(row, binding) ? { ...row } : null;
   }
 
   function g2ConsumeProof(jti, expMs, now = Date.now()) {
@@ -1336,6 +1388,11 @@ export function createMemoryStore() {
     g2RevokeDevice,
     g2ReadConsent,
     g2SynchronizeConsent,
+    g2SynchronizeDisclosure,
+    g2TranscriptionClaim,
+    g2TranscriptionComplete,
+    g2TranscriptionFail,
+    g2TranscriptionGet,
     g2ConsumeProof,
     g2ConsumeAttempt,
     mintMcpTokensForTest: mintMcpTokens,
