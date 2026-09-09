@@ -1,0 +1,61 @@
+{
+  "subject": "I sent a screenshot of the text",
+  "title": "I sent a screenshot of the text",
+  "preheader": "Notes landed in Obsidian, already linked. A daily routine asked if I wanted them on the calendar.",
+  "tease": "Notes landed in Obsidian, already linked. A daily routine asked if I wanted them on the calendar.",
+  "blocks": [
+    {
+      "type": "tldr",
+      "lines": [
+        "This weekend I'm in a wedding. I sent Claude screenshots of a shop text and a group text. Notes showed up in Obsidian, already linked.",
+        "A daily routine asked if I wanted calendar events from those atoms. I said yes."
+      ]
+    },
+    {
+      "type": "p",
+      "text": "This weekend I'm in a wedding. Last week the shop texted that the tux was ready, and to come in and try it on so they have time for adjustments."
+    },
+    {
+      "type": "p",
+      "text": "I sent Claude a screenshot of the text."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-tux-text.ad8bf086.png",
+      "alt": "A screenshot of the shop text. The tux is ready."
+    },
+    {
+      "type": "h2",
+      "text": "In Obsidian"
+    },
+    {
+      "type": "p",
+      "text": "A note showed up, already linked to Christian. I didn't title it, and I didn't pick a folder."
+    },
+    {
+      "type": "p",
+      "text": "In August I'd sent a screenshot of a group text the same way. Rehearsal at the church at 4, then dinner."
+    },
+    {
+      "type": "h2",
+      "text": "The routine"
+    },
+    {
+      "type": "p",
+      "text": "I have a daily routine that looks at recent atoms and asks if I want anything on the calendar. I run it in Claude. I've run it in ChatGPT too. It asked, and I said yes."
+    },
+    {
+      "type": "figure",
+      "src": "https://tryatoms.app/email/fn-calendar-ask.b04892bb.png",
+      "alt": "On the calendar. Friday at 4."
+    },
+    {
+      "type": "p",
+      "text": "Want to be featured? Reply and show how you use Atoms day to day. We only name people with permission."
+    }
+  ],
+  "cta": {
+    "label": "Open tryatoms.app",
+    "href": "https://tryatoms.app"
+  }
+}
