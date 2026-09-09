@@ -373,18 +373,34 @@
               paste the URL.
             </li>
             <li>
-              <strong>ChatGPT</strong> — Settings → Apps → Advanced settings,
-              turn on Developer mode, then Apps → Create, add the URL, and
-              complete the sign-in it prompts for.
+              <strong>ChatGPT web</strong> — In the current Plugins UI, go to
+              <strong>Settings → Security → Developer mode</strong> and turn
+              it on. On accounts that use Apps, go to
+              <strong>Settings → Apps → Advanced Settings</strong> and turn on
+              <strong>Developer mode</strong>. Then return to
+              <strong>Plugins / Apps → Create app</strong>. Name it
+              <strong>Atoms Plus</strong>, paste
+              <span class="mono">https://plus.tryatoms.app/mcp</span> as the
+              MCP server URL, keep OAuth, create it, then choose
+              <strong>Sign in with Atoms Plus</strong>.
             </li>
           </ul>
 
+          <p class="fineprint">
+            A successful ChatGPT sign-in returns to
+            <span class="mono">chatgpt.com</span>. If it lands on
+            <span class="mono">127.0.0.1</span> or localhost instead, close
+            that tab and restart from ChatGPT web. Never use the localhost
+            address as the MCP server URL.
+          </p>
+
           <h3>Pair it</h3>
           <p>
-            The connector's authorise page asks for a pairing code. Back in
-            <strong>Settings → Atoms</strong> → <strong>Connect Claude or
-            ChatGPT</strong>, press <strong>Get pairing code</strong> and paste
-            what it gives you.
+            The sign-in page first asks for your Atoms Plus email. Open its
+            one-time link in the same browser. If email is inconvenient, go
+            back to <strong>Settings → Atoms</strong> → <strong>Connect Claude
+            or ChatGPT</strong>, press <strong>Get pairing code</strong>, and
+            use that instead.
           </p>
           <p class="fineprint">
             Codes expire quickly and are secrets — treat one like a password.

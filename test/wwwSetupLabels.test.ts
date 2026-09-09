@@ -34,13 +34,39 @@ import {
 import { labelCaptureShortcutCta } from "../src/settings/captureShortcut";
 import type { IssuedBase, PlusSession } from "../src/platform/filingAuth";
 
-/** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
-const guide = readFileSync(
+const guideHtml = readFileSync(
   join(__dirname, "..", "www", "dist", "setup.html"),
   "utf8",
-)
+);
+
+/** The guide as a reader reads it: no markup, no line wrapping, so a label may straddle both. */
+const guide = guideHtml
   .replace(/<[^>]+>/g, " ")
   .replace(/\s+/g, " ");
+
+/** One assistant's connector recipe, kept separate from unrelated page-wide copy. */
+function connectorRecipe(label: "Claude" | "ChatGPT web"): string {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = guideHtml.match(
+    new RegExp(`<li>\\s*<strong>${escapedLabel}</strong>([\\s\\S]*?)</li>`),
+  );
+  expect(match, `guide has no ${label} connector recipe`).not.toBeNull();
+  return (match?.[1] ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function expectInOrder(text: string, steps: string[]): void {
+  let cursor = -1;
+  for (const step of steps) {
+    const index = text.indexOf(step, cursor + 1);
+    expect(index, `expected ${step} after ${steps.slice(0, steps.indexOf(step)).join(" → ")}`).toBeGreaterThan(
+      cursor,
+    );
+    cursor = index;
+  }
+}
 
 const PLUS_SESSION: PlusSession = {
   sessionToken: "sess_setup",
@@ -158,6 +184,40 @@ describe("setup guide quotes labels the plugin still renders", () => {
       .find((s) => s.includes("Get pairing code"));
     expect(sentence, "guide has no pairing-code step").toBeDefined();
     expect(sentence).toContain("Connect Claude or ChatGPT");
+  });
+
+  it("gives ChatGPT users a complete hosted custom-app path and localhost recovery", () => {
+    const chatGptRecipe = connectorRecipe("ChatGPT web");
+    expectInOrder(chatGptRecipe, [
+      "Settings → Security → Developer mode",
+      "Settings → Apps → Advanced Settings",
+      "Advanced Settings and turn on Developer mode",
+      "Plugins / Apps → Create app",
+    ]);
+    for (const instruction of [
+      "Atoms Plus",
+      "https://plus.tryatoms.app/mcp",
+      "Sign in with Atoms Plus",
+    ]) {
+      expect(chatGptRecipe.includes(instruction), `ChatGPT recipe omits ${instruction}`).toBe(true);
+    }
+    for (const instruction of [
+      "chatgpt.com",
+      "127.0.0.1",
+    ]) {
+      expect(guide.includes(instruction), `guide omits ${instruction}`).toBe(true);
+    }
+    expect(guide).toContain("restart from ChatGPT web");
+  });
+
+  it("keeps the complete Claude custom-connector recipe", () => {
+    expectInOrder(connectorRecipe("Claude"), [
+      "Customize",
+      "Connectors",
+      "+",
+      "Add custom connector",
+      "paste the URL",
+    ]);
   });
 
   it("names the self-host controls the Advanced screen renders, and where they are", () => {
