@@ -22,17 +22,40 @@ describe("G2 pairing", () => {
 
   it("renders code, disclosure, setup, loading, failures, success, and reconnect through one phone surface", () => {
     for (const state of [
-      { screen: "unpaired" as const },
+      { screen: "unpaired" as const, origin: "evenhub://app.tryatoms.g2" },
       { screen: "pairing" as const, code: "ABC123" },
       { screen: "disclosure" as const },
       { screen: "setup-required" as const },
       { screen: "loading" as const, operation: "pairing" as const },
-      { screen: "pairing-error" as const, reason: "expired" as const },
+      { screen: "pairing-error" as const, reason: "expired" as const, origin: "evenhub://app.tryatoms.g2" },
       { screen: "ready" as const },
     ]) {
       const root = { textContent: "", replaceChildren() {} } as unknown as HTMLElement;
       renderPhone(root, state);
       expect(root.textContent?.trim()).toBeTruthy();
     }
+  });
+
+  it("shows the exact private test origin with the Even G2 pairing instruction", () => {
+    const root = { textContent: "", replaceChildren() {} } as unknown as HTMLElement;
+
+    renderPhone(root, { screen: "unpaired", origin: "evenhub://app.tryatoms.g2" });
+
+    expect(root.textContent).toBe([
+      "Enter the code from the Even G2 row in Atoms settings.",
+      "Private test origin: evenhub://app.tryatoms.g2",
+    ].join("\n"));
+  });
+
+  it("keeps the private test origin visible after a rejected pairing code", () => {
+    const root = { textContent: "", replaceChildren() {} } as unknown as HTMLElement;
+
+    renderPhone(root, {
+      screen: "pairing-error",
+      reason: "invalid",
+      origin: "evenhub://app.tryatoms.g2",
+    });
+
+    expect(root.textContent).toContain("Private test origin: evenhub://app.tryatoms.g2");
   });
 });

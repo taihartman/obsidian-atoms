@@ -54,6 +54,7 @@ export async function startG2Companion(
 ): Promise<void> {
   const status = document.querySelector<HTMLOutputElement>("#capability-status");
   if (!status) return;
+  const privateTestOrigin = location.origin;
   showStartupStatus(status, "checking", G2_COPY.checking);
   let capability: RecoveryCapabilityResult;
   try {
@@ -87,7 +88,7 @@ export async function startG2Companion(
   const phone = (state: PhoneState) => renderPhone(status, state, {
     connect: (code) => { void pair(code); },
     acceptDisclosure: () => { void acceptDisclosure(); },
-    reconnect: () => { phone({ screen: "unpaired" }); },
+    reconnect: () => { phone({ screen: "unpaired", origin: privateTestOrigin }); },
   });
 
   let bootSession!: (session: G2Session) => Promise<void>;
@@ -105,7 +106,7 @@ export async function startG2Companion(
         phone({ screen: consent.g2Disclosure.granted ? "setup-required" : "disclosure" });
       }
     } catch {
-      phone({ screen: "pairing-error", reason: "invalid" });
+      phone({ screen: "pairing-error", reason: "invalid", origin: privateTestOrigin });
     }
   });
 
@@ -164,7 +165,7 @@ export async function startG2Companion(
       },
       stopAudio: async (reason = "background") => { await audio?.teardown(reason); },
       closeSockets: () => { void audio?.teardown("background"); },
-      reconnect: () => { phone({ screen: "unpaired" }); },
+      reconnect: () => { phone({ screen: "unpaired", origin: privateTestOrigin }); },
       requestSystemExit: async () => { await bridge.shutDownPageContainer(1); },
       unsubscribe: () => {
         removeEvents();
@@ -214,7 +215,7 @@ export async function startG2Companion(
     }
   } else {
     await renderer.render({ screen: "unpaired", selectedIndex: 0 });
-    phone({ screen: "unpaired" });
+    phone({ screen: "unpaired", origin: privateTestOrigin });
   }
 }
 

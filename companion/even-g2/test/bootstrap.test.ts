@@ -86,6 +86,7 @@ describe("G2 companion bootstrap", () => {
     mocks.bridge.getLocalStorage.mockImplementation(async (key: string) => key === "atoms-g2-binding" ? "" : "");
     mocks.bridge.onEvenHubEvent.mockReturnValue(mocks.removeEvents);
     vi.stubGlobal("document", { querySelector: vi.fn(() => status) });
+    vi.stubGlobal("location", { origin: "evenhub://app.tryatoms.g2" });
   });
 
   it("fails closed before acquiring the bridge when recovery is blocked", async () => {
@@ -116,7 +117,10 @@ describe("G2 companion bootstrap", () => {
     }));
 
     expect(mocks.renderGlasses).toHaveBeenCalledWith({ screen: "unpaired", selectedIndex: 0 });
-    expect(mocks.renderPhone).toHaveBeenCalledWith(status, { screen: "unpaired" }, expect.any(Object));
+    expect(mocks.renderPhone).toHaveBeenCalledWith(status, {
+      screen: "unpaired",
+      origin: "evenhub://app.tryatoms.g2",
+    }, expect.any(Object));
   });
 
   it("returns to pairing when a host restart keeps the pointer but loses the credential key", async () => {
@@ -130,7 +134,10 @@ describe("G2 companion bootstrap", () => {
     }));
 
     expect(mocks.renderGlasses).toHaveBeenCalledWith({ screen: "unpaired", selectedIndex: 0 });
-    expect(mocks.renderPhone).toHaveBeenCalledWith(status, { screen: "unpaired" }, expect.any(Object));
+    expect(mocks.renderPhone).toHaveBeenCalledWith(status, {
+      screen: "unpaired",
+      origin: "evenhub://app.tryatoms.g2",
+    }, expect.any(Object));
   });
 
   it("boots a restored session and exposes subscription cleanup to the controller", async () => {
