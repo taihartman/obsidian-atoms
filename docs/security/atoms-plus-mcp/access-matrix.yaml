@@ -1,0 +1,93 @@
+version: 1
+rows:
+  - id: PAIR_PUBLIC_MINT_001
+    path: /v1/ask/mcp/pair
+    operation: create
+    allowedActors: [entitled account with a verified Plus session]
+    deniedActors: [unauthenticated caller, inactive account, operator TTL input over HTTP, reserved reviewer identity using a normal Plus session]
+    identityType: plus-session
+    dataShape: Pairing code is hashed at rest, one-time, remint-invalidating, and expires after the fixed ten-minute public TTL.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs, plus-service/test/http-ask-mirror.test.mjs]
+    threatsCovered: [public long-lived credential minting, plaintext credential persistence]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Public route calls pairMint without an operator TTL override and rejects reserved reviewer identities before the store call.
+  - id: REVIEW_PROVISION_001
+    path: plus-service/src/reviewer/provision.mjs
+    operation: call
+    allowedActors: [operator using a reserved review.tryatoms.app identity on persistent storage]
+    deniedActors: [normal users, non-review identities, production memory or SQLite targets]
+    identityType: operator-reviewer
+    dataShape: Active synthetic account plus one 130-bit reusable reviewer credential with a bounded operator-selected lifetime; production requires Postgres, and every non-production persistence override is explicit.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs]
+    threatsCovered: [production fail-open memory state, accidental real-account reset, unbounded reviewer credentials, online guessing of extended credentials]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Re-running is scoped to the normalized reserved review tenant and invalidates that tenant's prior reviewer credential.
+  - id: PAIR_REDEEM_001
+    path: OAuth pairing-code redemption
+    operation: update
+    allowedActors: [holder of a live unconsumed pairing code]
+    deniedActors: [expired code holder, reused code holder, holder of a superseded code]
+    identityType: pair-code
+    dataShape: Atomic single consumption returns only the tenant email associated with the stored hash.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs]
+    threatsCovered: [credential replay, remint overlap, cross-tenant redemption]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Existing one-time redemption semantics remain unchanged.
+  - id: REVIEW_CREDENTIAL_REDEEM_001
+    path: OAuth pairing-code redemption
+    operation: read
+    allowedActors: [holder of a live reusable credential for a reserved review.tryatoms.app identity]
+    deniedActors: [expired credential holder, holder of a superseded credential, reusable request for a non-review identity]
+    identityType: operator-reviewer
+    dataShape: A 130-bit credential is hashed at rest, can authorize repeated OAuth sessions until expiry, and is invalidated by reminting the tenant row.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs]
+    threatsCovered: [reviewer lockout during later testing, extended-credential guessing, cross-tenant redemption, stale credential overlap]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Only the reviewer provisioning entrypoint opts into reusable mode; the public mint route cannot request it.
+  - id: REVIEW_MIRROR_SEED_001
+    path: atom_mirror rows for reserved reviewer tenant
+    operation: write
+    allowedActors: [operator provisioning the same reserved reviewer tenant]
+    deniedActors: [normal users, authenticated Plus sessions for reviewer identities, operator targeting a non-review identity]
+    identityType: operator-reviewer
+    dataShape: Replace only the target tenant mirror and outbox with deterministic synthetic Atoms/*.md fixtures.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs, plus-service/test/http-ask-mirror.test.mjs]
+    threatsCovered: [customer-data deletion, reviewer exposure to customer data, non-deterministic review results]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Mirror storage encryption and path allowlists are reused unchanged.
+  - id: REVIEW_OAUTH_ROTATE_001
+    path: reviewer reprovisioning and MCP authorization state
+    operation: delete
+    allowedActors: [operator reprovisioning the same reserved reviewer tenant]
+    deniedActors: [holder of a superseded reviewer browser session, holder of a superseded authorization code, holder of a revoked access or refresh token]
+    identityType: operator-reviewer
+    dataShape: Reprovisioning revokes access tokens, refresh tokens, browser sessions, and unexchanged authorization codes for only the target reviewer email before minting the replacement credential.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs]
+    threatsCovered: [superseded credential continuation, stale browser authorization, stale authorization-code exchange]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: The replacement credential must be entered in the private portal only after the new reviewer tenant passes validation.
+  - id: MCP_TOKEN_TENANT_001
+    path: MCP token to account and mirror access
+    operation: read
+    allowedActors: [live MCP token for its entitled tenant]
+    deniedActors: [token for another tenant, revoked token, token for inactive account]
+    identityType: mcp-token
+    dataShape: Token resolves to exactly one normalized email and all mirror methods remain email-scoped.
+    tests: [plus-service/test/openai-reviewer-provision.test.mjs]
+    threatsCovered: [cross-tenant reads, inactive entitlement access, revoked token reuse]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Provisioning does not alter OAuth PKCE, scopes, or token authorization.

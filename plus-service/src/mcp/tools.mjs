@@ -21,6 +21,24 @@ const HUB_NOT_SYNCED_HINT =
 const PENDING_HINT =
   "Queued. Lands when Obsidian is open (Ask + filing). Confirm with fetch_atom. Do not read outbox_id to the user unless they need to cancel.";
 
+const READ_TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  destructiveHint: false,
+};
+
+const REVERSIBLE_WRITE_TOOL_ANNOTATIONS = {
+  readOnlyHint: false,
+  openWorldHint: false,
+  destructiveHint: false,
+};
+
+const DESTRUCTIVE_WRITE_TOOL_ANNOTATIONS = {
+  readOnlyHint: false,
+  openWorldHint: false,
+  destructiveHint: true,
+};
+
 const CREATE_ATOM_DESCRIPTION =
   "Queue a new atom (outbox). Pending until Obsidian applies it. Body is a record — only what the user stated or supplied. Title may sharpen the body; it must not add claims. Links and tags are retrieval hints: propose them, including inferred connections to existing notes, and put the basis in reason. Set open_loop for an intention/IOU, not finished substance.";
 
@@ -131,7 +149,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Mirror status",
       description:
         "Which Plus account this connector reads, how many notes are in the Ask mirror, when the mirror last received a push, pending outbox writes, and granted scopes. Call first when counts look wrong, the user disputes absence, or you need account identity (wrong-tenant diagnosis).",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       inputSchema: {},
     },
     async () => {
@@ -156,7 +174,7 @@ export function registerAskTools(mcp, ctx) {
       title: "List tags",
       description:
         "Distinct tags on mirrored atoms with per-tag atom counts. Sorted by count descending, then tag name ascending (cap 500). When truncated is true, a missing tag is inconclusive—still try search_atoms. Call before concluding a tags: filter on search_atoms found nothing—distinguishes missing tag vs tag present but no query match. Partial mirror only.",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       inputSchema: {},
     },
     async () => {
@@ -197,7 +215,7 @@ export function registerAskTools(mcp, ctx) {
       title: "Search atoms",
       description:
         "Search mirrored atoms by title, tags, body, and server search-expansion phrases when available. Each hit includes open_now (boolean) and loop {state,source}|null — when open_now is true the note is an intention left for later, not finished substance; never pitch it as a ready asset (label among candidates; redeem with relation redeems to close). Also: retrieval (lexical|lexical_expanded), expand_coverage, omitted_below_threshold, omitted_by_limit, tag_pool, confidence high|medium, optional match_signals (title|tag|body|expand|tag_scope). tags filters the pool: every atom with those tags is eligible up to limit, ranked by score then created; the relevance floor does not hide members. tag_scope means in the tag set, not a query hit — fetch before quoting. Recency / all-of-a-tag / newest → list_atoms (tags + sort_by=created order=desc), not a second search. Weak matches omitted only when tags is omitted. Empty ≠ vault absence. Snippets non-authoritative—fetch_atom for body claims. Numeric score is ranking only.",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       inputSchema: {
         query: z.string().describe("Search query"),
         limit: z.number().int().min(1).max(25).optional(),
@@ -304,7 +322,7 @@ export function registerAskTools(mcp, ctx) {
     "fetch_atom",
     {
       title: "Fetch atom",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       description:
         "Fetch one mirrored note by title or path (atoms under Atoms/ and hub notes linked from atoms). Returns verbatim body (authoritative), open_now + loop when known (open_now true = intention not substance), tags, kind, synced_at, status, inverse revision edges (incl. redeemed_by), structured links. Hubs set revision_participant:false.",
       inputSchema: {
@@ -375,7 +393,7 @@ export function registerAskTools(mcp, ctx) {
     "neighbors",
     {
       title: "Neighbors",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       description:
         "Graph around a title: outgoing [[links]] from that atom (if mirrored) plus backlinks (other mirrored atoms that link to this name). Includes status on the center (when found) and on each backlink. Works even when the hub note is not in Atoms/.",
       inputSchema: {
@@ -419,7 +437,7 @@ export function registerAskTools(mcp, ctx) {
     "create_atom",
     {
       title: "Create atom",
-      annotations: { readOnlyHint: false, destructiveHint: true },
+      annotations: REVERSIBLE_WRITE_TOOL_ANNOTATIONS,
       description: CREATE_ATOM_DESCRIPTION,
       inputSchema: {
         title: atomTitle,
@@ -482,7 +500,7 @@ export function registerAskTools(mcp, ctx) {
     "continue_atom",
     {
       title: "Continue atom",
-      annotations: { readOnlyHint: false, destructiveHint: true },
+      annotations: REVERSIBLE_WRITE_TOOL_ANNOTATIONS,
       description: CONTINUE_ATOM_DESCRIPTION,
       inputSchema: {
         parent_title: z.string().describe("Existing mirrored atom title"),
@@ -602,7 +620,7 @@ export function registerAskTools(mcp, ctx) {
     "set_loop",
     {
       title: "Set loop state",
-      annotations: { readOnlyHint: false, destructiveHint: true },
+      annotations: DESTRUCTIVE_WRITE_TOOL_ANNOTATIONS,
       description:
         "Queue a frontmatter-only loop mark on an existing mirrored atom (outbox). Does NOT write instantly. Always sets atoms-loop-source to user. Ask the user before calling; do not invent marks. Use active for open intentions; not_a_loop / resolved_elsewhere / abandoned for corrections. Body never changes. Does not create children — substance close uses continue_atom with relation redeems. active does not reopen a loop that already has a redeeming child.",
       inputSchema: {
@@ -699,7 +717,7 @@ export function registerAskTools(mcp, ctx) {
     "cancel_pending",
     {
       title: "Cancel pending write",
-      annotations: { readOnlyHint: false, destructiveHint: true },
+      annotations: DESTRUCTIVE_WRITE_TOOL_ANNOTATIONS,
       description:
         "Cancel a pending or claimed outbox write before Obsidian applies it. Cannot undo applied atoms. Use list_pending if you lost the outbox_id.",
       inputSchema: {
@@ -743,7 +761,7 @@ export function registerAskTools(mcp, ctx) {
     "list_pending",
     {
       title: "List pending writes",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       description:
         "List this account's non-terminal outbox writes (status pending or claimed). Use outbox_id with cancel_pending. Requires atoms:write. Does not include applied/cancelled/rejected rows.",
       inputSchema: {},
@@ -784,7 +802,7 @@ export function registerAskTools(mcp, ctx) {
     "list_atoms",
     {
       title: "List atoms",
-      annotations: { readOnlyHint: true, destructiveHint: false },
+      annotations: READ_TOOL_ANNOTATIONS,
       description:
         "List mirrored atoms (title, path, tags, created, synced_at, open_now, loop) with offset pagination. open_now true means intention not finished substance. Default order title ASC. For newest-by-note-date use sort_by=created order=desc. Optional created_after/before and tags (all must match). Optional open_now boolean filters on that derived field (active loop AND no redeeming child) so \"list open loops\" does not need to page the whole mirror.",
       inputSchema: {

@@ -229,6 +229,9 @@ Public Streamable HTTP MCP endpoint (Plus host) that **Claude and ChatGPT** conn
 ### Ask MCP pairing code
 Short-lived, single-use code minted from a verified Plus plugin session so connector OAuth can bind `mcp_` tokens to the **Plus account email** without opening that inbox in the OAuth browser. Parallel to email + magic link on the authorize page. Does not create secondary emails or share the mirror with a second tenant. Requirements: `docs/plans/2026-08-04-002-feat-ask-mcp-pairing-plan.md`.
 
+### Reviewer credential
+Operator-only, high-entropy OAuth pairing credential for a synthetic `@review.tryatoms.app` tenant used during public platform review. Unlike an end-user pairing code, it is reusable for a bounded period so an asynchronous reviewer can reconnect. The reviewer identity is reserved from normal pairing and mirror-write routes, and rotating the credential revokes its access tokens, refresh tokens, browser sessions, and unexchanged authorization codes.
+
 ## Plus (billing + entitlement)
 
 ### Stripe incident

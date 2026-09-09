@@ -8,7 +8,7 @@ import {
   cancelExpandForEmail,
   enqueueMirrorExpand,
 } from "../ask/expandSearch.mjs";
-import { assertMirrorPath } from "../store/askHelpers.mjs";
+import { assertMirrorPath, isReviewerIdentity } from "../store/askHelpers.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
@@ -91,6 +91,14 @@ export async function handleMirrorRoutes({
       message: "Too many Ask requests",
       retryAfterSec: rl.retryAfterSec,
     });
+    return true;
+  }
+
+  // Reviewer tenants are operator-owned fixtures. Their reusable OAuth
+  // credential may be redeemed through the OAuth route, but an ordinary Plus
+  // session must never remint it or change the review dataset.
+  if (req.method !== "GET" && isReviewerIdentity(a.email)) {
+    json(res, 403, { message: "Reviewer tenants are managed by the operator" });
     return true;
   }
 

@@ -1,0 +1,19 @@
+version: 1
+matrix: access-matrix.yaml
+schema: access-matrix.schema.yaml
+generated_view: access-matrix.md
+docs_dir: .
+test_globs:
+  - ../../../plus-service/test/openai-reviewer-provision.test.mjs
+  - ../../../plus-service/test/http-ask-mirror.test.mjs
+doc_frontmatter:
+  required_keys: [status, owner, last_verified, canonical_for, supersedes, superseded_by]
+  doc_status_values: [canonical, draft, historical, needs-update, superseded]
+  canonical_status: canonical
+row_id_pattern: "^[A-Z][A-Z0-9_]+_[0-9]{3}$"
+enforcement_layer_files:
+  - ../../../plus-service/src/store/askHelpers.mjs
+  - ../../../plus-service/src/store/memory.mjs
+  - ../../../plus-service/src/store/askSqliteMethods.mjs
+  - ../../../plus-service/src/store/askPostgresMethods.mjs
+  - ../../../plus-service/src/reviewer/provision.mjs

@@ -222,17 +222,34 @@ describe("MCP modern era 2026-07-28", () => {
     const listMsg = await parseMcpBody(listRes);
     const result = listMsg.result || listMsg;
     assert.ok(Array.isArray(result.tools), JSON.stringify(listMsg).slice(0, 400));
-    assert.ok(result.tools.length >= 5);
+    const expectedAnnotations = {
+      mirror_status: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      list_tags: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      search_atoms: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      fetch_atom: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      neighbors: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      create_atom: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+      continue_atom: { readOnlyHint: false, openWorldHint: false, destructiveHint: false },
+      set_loop: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
+      cancel_pending: { readOnlyHint: false, openWorldHint: false, destructiveHint: true },
+      list_pending: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+      list_atoms: { readOnlyHint: true, openWorldHint: false, destructiveHint: false },
+    };
+    assert.deepEqual(
+      result.tools.map((tool) => tool.name).sort(),
+      Object.keys(expectedAnnotations).sort(),
+    );
     for (const t of result.tools) {
       assert.ok(t.title || t.annotations?.title, `title missing on ${t.name}`);
       assert.ok(
         t.securitySchemes || t._meta?.securitySchemes,
         `securitySchemes missing on ${t.name}`,
       );
+      assert.deepEqual(t.annotations, expectedAnnotations[t.name]);
     }
     const create = result.tools.find((t) => t.name === "create_atom");
     assert.ok(create);
-    assert.equal(create.annotations?.destructiveHint, true);
+    assert.equal(create.annotations?.destructiveHint, false);
     const statusTool = result.tools.find((t) => t.name === "mirror_status");
     assert.ok(statusTool, "mirror_status must appear in tools/list");
     assert.ok(statusTool.title || statusTool.annotations?.title);
