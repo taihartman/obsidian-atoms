@@ -110,20 +110,21 @@ describe("G2 companion bootstrap", () => {
     expect(waitForEvenAppBridge).not.toHaveBeenCalled();
   });
 
-  it("asks for one visible reopen before accepting a cold-reload proof", async () => {
+  it("renders the unpaired state when there is no valid binding", async () => {
     await startG2Companion("https://plus.tryatoms.app", async () => ({
-      state: "reload-required",
-      bearerFallback: false,
+      state: "ready", blobPersistence: "encrypted", keyPersistence: "non-extractable", reservedBytes: 1, purged: true,
     }));
 
-    expect(status.dataset).toEqual({ state: "reload-required" });
-    expect(status.textContent).toBe(
-      "Close Atoms, then open it again to finish checking this phone.",
-    );
-    expect(waitForEvenAppBridge).not.toHaveBeenCalled();
+    expect(mocks.renderGlasses).toHaveBeenCalledWith({ screen: "unpaired", selectedIndex: 0 });
+    expect(mocks.renderPhone).toHaveBeenCalledWith(status, { screen: "unpaired" }, expect.any(Object));
   });
 
-  it("renders the unpaired state when there is no valid binding", async () => {
+  it("returns to pairing when a host restart keeps the pointer but loses the credential key", async () => {
+    mocks.bridge.getLocalStorage.mockImplementation(async (key: string) => key === "atoms-g2-binding"
+      ? JSON.stringify({ accountId: "acct", deviceFamilyId: "g2" })
+      : "");
+    mocks.restoreSession.mockResolvedValue(null);
+
     await startG2Companion("https://plus.tryatoms.app", async () => ({
       state: "ready", blobPersistence: "encrypted", keyPersistence: "non-extractable", reservedBytes: 1, purged: true,
     }));

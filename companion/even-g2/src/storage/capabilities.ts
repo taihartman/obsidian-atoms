@@ -25,10 +25,6 @@ export type RecoveryCapabilityResult =
       purged: true;
     }
   | {
-      state: "reload-required";
-      bearerFallback: false;
-    }
-  | {
       state: "blocked";
       reason: CapabilityBlockReason;
       bearerFallback: false;
@@ -57,10 +53,7 @@ const DATABASE_VERSION = 2;
 const DATABASE_NAME = "atoms-g2-capability";
 const KEY_STORE = "keys";
 const BLOB_STORE = "blobs";
-const META_STORE = "metadata";
 const PROBE_KEY = "recovery";
-const VERIFIED_KEY = "verified";
-const VERIFIED_VERSION = 1;
 
 function blocked(reason: CapabilityBlockReason): RecoveryCapabilityResult {
   return { state: "blocked", reason, bearerFallback: false };
@@ -101,9 +94,6 @@ function openDatabase(indexedDB: IDBFactory, name: string): Promise<IDBDatabase>
       }
       if (!database.objectStoreNames.contains(BLOB_STORE)) {
         database.createObjectStore(BLOB_STORE);
-      }
-      if (!database.objectStoreNames.contains(META_STORE)) {
-        database.createObjectStore(META_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -197,7 +187,7 @@ async function verifyProbe(
     await crypto.subtle.exportKey("raw", key);
     return "key-extractable";
   } catch {
-    // A persisted credential key must remain non-extractable after cold reload.
+    // A stored credential key must remain non-extractable after reopening IndexedDB.
   }
 
   for (const record of records as EncryptedProbeRecord[]) {
@@ -219,31 +209,11 @@ async function verifyProbe(
   return null;
 }
 
-async function probeState(database: IDBDatabase): Promise<"empty" | "pending" | "verified"> {
-  const transaction = database.transaction([KEY_STORE, BLOB_STORE, META_STORE], "readonly");
-  const done = transactionDone(transaction);
-  const key = requestResult(transaction.objectStore(KEY_STORE).get(PROBE_KEY));
-  const blobs = transaction.objectStore(BLOB_STORE);
-  const records = ["completed", "active"].map((id) => requestResult(blobs.get(id)));
-  const marker = requestResult(transaction.objectStore(META_STORE).get(VERIFIED_KEY));
-  const [storedKey, completed, active, storedMarker] = await Promise.all([
-    key,
-    ...records,
-    marker,
-  ]);
-  await done;
-  const noProbeData = storedKey === undefined && completed === undefined && active === undefined;
-  if (noProbeData && storedMarker === VERIFIED_VERSION) return "verified";
-  if (noProbeData && storedMarker === undefined) return "empty";
-  return "pending";
-}
-
-async function markProbeVerified(database: IDBDatabase): Promise<void> {
-  const transaction = database.transaction([KEY_STORE, BLOB_STORE, META_STORE], "readwrite");
+async function purgeProbe(database: IDBDatabase): Promise<void> {
+  const transaction = database.transaction([KEY_STORE, BLOB_STORE], "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(KEY_STORE).clear();
   transaction.objectStore(BLOB_STORE).clear();
-  transaction.objectStore(META_STORE).put(VERIFIED_VERSION, VERIFIED_KEY);
   await done;
 }
 
@@ -286,24 +256,6 @@ export async function probeRecoveryCapabilities(
   try {
     database = await openDatabase(indexedDB, databaseName);
     needsPurge = true;
-    const state = await probeState(database);
-    if (state === "verified") {
-      database.close();
-      database = undefined;
-      needsPurge = false;
-      return ready(reservedBytes);
-    }
-    if (state === "pending") {
-      const failure = await verifyProbe(database, crypto);
-      if (failure) return blocked(failure);
-      await markProbeVerified(database);
-      database.close();
-      database = undefined;
-      needsPurge = false;
-
-      return ready(reservedBytes);
-    }
-
     const key = await crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       false,
@@ -314,8 +266,14 @@ export async function probeRecoveryCapabilities(
     database = undefined;
 
     await dependencies.afterPersist?.(databaseName);
+    database = await openDatabase(indexedDB, databaseName);
+    const failure = await verifyProbe(database, crypto);
+    if (failure) return blocked(failure);
+    await purgeProbe(database);
+    database.close();
+    database = undefined;
     needsPurge = false;
-    return { state: "reload-required", bearerFallback: false };
+    return ready(reservedBytes);
   } catch {
     return blocked("probe-failed");
   } finally {

@@ -50,9 +50,11 @@ Use `--plus-port`, `--provider-port`, `--vite-port`, or `--automation-port` afte
 
 - [ ] Temple and R1 gestures match the interaction map
 - [ ] Microphone permission, audio quality, and two-minute ceiling
-- [ ] Disconnect during recording preserves recoverable audio
-- [ ] Five-minute foreground resume on iOS and Android
+- [ ] Disconnect during recording preserves recoverable audio while the host remains alive
+- [ ] Five-minute foreground resume while the iPhone host remains alive, plus Android cold-start recovery
 - [ ] Root exit confirmation stops microphone, socket, and subscriptions
+
+The private iPhone v1 is intentionally session-only. If iOS terminates the Even Hub host, open Atoms and pair again. Audio and proposals interrupted by that process restart cannot be recovered; confirm this fails safely without sending or committing stale content.
 
 ## Private package and Beta evidence
 
@@ -61,13 +63,13 @@ Use `--plus-port`, `--provider-port`, `--vite-port`, or `--automation-port` afte
 - [ ] Run create, mirror receipt, query, source, and recent flows against a throwaway vault
 - [ ] Lock the phone during recording, query, and queued states
 - [ ] Leave the app idle for two minutes, then reconnect without duplicate provider work
-- [ ] Interrupt the phone process and resume without an automatic commit
+- [ ] Interrupt the iPhone process, confirm Atoms returns to pairing without an automatic commit, and verify the next pairing starts cleanly
 
 ## Public submission
 
 - [ ] Attach Private and Beta evidence to the release review
 - [ ] Record provider data-control review and current retention wording
-- [ ] Record physical G2 recovery evidence on both supported phone platforms
+- [ ] Record physical G2 session-loss evidence on iPhone and recovery evidence on Android
 - [ ] Submit to public Even Hub review
 
 Public submission is intentionally unchecked. These are human-owned gates.

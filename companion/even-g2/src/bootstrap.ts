@@ -38,7 +38,7 @@ function audioBytes(event: EvenHubEvent): Uint8Array | null {
 
 function showStartupStatus(
   status: HTMLOutputElement,
-  state: "checking" | "reload-required" | "blocked",
+  state: "checking" | "blocked",
   copy: string,
   reason?: string,
 ): void {
@@ -66,11 +66,6 @@ export async function startG2Companion(
     showStartupStatus(status, "blocked", G2_COPY.startupBlocked, capability.reason);
     return;
   }
-  if (capability.state === "reload-required") {
-    showStartupStatus(status, "reload-required", G2_COPY.reopenForStorageCheck);
-    return;
-  }
-
   const releaseSdkLogPrivacy = installEvenSdkEventLogPrivacy();
   let bridge: Awaited<ReturnType<typeof waitForEvenAppBridge>>;
   try {
@@ -219,7 +214,7 @@ export async function startG2Companion(
     }
   } else {
     await renderer.render({ screen: "unpaired", selectedIndex: 0 });
-    phone({ screen: pointer ? "setup-required" : "unpaired" });
+    phone({ screen: "unpaired" });
   }
 }
 

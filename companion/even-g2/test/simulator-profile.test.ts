@@ -47,10 +47,6 @@ describe("simulator recovery capability adapter", () => {
       crypto: webcrypto as unknown as Crypto,
       databaseName: "simulator-production-size-probe",
     };
-    await expect(probeRecoveryCapabilities(probeDependencies)).resolves.toEqual({
-      state: "reload-required",
-      bearerFallback: false,
-    });
     await expect(probeRecoveryCapabilities(probeDependencies)).resolves.toMatchObject({
       state: "ready",
       reservedBytes: MAX_RECORDING_BYTES * 2,
