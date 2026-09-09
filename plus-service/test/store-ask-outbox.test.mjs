@@ -317,6 +317,25 @@ describe("ask outbox store", () => {
         });
       });
 
+      it("filters atom kind before recent pagination and coverage", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "recent@ex.co");
+          await store.mirrorUpsert("recent@ex.co", [
+            { path: "People/Hub.md", title: "Hub", body: "hub", kind: "hub", created: "2026-09-09" },
+            { path: "Atoms/New.md", title: "New", body: "new", created: "2026-09-08" },
+            { path: "Atoms/Old.md", title: "Old", body: "old", created: "2026-01-01" },
+            { path: "Atoms/No date.md", title: "No date", body: "unknown" },
+          ]);
+          const page = await store.mirrorList("recent@ex.co", {
+            kind: "atom", sort_by: "created", order: "desc", limit: 2, offset: 0,
+          });
+          assert.deepEqual(page.items.map((item) => item.title), ["New", "Old"]);
+          assert.equal(page.total, 3);
+          assert.equal(page.next_offset, 2);
+          assert.deepEqual(page.created_coverage, { with_created: 2, total: 3 });
+        });
+      });
+
       it("mirrorList items expose synced_at + kind; status has last update", async () => {
         await withStore(mode, async (store) => {
           await seed(store, "s@ex.co");

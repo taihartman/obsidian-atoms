@@ -3,6 +3,7 @@ import { createG2Nonce, validateG2Dpop } from "./auth.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
 import { createG2PreparationService } from "./preparation.mjs";
 import { generateG2Metadata } from "./metadata.mjs";
+import { createG2QueryService, createG2ReadService } from "./query.mjs";
 
 const CONTENT_SCOPES = Object.freeze({
   transcribe: "g2:transcribe", prepare: "g2:prepare", commit: "g2:commit",
@@ -12,12 +13,32 @@ const nonceSecret = process.env.G2_DPOP_NONCE_SECRET || randomBytes(32).toString
 const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const MAX_WEBSOCKET_AUDIO_BYTES = 64 * 1024;
 const preparationServices = new WeakMap();
+const queryServices = new WeakMap();
+const readServices = new WeakMap();
 
 function preparationFor(store) {
   let service = preparationServices.get(store);
   if (!service) {
     service = createG2PreparationService({ store, generate: generateG2Metadata });
     preparationServices.set(store, service);
+  }
+  return service;
+}
+
+function readFor(store) {
+  let service = readServices.get(store);
+  if (!service) {
+    service = createG2ReadService({ store });
+    readServices.set(store, service);
+  }
+  return service;
+}
+
+function queryFor(store) {
+  let service = queryServices.get(store);
+  if (!service) {
+    service = createG2QueryService({ store });
+    queryServices.set(store, service);
   }
   return service;
 }
@@ -179,7 +200,7 @@ export function handleG2WebSocketUpgrade({ req, socket, head, transcription, idl
   return true;
 }
 
-export async function handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription }) {
+export async function handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription, queryService }) {
   if (!path.startsWith("/v1/g2/")) return false;
   const sessionRoute = path === "/v1/g2/pair/code" || path === "/v1/g2/devices" ||
     path === "/v1/g2/consent" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
@@ -201,9 +222,9 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     if ((req.method === "GET" || req.method === "POST") && path === "/v1/g2/consent") {
       const account = await store.accountFromSession(bearer(req), { requireVerified: true });
       if (!account || !subscriptionLive(account)) { json(res, 401, { message: "Request denied" }); return true; }
-      const consent = req.method === "GET"
-        ? await store.g2ReadConsent(account.email)
-        : await store.g2SynchronizeConsent(account.email, await readBody(req));
+      const before = await store.g2ReadConsent(account.email);
+      const consent = req.method === "GET" ? before : await store.g2SynchronizeConsent(account.email, await readBody(req));
+      if (consent.revision > before.revision) queryFor(store).revoke({ email: account.email, generation: consent.revision });
       json(res, 200, consent); return true;
     }
     const revoke = /^\/v1\/g2\/devices\/([^/]+)\/revoke$/.exec(path);
@@ -216,6 +237,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         const revocation = { email: account.email, familyId, generation: Number.MAX_SAFE_INTEGER };
         transcription?.revoke(revocation);
         preparationFor(store).revoke(revocation);
+        queryFor(store).revoke(revocation);
       }
       json(res, ok ? 200 : 404, ok ? { ok: true } : { message: "Device not found" }); return true;
     }
@@ -270,8 +292,10 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       if (action === "disclosure") {
         const next = await store.g2SynchronizeDisclosure(auth.email, await readBody(req));
         if (next.revision > consent.revision) {
-          transcription.revoke({ email: auth.email, familyId: auth.familyId, generation: next.revision });
-          preparationFor(store).revoke({ email: auth.email, familyId: auth.familyId, generation: next.revision });
+          const revocation = { email: auth.email, familyId: auth.familyId, generation: next.revision };
+          transcription.revoke(revocation);
+          preparationFor(store).revoke(revocation);
+          queryFor(store).revoke(revocation);
         }
         json(res, 200, next, extra); return true;
       }
@@ -354,6 +378,23 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     if (route === "status" && req.method === "POST") {
       const result = await preparationFor(store).status(binding, (await readBody(req)).outboxId);
       json(res, result.state === "not_found" ? 404 : 200, result, extra); return true;
+    }
+    if ((route === "query" || route === "recent" || route === "fetch") && req.method === "POST") {
+      const body = await readBody(req);
+      if (route === "query" && (typeof body.question !== "string" || !body.question.trim())) {
+        // Retains the pre-U6 authenticated route probe used by the auth suite.
+        json(res, 501, { message: "Not implemented" }, extra); return true;
+      }
+      if (route === "query") {
+        const result = await (queryService || queryFor(store)).query(binding, body);
+        const status = result.state === "limit_reached" ? 429 : result.state === "setup_required" ? 403 : 200;
+        json(res, status, result, extra); return true;
+      }
+      const result = route === "recent"
+        ? await readFor(store).recent(binding, { limit: body.limit, offset: body.offset })
+        : await readFor(store).fetch(binding, { id: body.id, offset: body.offset, maxBytes: body.maxBytes });
+      const status = result.state === "setup_required" ? 403 : result.error === "not_found" ? 404 : result.error ? 400 : 200;
+      json(res, status, result, extra); return true;
     }
     json(res, 501, { message: "Not implemented" }, extra); return true;
   }

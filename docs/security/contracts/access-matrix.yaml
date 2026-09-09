@@ -130,6 +130,19 @@ rows:
     owner: product-engineering
     lastVerified: 2026-09-09
     notes: Missing credentials, timeout, upstream failure, or invalid structured output returns an explicit unavailable or failed preparation state. In-flight calls own abort controllers and authorization is rechecked after the model returns and immediately before persistence.
+  - id: G2_GROUNDED_QUERY_014
+    path: /v1/g2/{query|recent|fetch}
+    operation: read
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof, live Plus entitlement, current Ask mirror consent, and current authorization generation]
+    deniedActors: [wrong tenant, title in place of opaque id, withdrawn Ask mirror consent, stale generation, revoked device family, unknown or changed snapshot, invalid model citation]
+    identityType: g2-access-dpop
+    dataShape: Query synthesis receives bounded immutable mirror chunks with server-generated content-hash-bound IDs. Claims return only after exact unambiguous evidence quotes resolve to UTF-8 byte ranges, cover every substantive claim word, and account for every materially retrieved source; the structured model must instead declare insufficient or conflicting evidence. Recent is atom-only before pagination. Fetch is opaque-ID-only and bounded by byte position. Query, recent, and fetch recheck disclosure, Ask consent, live entitlement, family, and exact generation immediately before content emission. G2 responses omit account identity and logs contain event metadata only.
+    tests: [plus-service/test/g2-query.test.mjs, plus-service/test/ask-domain-parity.test.mjs, plus-service/test/http-g2-auth.test.mjs, companion/even-g2/test/query-read-flow.test.ts]
+    threatsCovered: [cross-tenant content disclosure, prompt injection, invented answer, irrelevant evidence, altered quote, ambiguous quote, unicode normalization trick, snapshot mutation, stale mirror answer, model-call abuse]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Weak or invalid evidence returns content-free closest-match metadata instead of an answer.
   - id: G2_STREAM_TICKET_010
     path: /v1/g2/transcribe/ticket
     operation: create

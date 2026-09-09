@@ -514,9 +514,11 @@ export function paginateMirrorList(pubs, opts = {}) {
   const inboundIndex = buildInboundIndex(allPubs);
   const openNowFilter =
     typeof opts.open_now === "boolean" ? opts.open_now : undefined;
+  const kindFilter = opts.kind === "atom" || opts.kind === "hub" ? opts.kind : undefined;
 
   let missingCreated = 0;
   let filtered = allPubs.filter((p) => {
+    if (kindFilter && (p.kind === "hub" ? "hub" : "atom") !== kindFilter) return false;
     if (
       openNowFilter !== undefined &&
       derivedOpenNow(p, inboundIndex) !== openNowFilter
@@ -577,10 +579,13 @@ export function paginateMirrorList(pubs, opts = {}) {
   if (after || before) {
     out.excluded_missing_created = missingCreated;
   }
-  const withCreated = (pubs || []).filter((p) => p.created).length;
+  const coveragePubs = kindFilter
+    ? (pubs || []).filter((p) => (p.kind === "hub" ? "hub" : "atom") === kindFilter)
+    : (pubs || []);
+  const withCreated = coveragePubs.filter((p) => p.created).length;
   out.created_coverage = {
     with_created: withCreated,
-    total: (pubs || []).length,
+    total: coveragePubs.length,
   };
   return out;
 }

@@ -23,5 +23,6 @@ Generated from `access-matrix.yaml`. Do not edit by hand.
 | `G2_REFRESH_005` | `/v1/g2/auth/refresh` | call | current g2r_ family member with matching DPoP proof | verified |
 | `G2_CONTENT_006` | `/v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}` | call | current scoped g2a_ family member with matching DPoP proof and live Plus entitlement | verified |
 | `G2_PREPARE_METADATA_013` | `/v1/g2/prepare` | create | current scoped g2a_ family member with matching DPoP proof; live Plus entitlement; current G2 disclosure; and current authorization generation | verified |
+| `G2_GROUNDED_QUERY_014` | `/v1/g2/{query|recent|fetch}` | read | current scoped g2a_ family member with matching DPoP proof; live Plus entitlement; current Ask mirror consent; and current authorization generation | verified |
 | `G2_STREAM_TICKET_010` | `/v1/g2/transcribe/ticket` | create | current g2a_ family member with matching DPoP proof; live Plus entitlement; and current G2 disclosure | verified |
 | `G2_STREAM_AUDIO_011` | `RFC6455 /v1/g2/transcribe/stream?ticket={single-use-ticket}; authenticated HTTPS status/retry/cancel compatibility routes` | call | consumer of a current single-use stream ticket or current scoped g2a_ owner of the recording with matching DPoP proof | verified |
