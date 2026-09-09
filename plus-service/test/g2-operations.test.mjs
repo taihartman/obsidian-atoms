@@ -206,11 +206,21 @@ for (const [mode, create] of postgresStoreRows()) {
       const binding = { email: "pg-crypto@atoms.test", familyId: "g2d-pg", generation: 1 };
       const client = new pg.Client({ connectionString: withSearchPath(process.env.TEST_DATABASE_URL, store.schemaForTest) });
       try {
-        assert.equal((await store.g2TranscriptionClaim(binding, "pg-tx", "worker", 1_000, 30_000)).acquired, true);
-        assert.equal(await store.g2TranscriptionComplete(binding, "pg-tx", "worker", "private transcript"), true);
-        await store.g2PreparationPut(binding.email, { id: "pg-prep", familyId: binding.familyId, expiresAt: Date.now() + 10_000, payload: { title: "private title" } });
-        assert.equal((await store.g2TranscriptionGet(binding, "pg-tx")).transcript, "private transcript");
-        assert.equal((await store.g2PreparationGet(binding.email, "pg-prep", binding.familyId)).payload.title, "private title");
+        await store.ensureAccount(binding.email);
+        await store.grantPeriod(binding.email, { remaining: 50, status: "active", plan: "monthly" });
+        const pair = await store.g2PairMint(binding.email, { scopes: ["g2:transcribe"] });
+        const redeemed = await store.g2PairRedeem(pair.code, { jkt: "pg-crypto-jkt", name: "Crypto G2" });
+        const consent = await store.g2SynchronizeDisclosure(binding.email, {
+          baseRevision: 0,
+          disclosure: { granted: true, version: "g2-audio-v1" },
+          freshGesture: true,
+        });
+        const authorized = { ...binding, familyId: redeemed.device.id, generation: consent.revision };
+        assert.equal((await store.g2TranscriptionClaim(authorized, "pg-tx", "worker", 1_000, 30_000)).acquired, true);
+        assert.equal(await store.g2TranscriptionComplete(authorized, "pg-tx", "worker", "private transcript"), true);
+        await store.g2PreparationPut(authorized.email, { id: "pg-prep", familyId: authorized.familyId, expiresAt: Date.now() + 10_000, payload: { title: "private title" } });
+        assert.equal((await store.g2TranscriptionGet(authorized, "pg-tx")).transcript, "private transcript");
+        assert.equal((await store.g2PreparationGet(authorized.email, "pg-prep", authorized.familyId)).payload.title, "private title");
         await client.connect();
         const raw = await client.query("SELECT transcript_enc FROM g2_transcriptions WHERE recording_id='pg-tx'");
         assert.match(raw.rows[0].transcript_enc, /^g2e:pg-k1:/);
