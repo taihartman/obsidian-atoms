@@ -38,6 +38,7 @@ import {
 } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
+import { handleG2Routes } from "./g2/http.mjs";
 import {
   handleOauthRoutes,
   maybeFinishOauthAfterExchange,
@@ -363,16 +364,18 @@ async function handler(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      ...CORS_HEADERS,
-      "access-control-max-age": "86400",
-    });
-    res.end();
-    return;
-  }
-
   try {
+    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp })) return;
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        ...CORS_HEADERS,
+        "access-control-max-age": "86400",
+      });
+      res.end();
+      return;
+    }
+
     // Health — minimal in production (less recon)
     if (req.method === "GET" && (path === "/" || path === "/health")) {
       if (isProduction()) {

@@ -1,7 +1,11 @@
 /**
  * Ask mirror + MCP OAuth methods for SQLite DatabaseSync.
  */
-import { hashToken, id, subscriptionLive } from "./shared.mjs";
+import {
+  G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
+  G2_REFRESH_TTL_MS, hashToken, id, normalizeG2Scopes, publicG2Device,
+  subscriptionLive,
+} from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
@@ -93,6 +97,31 @@ CREATE TABLE IF NOT EXISTS mcp_pair_codes (
   consumed_ms INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
+CREATE TABLE IF NOT EXISTS g2_pair_codes (
+  code_hash TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, scopes_json TEXT NOT NULL,
+  exp_ms INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_g2_pair_codes_email ON g2_pair_codes(email);
+CREATE TABLE IF NOT EXISTS g2_device_families (
+  family_id TEXT PRIMARY KEY, email TEXT NOT NULL, key_thumbprint TEXT NOT NULL,
+  name TEXT NOT NULL, scopes_json TEXT NOT NULL, created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_g2_families_email ON g2_device_families(email);
+CREATE TABLE IF NOT EXISTS g2_access_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms INTEGER NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS g2_refresh_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms INTEGER NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0, used INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS g2_proof_replay (jti TEXT PRIMARY KEY, exp_ms INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS g2_attempt_budgets (
+  attempt_key TEXT PRIMARY KEY, window_start_ms INTEGER NOT NULL, attempts INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -116,6 +145,109 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
  * @param {{ getAccount: Function, refreshAccountStatus: Function }} deps
  */
 export function createAskSqliteMethods(db, deps) {
+  const normDevice = (r) => publicG2Device({
+    ...r, familyId: r.family_id, scopes: JSON.parse(r.scopes_json || "[]"),
+    createdAt: r.created_at, lastSeenAt: r.last_seen_at,
+  });
+
+  function g2PairMint(email, opts = {}) {
+    const e = normEmail(email); const now = opts.now ?? Date.now();
+    const code = generatePairCode();
+    db.prepare("DELETE FROM g2_pair_codes WHERE email = ? AND used = 0").run(e);
+    db.prepare("INSERT INTO g2_pair_codes VALUES (?, ?, ?, ?, 0)").run(
+      hashToken(code), e, JSON.stringify(normalizeG2Scopes(opts.scopes)), now + G2_PAIR_CODE_TTL_MS,
+    );
+    return { code, expiresAt: new Date(now + G2_PAIR_CODE_TTL_MS).toISOString() };
+  }
+
+  function insertG2Tokens(family, now) {
+    const accessToken = id("g2a"); const refreshToken = id("g2r");
+    const args = [family.family_id, family.email, family.key_thumbprint, family.scopes_json];
+    db.prepare("INSERT INTO g2_access_tokens VALUES (?, ?, ?, ?, ?, ?, 0)").run(
+      hashToken(accessToken), ...args, now + G2_ACCESS_TTL_MS,
+    );
+    db.prepare("INSERT INTO g2_refresh_tokens VALUES (?, ?, ?, ?, ?, ?, 0, 0)").run(
+      hashToken(refreshToken), ...args, now + G2_REFRESH_TTL_MS,
+    );
+    return { accessToken, refreshToken, expiresIn: G2_ACCESS_TTL_MS / 1000 };
+  }
+
+  function g2PairRedeem(code, opts = {}) {
+    const now = opts.now ?? Date.now(); if (!opts.jkt) return null;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const row = db.prepare("SELECT * FROM g2_pair_codes WHERE code_hash = ?").get(hashToken(normalizePairCodeInput(code)));
+      if (!row || row.used || Number(row.exp_ms) < now || !subscriptionLive(deps.getAccount(row.email), now)) {
+        db.exec("ROLLBACK"); return null;
+      }
+      db.prepare("UPDATE g2_pair_codes SET used = 1 WHERE code_hash = ?").run(row.code_hash);
+      const family = { family_id: id("g2d"), email: row.email, key_thumbprint: opts.jkt,
+        name: String(opts.name || "Even G2").slice(0, 80), scopes_json: row.scopes_json,
+        created_at: new Date(now).toISOString(), last_seen_at: new Date(now).toISOString(), revoked: 0 };
+      db.prepare("INSERT INTO g2_device_families VALUES (?, ?, ?, ?, ?, ?, ?, 0)").run(
+        family.family_id, family.email, family.key_thumbprint, family.name, family.scopes_json,
+        family.created_at, family.last_seen_at,
+      );
+      const tokens = insertG2Tokens(family, now); db.exec("COMMIT");
+      return { ...tokens, scopes: JSON.parse(row.scopes_json), device: normDevice(family) };
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function revokeFamily(familyId) {
+    db.prepare("UPDATE g2_device_families SET revoked = 1 WHERE family_id = ?").run(familyId);
+    db.prepare("UPDATE g2_access_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
+    db.prepare("UPDATE g2_refresh_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
+  }
+
+  function g2Refresh(token, jkt, opts = {}) {
+    const now = opts.now ?? Date.now(); db.exec("BEGIN IMMEDIATE");
+    try {
+      const row = db.prepare("SELECT * FROM g2_refresh_tokens WHERE token_hash = ?").get(hashToken(String(token || "")));
+      if (!row) { db.exec("ROLLBACK"); return null; }
+      if (row.used) { revokeFamily(row.family_id); db.exec("COMMIT"); return null; }
+      const family = db.prepare("SELECT * FROM g2_device_families WHERE family_id = ?").get(row.family_id);
+      if (row.revoked || Number(row.exp_ms) < now || !family || family.revoked || row.key_thumbprint !== jkt || !subscriptionLive(deps.getAccount(row.email), now)) {
+        db.exec("ROLLBACK"); return null;
+      }
+      db.prepare("UPDATE g2_refresh_tokens SET used = 1 WHERE token_hash = ?").run(row.token_hash);
+      db.prepare("UPDATE g2_device_families SET last_seen_at = ? WHERE family_id = ?").run(new Date(now).toISOString(), family.family_id);
+      const tokens = insertG2Tokens(family, now); db.exec("COMMIT");
+      return { ...tokens, scopes: JSON.parse(family.scopes_json), device: normDevice(family) };
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2AccessLookup(token, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = db.prepare(`SELECT t.*, f.name, f.created_at, f.last_seen_at, f.revoked AS family_revoked
+      FROM g2_access_tokens t JOIN g2_device_families f ON f.family_id=t.family_id WHERE t.token_hash=?`).get(hashToken(String(token || "")));
+    if (!row || row.revoked || row.family_revoked || Number(row.exp_ms) < now || !subscriptionLive(deps.getAccount(row.email), now)) return null;
+    return { familyId: row.family_id, email: row.email, jkt: row.key_thumbprint,
+      scopes: JSON.parse(row.scopes_json), exp: Number(row.exp_ms), device: normDevice(row) };
+  }
+
+  function g2ListDevices(email) {
+    return db.prepare("SELECT * FROM g2_device_families WHERE email = ? ORDER BY created_at DESC").all(normEmail(email)).map(normDevice);
+  }
+
+  function g2RevokeDevice(email, familyId) {
+    const row = db.prepare("SELECT 1 FROM g2_device_families WHERE family_id=? AND email=?").get(String(familyId), normEmail(email));
+    if (!row) return false; db.exec("BEGIN IMMEDIATE");
+    try { revokeFamily(String(familyId)); db.exec("COMMIT"); return true; }
+    catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2ConsumeProof(jti, expMs, now = Date.now()) {
+    db.prepare("DELETE FROM g2_proof_replay WHERE exp_ms < ?").run(now);
+    return db.prepare("INSERT OR IGNORE INTO g2_proof_replay VALUES (?, ?)").run(jti, expMs).changes > 0;
+  }
+
+  function g2ConsumeAttempt(key, opts = {}) {
+    const now = opts.now ?? Date.now(); const windowMs = opts.windowMs ?? 60_000; const limit = opts.limit ?? 12;
+    db.prepare(`INSERT INTO g2_attempt_budgets VALUES (?, ?, 1) ON CONFLICT(attempt_key) DO UPDATE SET
+      window_start_ms=CASE WHEN window_start_ms + ? <= ? THEN ? ELSE window_start_ms END,
+      attempts=CASE WHEN window_start_ms + ? <= ? THEN 1 ELSE attempts + 1 END`).run(key, now, windowMs, now, now, windowMs, now);
+    return db.prepare("SELECT attempts FROM g2_attempt_budgets WHERE attempt_key=?").get(key).attempts <= limit;
+  }
   function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
@@ -891,5 +1023,7 @@ export function createAskSqliteMethods(db, deps) {
     mcpRegisterClient,
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
+    g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
+    g2RevokeDevice, g2ConsumeProof, g2ConsumeAttempt,
   };
 }

@@ -1,7 +1,11 @@
 /**
  * Ask mirror + MCP OAuth methods for Postgres Pool.
  */
-import { hashToken, id, subscriptionLive } from "./shared.mjs";
+import {
+  G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
+  G2_REFRESH_TTL_MS, hashToken, id, normalizeG2Scopes, publicG2Device,
+  subscriptionLive,
+} from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
 import {
   aggregateMirrorTags,
@@ -93,6 +97,31 @@ CREATE TABLE IF NOT EXISTS mcp_pair_codes (
   consumed_ms BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
+CREATE TABLE IF NOT EXISTS g2_pair_codes (
+  code_hash TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, scopes_json TEXT NOT NULL,
+  exp_ms BIGINT NOT NULL, used BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_g2_pair_codes_email ON g2_pair_codes(email);
+CREATE TABLE IF NOT EXISTS g2_device_families (
+  family_id TEXT PRIMARY KEY, email TEXT NOT NULL, key_thumbprint TEXT NOT NULL,
+  name TEXT NOT NULL, scopes_json TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL, revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_g2_families_email ON g2_device_families(email);
+CREATE TABLE IF NOT EXISTS g2_access_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms BIGINT NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS g2_refresh_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms BIGINT NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE, used BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS g2_proof_replay (jti TEXT PRIMARY KEY, exp_ms BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS g2_attempt_budgets (
+  attempt_key TEXT PRIMARY KEY, window_start_ms BIGINT NOT NULL, attempts INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -116,6 +145,122 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
  * @param {{ getAccount: Function, refreshAccountStatus: Function }} deps
  */
 export function createAskPostgresMethods(pool, deps) {
+  const normDevice = (r) => publicG2Device({
+    ...r, familyId: r.family_id, scopes: JSON.parse(r.scopes_json || "[]"),
+    createdAt: r.created_at, lastSeenAt: r.last_seen_at,
+  });
+
+  async function g2PairMint(email, opts = {}) {
+    const e = normEmail(email); const now = opts.now ?? Date.now(); const code = generatePairCode();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Serialize replacement codes for one account even when no prior code
+      // row exists yet. The account is guaranteed to exist before mint.
+      await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [e]);
+      await client.query("DELETE FROM g2_pair_codes WHERE email=$1 AND used=FALSE", [e]);
+      await client.query("INSERT INTO g2_pair_codes VALUES ($1,$2,$3,$4,FALSE)",
+        [hashToken(code), e, JSON.stringify(normalizeG2Scopes(opts.scopes)), now + G2_PAIR_CODE_TTL_MS]);
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    return { code, expiresAt: new Date(now + G2_PAIR_CODE_TTL_MS).toISOString() };
+  }
+
+  async function insertG2Tokens(client, family, now) {
+    const accessToken = id("g2a"); const refreshToken = id("g2r");
+    const args = [family.family_id, family.email, family.key_thumbprint, family.scopes_json];
+    await client.query("INSERT INTO g2_access_tokens VALUES ($1,$2,$3,$4,$5,$6,FALSE)",
+      [hashToken(accessToken), ...args, now + G2_ACCESS_TTL_MS]);
+    await client.query("INSERT INTO g2_refresh_tokens VALUES ($1,$2,$3,$4,$5,$6,FALSE,FALSE)",
+      [hashToken(refreshToken), ...args, now + G2_REFRESH_TTL_MS]);
+    return { accessToken, refreshToken, expiresIn: G2_ACCESS_TTL_MS / 1000 };
+  }
+
+  async function g2PairRedeem(code, opts = {}) {
+    const now = opts.now ?? Date.now(); if (!opts.jkt) return null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_pair_codes WHERE code_hash=$1 FOR UPDATE", [hashToken(normalizePairCodeInput(code))]);
+      const row = rows[0];
+      if (!row || row.used || Number(row.exp_ms) < now || !subscriptionLive(await deps.getAccount(row.email), now)) {
+        await client.query("ROLLBACK"); return null;
+      }
+      await client.query("UPDATE g2_pair_codes SET used=TRUE WHERE code_hash=$1", [row.code_hash]);
+      const family = { family_id: id("g2d"), email: row.email, key_thumbprint: opts.jkt,
+        name: String(opts.name || "Even G2").slice(0, 80), scopes_json: row.scopes_json,
+        created_at: new Date(now), last_seen_at: new Date(now), revoked: false };
+      await client.query("INSERT INTO g2_device_families VALUES ($1,$2,$3,$4,$5,$6,$7,FALSE)",
+        [family.family_id, family.email, family.key_thumbprint, family.name, family.scopes_json, family.created_at, family.last_seen_at]);
+      const tokens = await insertG2Tokens(client, family, now); await client.query("COMMIT");
+      return { ...tokens, scopes: JSON.parse(row.scopes_json), device: normDevice(family) };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function revokeFamily(client, familyId) {
+    await client.query("UPDATE g2_device_families SET revoked=TRUE WHERE family_id=$1", [familyId]);
+    await client.query("UPDATE g2_access_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
+    await client.query("UPDATE g2_refresh_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
+  }
+
+  async function g2Refresh(token, jkt, opts = {}) {
+    const now = opts.now ?? Date.now(); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_refresh_tokens WHERE token_hash=$1 FOR UPDATE", [hashToken(String(token || ""))]);
+      const row = rows[0]; if (!row) { await client.query("ROLLBACK"); return null; }
+      if (row.used) { await revokeFamily(client, row.family_id); await client.query("COMMIT"); return null; }
+      const family = (await client.query("SELECT * FROM g2_device_families WHERE family_id=$1 FOR UPDATE", [row.family_id])).rows[0];
+      if (row.revoked || Number(row.exp_ms) < now || !family || family.revoked || row.key_thumbprint !== jkt || !subscriptionLive(await deps.getAccount(row.email), now)) {
+        await client.query("ROLLBACK"); return null;
+      }
+      await client.query("UPDATE g2_refresh_tokens SET used=TRUE WHERE token_hash=$1", [row.token_hash]);
+      family.last_seen_at = new Date(now);
+      await client.query("UPDATE g2_device_families SET last_seen_at=$1 WHERE family_id=$2", [family.last_seen_at, family.family_id]);
+      const tokens = await insertG2Tokens(client, family, now); await client.query("COMMIT");
+      return { ...tokens, scopes: JSON.parse(family.scopes_json), device: normDevice(family) };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2AccessLookup(token, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const { rows } = await pool.query(`SELECT t.*, f.name, f.created_at, f.last_seen_at, f.revoked AS family_revoked
+      FROM g2_access_tokens t JOIN g2_device_families f ON f.family_id=t.family_id WHERE t.token_hash=$1`, [hashToken(String(token || ""))]);
+    const row = rows[0];
+    if (!row || row.revoked || row.family_revoked || Number(row.exp_ms) < now || !subscriptionLive(await deps.getAccount(row.email), now)) return null;
+    return { familyId: row.family_id, email: row.email, jkt: row.key_thumbprint,
+      scopes: JSON.parse(row.scopes_json), exp: Number(row.exp_ms), device: normDevice(row) };
+  }
+
+  async function g2ListDevices(email) {
+    const { rows } = await pool.query("SELECT * FROM g2_device_families WHERE email=$1 ORDER BY created_at DESC", [normEmail(email)]);
+    return rows.map(normDevice);
+  }
+
+  async function g2RevokeDevice(email, familyId) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const row = (await client.query("SELECT 1 FROM g2_device_families WHERE family_id=$1 AND email=$2 FOR UPDATE", [String(familyId), normEmail(email)])).rows[0];
+      if (!row) { await client.query("ROLLBACK"); return false; }
+      await revokeFamily(client, String(familyId)); await client.query("COMMIT"); return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2ConsumeProof(jti, expMs, now = Date.now()) {
+    await pool.query("DELETE FROM g2_proof_replay WHERE exp_ms < $1", [now]);
+    return (await pool.query("INSERT INTO g2_proof_replay VALUES ($1,$2) ON CONFLICT DO NOTHING", [jti, expMs])).rowCount > 0;
+  }
+
+  async function g2ConsumeAttempt(key, opts = {}) {
+    const now = opts.now ?? Date.now(); const windowMs = opts.windowMs ?? 60_000; const limit = opts.limit ?? 12;
+    const { rows } = await pool.query(`INSERT INTO g2_attempt_budgets VALUES ($1,$2,1)
+      ON CONFLICT(attempt_key) DO UPDATE SET
+      window_start_ms=CASE WHEN g2_attempt_budgets.window_start_ms + $3 <= $2 THEN $2 ELSE g2_attempt_budgets.window_start_ms END,
+      attempts=CASE WHEN g2_attempt_budgets.window_start_ms + $3 <= $2 THEN 1 ELSE g2_attempt_budgets.attempts + 1 END
+      RETURNING attempts`, [key, now, windowMs]);
+    return rows[0].attempts <= limit;
+  }
   async function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
@@ -941,5 +1086,7 @@ export function createAskPostgresMethods(pool, deps) {
     mcpRegisterClient,
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
+    g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
+    g2RevokeDevice, g2ConsumeProof, g2ConsumeAttempt,
   };
 }

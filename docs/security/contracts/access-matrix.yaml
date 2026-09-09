@@ -1,0 +1,93 @@
+version: 1
+rows:
+  - id: G2_NONCE_007
+    path: /v1/g2/auth/nonce
+    operation: read
+    allowedActors: [packaged companion origin]
+    deniedActors: [wrong or absent origin]
+    identityType: none
+    dataShape: Short-lived signed nonce only; contains no account or credential state.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-origin proof priming, nonce forgery]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Shared attempt and DPoP replay budgets constrain use.
+  - id: G2_SESSION_MINT_001
+    path: /v1/g2/pair/code
+    operation: create
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Single active short-lived code per account; requested scopes are allowlisted.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [credential-family confusion, pairing-code disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Existing Obsidian-compatible origin policy applies.
+  - id: G2_SESSION_LIST_002
+    path: /v1/g2/devices
+    operation: list
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Only devices owned by the session account; never returns token hashes or key material.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [tenant disclosure, credential disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Unknown and foreign devices are indistinguishable to revoke callers.
+  - id: G2_SESSION_REVOKE_003
+    path: /v1/g2/devices/{deviceFamilyId}/revoke
+    operation: delete
+    allowedActors: [verified Plus plugin session owning the device]
+    deniedActors: [other tenant session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Atomically revokes one device family and every access and refresh member.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [cross-tenant revocation, partial family revocation]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Generic not-found response does not disclose ownership.
+  - id: G2_REDEEM_004
+    path: /v1/g2/pair/redeem
+    operation: call
+    allowedActors: [holder of unused code presenting a valid initial DPoP proof]
+    deniedActors: [expired or replayed code, session bearer, MCP bearer, malformed or symmetric key proof]
+    identityType: pairing-code-device-key
+    dataShape: Code is single-use; ES256 public JWK thumbprint becomes the family key binding.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [code replay, bearer downgrade, key substitution, account enumeration]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Exact packaged-app Origin applies.
+  - id: G2_REFRESH_005
+    path: /v1/g2/auth/refresh
+    operation: call
+    allowedActors: [current g2r_ family member with matching DPoP proof]
+    deniedActors: [replayed refresh, wrong key, session bearer, MCP bearer, G2 access bearer, anonymous]
+    identityType: g2-refresh-dpop
+    dataShape: Rotates refresh token atomically; replay revokes the whole family.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [refresh replay, stolen bearer use, split-brain rotation]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Exact packaged-app Origin applies.
+  - id: G2_CONTENT_006
+    path: /v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}
+    operation: call
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof and live Plus entitlement]
+    deniedActors: [wrong scope, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: DPoP typ alg jwk htm htu iat jti ath and nonce validate before tenant or content lookup.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [proof replay, token theft, route confusion, tenant disclosure, lapsed entitlement]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Exact packaged-app Origin and no-store apply to success and error.

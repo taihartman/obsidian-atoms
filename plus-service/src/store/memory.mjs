@@ -8,6 +8,11 @@ import {
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  G2_ACCESS_TTL_MS,
+  G2_PAIR_CODE_TTL_MS,
+  G2_REFRESH_TTL_MS,
+  normalizeG2Scopes,
+  publicG2Device,
   accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
@@ -74,6 +79,14 @@ export function createMemoryStore() {
   const mcpBrowserSessions = new Map();
   /** email → { codeHash, expMs, consumedMs } */
   const mcpPairCodes = new Map();
+  /** code hash -> pairing row; deliberately separate from MCP codes. */
+  const g2PairCodes = new Map();
+  /** family id -> device family */
+  const g2Families = new Map();
+  const g2Access = new Map();
+  const g2Refresh = new Map();
+  const g2Proofs = new Map();
+  const g2Attempts = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -1127,6 +1140,111 @@ export function createMemoryStore() {
     return mcpClients.get(clientId) || null;
   }
 
+  function g2PairMint(email, opts = {}) {
+    const e = normEmail(email);
+    for (const [key, row] of g2PairCodes) {
+      if (row.email === e && !row.used) g2PairCodes.delete(key);
+    }
+    const code = generatePairCode();
+    const now = opts.now ?? Date.now();
+    g2PairCodes.set(hashToken(code), {
+      email: e,
+      scopes: normalizeG2Scopes(opts.scopes),
+      exp: now + G2_PAIR_CODE_TTL_MS,
+      used: false,
+    });
+    return { code, expiresAt: new Date(now + G2_PAIR_CODE_TTL_MS).toISOString() };
+  }
+
+  function issueG2Tokens(family, now = Date.now()) {
+    const accessToken = id("g2a");
+    const refreshToken = id("g2r");
+    g2Access.set(hashToken(accessToken), {
+      familyId: family.familyId, email: family.email, jkt: family.jkt,
+      scopes: family.scopes, exp: now + G2_ACCESS_TTL_MS, revoked: false,
+    });
+    g2Refresh.set(hashToken(refreshToken), {
+      familyId: family.familyId, email: family.email, jkt: family.jkt,
+      scopes: family.scopes, exp: now + G2_REFRESH_TTL_MS, revoked: false, used: false,
+    });
+    return { accessToken, refreshToken, expiresIn: G2_ACCESS_TTL_MS / 1000 };
+  }
+
+  function g2PairRedeem(code, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2PairCodes.get(hashToken(normalizePairCodeInput(code)));
+    if (!row || row.used || row.exp < now || !opts.jkt) return null;
+    const account = getAccount(row.email);
+    if (!subscriptionLive(account, now)) return null;
+    row.used = true;
+    const family = {
+      familyId: id("g2d"), email: row.email, jkt: opts.jkt,
+      scopes: row.scopes, name: String(opts.name || "Even G2").slice(0, 80),
+      createdAt: new Date(now).toISOString(), lastSeenAt: new Date(now).toISOString(), revoked: false,
+    };
+    g2Families.set(family.familyId, family);
+    return { ...issueG2Tokens(family, now), scopes: [...family.scopes], device: publicG2Device(family) };
+  }
+
+  function revokeG2Family(familyId) {
+    const family = g2Families.get(familyId);
+    if (family) family.revoked = true;
+    for (const row of g2Access.values()) if (row.familyId === familyId) row.revoked = true;
+    for (const row of g2Refresh.values()) if (row.familyId === familyId) row.revoked = true;
+  }
+
+  function g2RefreshTokens(token, jkt, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2Refresh.get(hashToken(String(token || "")));
+    if (!row) return null;
+    if (row.used) { revokeG2Family(row.familyId); return null; }
+    const family = g2Families.get(row.familyId);
+    if (row.revoked || row.exp < now || !family || family.revoked || row.jkt !== jkt) return null;
+    if (!subscriptionLive(getAccount(row.email), now)) return null;
+    row.used = true;
+    family.lastSeenAt = new Date(now).toISOString();
+    return { ...issueG2Tokens(family, now), scopes: [...family.scopes], device: publicG2Device(family) };
+  }
+
+  function g2AccessLookup(token, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2Access.get(hashToken(String(token || "")));
+    const family = row && g2Families.get(row.familyId);
+    if (!row || row.revoked || row.exp < now || !family || family.revoked) return null;
+    if (!subscriptionLive(getAccount(row.email), now)) return null;
+    return { ...row, device: publicG2Device(family) };
+  }
+
+  function g2ListDevices(email) {
+    const e = normEmail(email);
+    return [...g2Families.values()].filter((row) => row.email === e).map(publicG2Device);
+  }
+
+  function g2RevokeDevice(email, familyId) {
+    const family = g2Families.get(String(familyId));
+    if (!family || family.email !== normEmail(email)) return false;
+    revokeG2Family(family.familyId);
+    return true;
+  }
+
+  function g2ConsumeProof(jti, expMs, now = Date.now()) {
+    for (const [key, exp] of g2Proofs) if (exp < now) g2Proofs.delete(key);
+    if (g2Proofs.has(jti)) return false;
+    g2Proofs.set(jti, expMs);
+    return true;
+  }
+
+  function g2ConsumeAttempt(key, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const windowMs = opts.windowMs ?? 60_000;
+    const limit = opts.limit ?? 12;
+    let row = g2Attempts.get(key);
+    if (!row || row.start + windowMs <= now) row = { start: now, count: 0 };
+    row.count += 1;
+    g2Attempts.set(key, row);
+    return row.count <= limit;
+  }
+
   return {
     kind: "memory",
     createMagicToken,
@@ -1193,6 +1311,14 @@ export function createMemoryStore() {
     mcpRevokeForEmail,
     mcpRegisterClient,
     mcpGetClient,
+    g2PairMint,
+    g2PairRedeem,
+    g2Refresh: g2RefreshTokens,
+    g2AccessLookup,
+    g2ListDevices,
+    g2RevokeDevice,
+    g2ConsumeProof,
+    g2ConsumeAttempt,
     mintMcpTokensForTest: mintMcpTokens,
     hasProcessedEvent: (id) => processedEvents.has(id),
     claimEvent(id) {

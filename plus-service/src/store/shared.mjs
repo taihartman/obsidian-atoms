@@ -18,6 +18,40 @@ export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export const G2_PAIR_CODE_TTL_MS = 5 * 60 * 1000;
+export const G2_ACCESS_TTL_MS = 10 * 60 * 1000;
+export const G2_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const G2_ALLOWED_SCOPES = Object.freeze([
+  "g2:transcribe",
+  "g2:prepare",
+  "g2:commit",
+  "g2:status",
+  "g2:query",
+  "g2:recent",
+  "g2:fetch",
+]);
+
+export function normalizeG2Scopes(scopes) {
+  if (!Array.isArray(scopes)) return [];
+  const allowed = new Set(G2_ALLOWED_SCOPES);
+  return [...new Set(scopes.map(String).filter((scope) => allowed.has(scope)))].sort();
+}
+
+export function publicG2Device(row) {
+  if (!row) return null;
+  const iso = (value) => value instanceof Date ? value.toISOString() : String(value);
+  return {
+    id: row.familyId ?? row.family_id,
+    name: row.name || "Even G2",
+    scopes: Array.isArray(row.scopes)
+      ? [...row.scopes]
+      : JSON.parse(row.scopes_json || "[]"),
+    createdAt: iso(row.createdAt ?? row.created_at),
+    lastSeenAt: iso(row.lastSeenAt ?? row.last_seen_at),
+    revoked: Boolean(row.revoked),
+  };
+}
+
 /**
  * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
  * same keys are present whatever the verdict, so a caller never has to tell an
