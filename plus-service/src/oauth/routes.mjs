@@ -452,8 +452,24 @@ export async function handleOauthRoutes({
     }
     const bsId = getBrowserSessionId(req);
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
-    const email = pending.email || bs?.email;
-    if (!email) {
+    if (!pending.email) {
+      if (bs?.email) {
+        const a = await store.getAccount(bs.email);
+        if (subscriptionLive(a)) {
+          writeHtml(
+            res,
+            200,
+            authorizeChooserForm(
+              pendingId,
+              bs.email,
+              "",
+              pending.clientId || "",
+              pending.redirectUri || "",
+            ),
+          );
+          return true;
+        }
+      }
       writeHtml(
         res,
         200,
@@ -466,6 +482,7 @@ export async function handleOauthRoutes({
       );
       return true;
     }
+    const email = pending.email;
     const a = await store.getAccount(email);
     if (!subscriptionLive(a)) {
       writeHtml(
@@ -508,8 +525,8 @@ export async function handleOauthRoutes({
     }
     const bsId = getBrowserSessionId(req);
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
-    const email = pending.email || bs?.email;
-    if (!email || (bs && pending.email && bs.email !== pending.email)) {
+    const email = pending.email;
+    if (!email || !bs?.email || bs.email !== email) {
       writeHtml(
         res,
         400,

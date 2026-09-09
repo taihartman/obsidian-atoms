@@ -62,6 +62,41 @@ describe("isAllowedRedirectUri", () => {
       false,
     );
   });
+
+  it("requires the canonical ChatGPT callback origin and pathname", () => {
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com:444/connector/oauth/abc"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com//connector/oauth/abc"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector//oauth/abc"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector/oauth/abc/"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector/oauth/abc?next=x"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector/oauth/abc#next"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector/./oauth/x"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://chatgpt.com/connector/oauth/a/../x"),
+      false,
+    );
+  });
 });
 
 describe("oauthClientLabel", () => {
@@ -96,6 +131,21 @@ describe("oauthClientLabel", () => {
       "AI app",
     );
     assert.equal(oauthClientLabel("opaque-dcr-client", ""), "AI app");
+  });
+
+  it("does not label noncanonical ChatGPT callbacks as ChatGPT", () => {
+    for (const redirectUri of [
+      "https://chatgpt.com:444/connector/oauth/abc",
+      "https://chatgpt.com//connector/oauth/abc",
+      "https://chatgpt.com/connector//oauth/abc",
+      "https://chatgpt.com/connector/oauth/abc/",
+      "https://chatgpt.com/connector/oauth/abc?next=x",
+      "https://chatgpt.com/connector/oauth/abc#next",
+      "https://chatgpt.com/connector/./oauth/x",
+      "https://chatgpt.com/connector/oauth/a/../x",
+    ]) {
+      assert.equal(oauthClientLabel("opaque-dcr-client", redirectUri), "AI app");
+    }
   });
 
   it("uses one safe display name for untrusted clients", () => {

@@ -11,6 +11,18 @@ export const LOOPBACK_PATH = "/callback";
 /** Single path segment under /connector/oauth/{id} */
 const CHATGPT_CALLBACK_ID = /^[A-Za-z0-9_-]+$/;
 
+/**
+ * @param {string} uri
+ * @returns {boolean}
+ */
+function isCanonicalChatGptCallback(uri) {
+  const prefix = "https://chatgpt.com/connector/oauth/";
+  return (
+    uri.startsWith(prefix) &&
+    CHATGPT_CALLBACK_ID.test(uri.slice(prefix.length))
+  );
+}
+
 export const COOKIE_NAME = "atoms_oauth_bs";
 /** Read tools: search, fetch, neighbors, list */
 export const SCOPE_READ = "atoms:read";
@@ -65,6 +77,7 @@ export function isAllowedRedirectUri(uri) {
   if (!uri || typeof uri !== "string") return false;
   if (uri === CLAUDE_CALLBACK) return true;
   if (uri === CHATGPT_LEGACY_CALLBACK) return true;
+  if (isCanonicalChatGptCallback(uri)) return true;
   try {
     const u = new URL(uri);
     if (u.protocol !== "http:" && u.protocol !== "https:") return false;
@@ -75,18 +88,6 @@ export function isAllowedRedirectUri(uri) {
       host === "127.0.0.1" || host === "localhost" || host === "[::1]";
     if (loopback) {
       return u.pathname === LOOPBACK_PATH || u.pathname === "/callback/";
-    }
-    // ChatGPT production: https://chatgpt.com/connector/oauth/{callback_id}
-    if (u.protocol === "https:" && host === "chatgpt.com") {
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (
-        parts.length === 3 &&
-        parts[0] === "connector" &&
-        parts[1] === "oauth" &&
-        CHATGPT_CALLBACK_ID.test(parts[2])
-      ) {
-        return true;
-      }
     }
     return false;
   } catch {
@@ -104,19 +105,8 @@ export function oauthClientLabel(_clientId, redirectUri = "") {
   const redir = String(redirectUri || "");
   if (redir === CLAUDE_CALLBACK) return "Claude";
   if (redir === CHATGPT_LEGACY_CALLBACK) return "ChatGPT";
+  if (isCanonicalChatGptCallback(redir)) return "ChatGPT";
   if (!isAllowedRedirectUri(redir)) return "AI app";
-  try {
-    const u = new URL(redir);
-    if (
-      u.protocol === "https:" &&
-      u.hostname === "chatgpt.com" &&
-      u.pathname.startsWith("/connector/oauth/")
-    ) {
-      return "ChatGPT";
-    }
-  } catch {
-    // Malformed redirects are untrusted and stay generic.
-  }
   return "AI app";
 }
 

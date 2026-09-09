@@ -766,6 +766,36 @@ describe("OAuth Ask AS", () => {
 
     const pm2 = html2.match(/name="pending_id" value="([^"]+)"/);
     assert.ok(pm2);
+    const directConsent = await fetch(
+      `${BASE}/oauth/consent?pending=${encodeURIComponent(pm2[1])}`,
+      { headers: { cookie } },
+    );
+    const directConsentHtml = await directConsent.text();
+    assert.match(directConsentHtml, /Choose your Atoms Plus account/i);
+    assert.doesNotMatch(
+      directConsentHtml,
+      /name="decision" value="allow"/,
+    );
+
+    const bypassPage = await fetch(authUrl2, { headers: { cookie } });
+    const bypassHtml = await bypassPage.text();
+    const bypassPending = bypassHtml.match(
+      /name="pending_id" value="([^"]+)"/,
+    );
+    assert.ok(bypassPending);
+    const unboundDirectPost = await fetch(`${BASE}/oauth/consent`, {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        pending_id: bypassPending[1],
+        decision: "allow",
+      }).toString(),
+      redirect: "manual",
+    });
+
     const consent = await fetch(`${BASE}/oauth/authorize`, {
       method: "POST",
       headers: {
@@ -784,6 +814,20 @@ describe("OAuth Ask AS", () => {
     assert.match(consentHtml, /atoms:write/);
     assert.match(consentHtml, /OpenAI/);
     assert.match(consentHtml, /name="decision" value="allow"/);
+
+    const boundWithoutCookie = await fetch(`${BASE}/oauth/consent`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        pending_id: pm2[1],
+        decision: "allow",
+      }).toString(),
+      redirect: "manual",
+    });
+    assert.deepEqual(
+      [unboundDirectPost.status, boundWithoutCookie.status],
+      [400, 400],
+    );
   });
 
 });
