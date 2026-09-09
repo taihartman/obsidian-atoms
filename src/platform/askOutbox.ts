@@ -35,6 +35,12 @@ export type AskOutboxPayload = {
   close_answer?: string;
   /** set_loop: atoms-loop state (source always user on apply). */
   state?: string;
+  origin?: "g2";
+  captured_at?: string;
+  captured_record_sha256?: string;
+  loop_inference?: false;
+  proposal_fingerprint?: string;
+  preparation_id?: string;
 };
 
 export type AskOutboxPlan =
@@ -76,6 +82,10 @@ export function buildAskAtomMarkdown(opts: {
   openLoop?: boolean;
   /** Optional close-answer log on redeeming child. */
   closeAnswer?: string;
+  origin?: "g2";
+  capturedAt?: string;
+  capturedRecordSha256?: string;
+  loopInference?: false;
 }): { pathSegment: string; content: string; title: string } {
   const { filename, alias } = sanitizeFilename(opts.title);
   const title = filename;
@@ -111,6 +121,14 @@ export function buildAskAtomMarkdown(opts: {
   }
   fm.push(`source: "[[Ask]]"`);
   fm.push("generated-by: ask-mcp");
+  if (opts.origin === "g2") {
+    fm.push("origin: g2");
+    if (opts.capturedAt) fm.push(`captured-at: ${yamlQuote(opts.capturedAt)}`);
+    if (opts.capturedRecordSha256) {
+      fm.push(`captured-record-sha256: ${opts.capturedRecordSha256}`);
+    }
+    fm.push("loop-inference: false");
+  }
   if (opts.parent?.trim()) {
     fm.push(`parent: ${yamlQuote(opts.parent.trim())}`);
   }
@@ -127,6 +145,7 @@ export function buildAskAtomMarkdown(opts: {
   if (opts.openLoop === true) {
     loop = { state: "active", source: "user" };
   } else if (
+    opts.loopInference !== false &&
     opts.openLoop !== false &&
     looksLikeOpenLoop(String(opts.body ?? ""), title)
   ) {
@@ -141,9 +160,13 @@ export function buildAskAtomMarkdown(opts: {
   }
   fm.push("---", "");
 
-  const body = String(opts.body ?? "").replace(/\s+$/, "");
+  const body =
+    opts.origin === "g2"
+      ? String(opts.body ?? "")
+      : String(opts.body ?? "").replace(/\s+$/, "");
   const prose = formatLinkProse(links);
-  const fullBody = prose ? `${body}\n\n${prose}` : body;
+  const separator = body.endsWith("\n") ? "\n" : "\n\n";
+  const fullBody = prose ? `${body}${separator}${prose}` : body;
   const content =
     fm.join("\n") + fullBody + (fullBody.endsWith("\n") ? "" : "\n");
   return { pathSegment: title, content, title };
@@ -181,6 +204,11 @@ export function planAskOutboxApply(
     relation: payload.relation,
     openLoop: payload.open_loop === true ? true : undefined,
     closeAnswer: payload.close_answer,
+    created: payload.origin === "g2" ? payload.captured_at : undefined,
+    origin: payload.origin,
+    capturedAt: payload.captured_at,
+    capturedRecordSha256: payload.captured_record_sha256,
+    loopInference: payload.loop_inference,
   });
   const path = atomPathForTitle(atomFolder, built.title);
   const folder = clampAtomFolder(atomFolder);

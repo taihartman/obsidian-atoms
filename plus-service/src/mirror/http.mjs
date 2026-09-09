@@ -8,7 +8,10 @@ import {
   cancelExpandForEmail,
   enqueueMirrorExpand,
 } from "../ask/expandSearch.mjs";
-import { assertMirrorPath } from "../store/askHelpers.mjs";
+import {
+  assertMirrorPath,
+  normalizeOutboxReceiptTarget,
+} from "../store/askHelpers.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
 
 const MAX_ATOMS_PER_UPSERT = 100;
@@ -216,10 +219,24 @@ export async function handleMirrorRoutes({
       json(res, 400, { message: "invalid json" });
       return true;
     }
+    const id = String(body?.id || "").trim();
+    const existing = id ? await store.outboxGet(a.email, id) : null;
+    const isAppliedG2Create =
+      body?.status === "applied" &&
+      existing?.kind === "create" &&
+      existing?.payload?.origin === "g2";
+    const targetPath = isAppliedG2Create
+      ? normalizeOutboxReceiptTarget(body?.target_path)
+      : null;
+    if (isAppliedG2Create && !targetPath) {
+      json(res, 400, { message: "invalid target_path" });
+      return true;
+    }
     const result = await store.outboxAck(a.email, {
-      id: body?.id,
+      id,
       status: body?.status,
       error: body?.error,
+      ...(targetPath ? { target_path: targetPath } : {}),
     });
     if (!result.ok && result.error === "not_found") {
       json(res, 404, { message: "not_found" });

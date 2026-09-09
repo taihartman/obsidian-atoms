@@ -488,6 +488,61 @@ I will share my routine later.
 });
 
 describe("runAskOutboxApply payload integrity", () => {
+  it("acks a G2 create with the exact configured-folder target path", async () => {
+    const files: Record<string, string> = {};
+    let seenAck: unknown = null;
+    const payload = {
+      title: "Custom shelf",
+      body: "exact record",
+      origin: "g2" as const,
+      captured_record_sha256: "record-hash",
+      captured_at: "2026-09-08T17:14:03-04:00",
+      loop_inference: false as const,
+    };
+    const host: AskOutboxHost = {
+      beginPass: () => true,
+      endPass: () => {},
+      pullOne: async () => seenAck ? null : ({ id: "g2-custom", kind: "create", payload }),
+      ack: async (_id, ack) => { seenAck = structuredClone(ack); },
+      writePermitted: () => true,
+      applyToVault: (next, kind) => applyOutboxItemToVault({
+        readIfExists: async (path) => files[path] ?? null,
+        ensureFolder: async () => {},
+        create: async (path, content) => { files[path] = content; },
+        modify: async () => {},
+      }, "Memory Shelf", next, kind),
+      syncMirror: async () => ({ kind: "worked", uploaded: 1, deleted: 0 }),
+      notice: () => {},
+      onLanded: () => {},
+    };
+    await runAskOutboxApply(host);
+    expect(seenAck).toEqual({ status: "applied", target_path: "Memory Shelf/Custom shelf.md" });
+  });
+
+  it("forwards the complete G2 record contract without normalizing its body", async () => {
+    const body = "  exact\r\nrecord  \r\n";
+    const seen: unknown[] = [];
+    const f = fakeHost({ items: [{
+      id: "g2-one", kind: "create", payload: {
+        title: "Exact record", body, origin: "g2",
+        captured_at: "2026-09-08T17:14:03-04:00",
+        captured_record_sha256: "hash", loop_inference: false,
+        proposal_fingerprint: "fingerprint", preparation_id: "g2p_one",
+      },
+    }] });
+    f.host.applyToVault = async (payload, kind) => {
+      seen.push({ payload, kind });
+      return { kind: "applied" };
+    };
+    await runAskOutboxApply(f.host);
+    expect(seen).toEqual([{ kind: "create", payload: {
+      title: "Exact record", body, origin: "g2",
+      captured_at: "2026-09-08T17:14:03-04:00",
+      captured_record_sha256: "hash", loop_inference: false,
+      proposal_fingerprint: "fingerprint", preparation_id: "g2p_one",
+    } }]);
+  });
+
   it("forwards open_loop through to applyToVault", async () => {
     const seen: unknown[] = [];
     const f = fakeHost({

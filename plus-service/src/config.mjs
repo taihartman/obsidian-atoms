@@ -70,6 +70,13 @@ export const config = {
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
   },
+  get g2MetadataModel() {
+    return env("G2_METADATA_MODEL", this.anthropicModel);
+  },
+  get g2MetadataTimeoutMs() {
+    const value = Number(env("G2_METADATA_TIMEOUT_MS", "12000"));
+    return Number.isInteger(value) && value >= 1000 && value <= 60_000 ? value : 12_000;
+  },
   /** Private-Beta G2 transcription stays inert until explicitly enabled. */
   get g2TranscriptionEnabled() {
     return env("G2_TRANSCRIPTION_ENABLED", "0") === "1";

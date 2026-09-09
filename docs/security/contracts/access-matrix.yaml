@@ -117,6 +117,19 @@ rows:
     owner: product-engineering
     lastVerified: 2026-09-08
     notes: Exact packaged-app Origin and no-store apply to success and error.
+  - id: G2_PREPARE_METADATA_013
+    path: /v1/g2/prepare
+    operation: create
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof, live Plus entitlement, current G2 disclosure, and current authorization generation]
+    deniedActors: [withdrawn disclosure, stale generation, revoked device family, missing server provider key, invalid provider output, anonymous]
+    identityType: g2-access-dpop
+    dataShape: The exact final transcript plus at most 50 mirror titles and 50 existing tags may reach the server-held Anthropic boundary. Structured output contains only a declarative title, existing-tag candidates, and reason-bearing existing-note link candidates. Exact downstream mirror allowlists remain authoritative; the captured-record bytes are never sourced from model output.
+    tests: [plus-service/test/g2-creation.test.mjs, plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [late model completion after consent withdrawal, late model completion after device revocation, prompt-injected metadata, invented tag or link persistence, captured-record rewriting, silent heuristic fallback]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Missing credentials, timeout, upstream failure, or invalid structured output returns an explicit unavailable or failed preparation state. In-flight calls own abort controllers and authorization is rechecked after the model returns and immediately before persistence.
   - id: G2_STREAM_TICKET_010
     path: /v1/g2/transcribe/ticket
     operation: create

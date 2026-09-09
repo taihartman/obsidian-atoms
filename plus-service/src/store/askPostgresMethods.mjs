@@ -22,6 +22,8 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  g2MirrorReceipt,
+  normalizeOutboxReceiptTarget,
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
@@ -134,6 +136,10 @@ CREATE TABLE IF NOT EXISTS g2_transcriptions (
   generation BIGINT NOT NULL, state TEXT NOT NULL, lease_owner TEXT,
   lease_until_ms BIGINT NOT NULL, transcript_enc TEXT
 );
+CREATE TABLE IF NOT EXISTS g2_preparations (
+  id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  payload_enc TEXT NOT NULL, expires_at BIGINT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -145,6 +151,7 @@ CREATE TABLE IF NOT EXISTS ask_outbox (
   created_at TIMESTAMPTZ NOT NULL,
   claimed_at TIMESTAMPTZ,
   applied_at TIMESTAMPTZ
+  , receipt_json JSONB
 );
 CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
@@ -214,6 +221,7 @@ export function createAskPostgresMethods(pool, deps) {
     await client.query("UPDATE g2_access_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
     await client.query("UPDATE g2_refresh_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
     await client.query("UPDATE g2_transcriptions SET state='revoked', lease_owner=NULL, lease_until_ms=0, transcript_enc=NULL WHERE family_id=$1", [familyId]);
+    await client.query("DELETE FROM g2_preparations WHERE family_id=$1", [familyId]);
   }
 
   async function g2Refresh(token, jkt, opts = {}) {
@@ -256,7 +264,9 @@ export function createAskPostgresMethods(pool, deps) {
       await client.query("BEGIN");
       const row = (await client.query("SELECT 1 FROM g2_device_families WHERE family_id=$1 AND email=$2 FOR UPDATE", [String(familyId), normEmail(email)])).rows[0];
       if (!row) { await client.query("ROLLBACK"); return false; }
-      await revokeFamily(client, String(familyId)); await client.query("COMMIT"); return true;
+      await revokeFamily(client, String(familyId));
+      await client.query("DELETE FROM g2_preparations WHERE family_id=$1 AND email=$2", [String(familyId), normEmail(email)]);
+      await client.query("COMMIT"); return true;
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
 
@@ -286,6 +296,7 @@ export function createAskPostgresMethods(pool, deps) {
           next.askWrite.granted, next.askWrite.version,
         ]);
       }
+      if (!next.g2Disclosure.granted) await client.query("DELETE FROM g2_preparations WHERE email=$1", [key]);
       await client.query("COMMIT"); return next;
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
@@ -311,6 +322,7 @@ export function createAskPostgresMethods(pool, deps) {
           next.askWrite.granted, next.askWrite.version,
         ]);
       }
+      if (!next.g2Disclosure.granted) await client.query("DELETE FROM g2_preparations WHERE email=$1", [key]);
       await client.query("COMMIT"); return next;
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
@@ -558,6 +570,7 @@ export function createAskPostgresMethods(pool, deps) {
     const e = normEmail(email);
     await pool.query("DELETE FROM atom_mirror WHERE email = $1", [e]);
     await pool.query("DELETE FROM ask_outbox WHERE email = $1", [e]);
+    await pool.query("DELETE FROM g2_preparations WHERE email = $1", [e]);
     await mcpRevokeForEmail(e);
     return { ok: true };
   }
@@ -641,6 +654,7 @@ export function createAskPostgresMethods(pool, deps) {
       applied_at: r.applied_at
         ? new Date(r.applied_at).toISOString()
         : null,
+      receipt: r.receipt_json || null,
     });
   }
 
@@ -661,6 +675,9 @@ export function createAskPostgresMethods(pool, deps) {
         [e, crid],
       );
       if (existing.rows[0]) {
+        if (opts.proposal_fingerprint && decryptOutboxPayload(existing.rows[0].payload_enc)?.proposal_fingerprint !== opts.proposal_fingerprint) {
+          return { ok: false, error: "idempotency_conflict" };
+        }
         return {
           ok: true,
           ...outboxRowFromDb(existing.rows[0]),
@@ -674,16 +691,43 @@ export function createAskPostgresMethods(pool, deps) {
     const idRow = id("obx");
     const now = new Date().toISOString();
     const payload_enc = encryptOutboxPayload(opts.payload);
-    await pool.query(
+    const inserted = await pool.query(
       `INSERT INTO ask_outbox
-       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at)
-       VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL)`,
+       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at, receipt_json)
+       VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL, NULL)
+       ON CONFLICT (email, client_request_id)
+       WHERE client_request_id IS NOT NULL AND client_request_id != ''
+       DO NOTHING
+       RETURNING *`,
       [idRow, e, kind, payload_enc, crid || null, now],
     );
-    const row = await pool.query(`SELECT * FROM ask_outbox WHERE id = $1`, [
-      idRow,
-    ]);
-    return { ok: true, ...outboxRowFromDb(row.rows[0]), duplicate: false };
+    if (inserted.rows[0]) {
+      return {
+        ok: true,
+        ...outboxRowFromDb(inserted.rows[0]),
+        duplicate: false,
+      };
+    }
+    if (crid) {
+      const existing = await pool.query(
+        `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
+        [e, crid],
+      );
+      if (!existing.rows[0]) return { ok: false, error: "enqueue_conflict" };
+      if (
+        opts.proposal_fingerprint &&
+        decryptOutboxPayload(existing.rows[0].payload_enc)
+          ?.proposal_fingerprint !== opts.proposal_fingerprint
+      ) {
+        return { ok: false, error: "idempotency_conflict" };
+      }
+      return {
+        ok: true,
+        ...outboxRowFromDb(existing.rows[0]),
+        duplicate: true,
+      };
+    }
+    return { ok: false, error: "enqueue_conflict" };
   }
 
   async function outboxReclaimStale(email) {
@@ -761,14 +805,27 @@ export function createAskPostgresMethods(pool, deps) {
     ) {
       return { ok: true, ...outboxRowFromDb(row.rows[0]), already: true };
     }
+    let receipt = null;
+    if (st === "applied" && row.rows[0].kind === "create") {
+      const payload = decryptOutboxPayload(row.rows[0].payload_enc);
+      if (payload?.origin === "g2") {
+        const targetPath = normalizeOutboxReceiptTarget(opts.target_path);
+        const mirrorRows = targetPath
+          ? await pool.query("SELECT * FROM atom_mirror WHERE email=$1 AND path=$2", [e, targetPath])
+          : { rows: [] };
+        receipt = g2MirrorReceipt(payload, mirrorRows.rows[0] ? rowToPublicAtom(mirrorRows.rows[0], { includeBody: true }) : null, targetPath);
+        if (!receipt) return { ok: false, error: "mirror_receipt_required" };
+      }
+    }
     const now = new Date().toISOString();
     await pool.query(
-      `UPDATE ask_outbox SET status = $1, error = $2, applied_at = $3
-       WHERE id = $4 AND email = $5`,
+      `UPDATE ask_outbox SET status = $1, error = $2, applied_at = $3, receipt_json = $4
+       WHERE id = $5 AND email = $6`,
       [
         st,
         opts.error ? String(opts.error).slice(0, 500) : null,
         now,
+        receipt,
         oid,
         e,
       ],
@@ -787,6 +844,26 @@ export function createAskPostgresMethods(pool, deps) {
       [String(outboxId || ""), e],
     );
     return outboxRowFromDb(r.rows[0]);
+  }
+
+  async function g2PreparationPut(email, row) {
+    const e = normEmail(email);
+    await pool.query(`INSERT INTO g2_preparations (id,email,family_id,payload_enc,expires_at)
+      VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET payload_enc=EXCLUDED.payload_enc, expires_at=EXCLUDED.expires_at`,
+      [row.id, e, row.familyId, encryptOutboxPayload(row.payload), row.expiresAt]);
+    return { ...row, email: e };
+  }
+
+  async function g2PreparationGet(email, preparationId, familyId) {
+    const { rows } = await pool.query(`SELECT * FROM g2_preparations WHERE id=$1 AND email=$2 AND family_id=$3`,
+      [String(preparationId || ""), normEmail(email), String(familyId || "")]);
+    const row = rows[0];
+    return row ? { id: row.id, email: row.email, familyId: row.family_id, expiresAt: Number(row.expires_at), payload: decryptOutboxPayload(row.payload_enc) } : null;
+  }
+
+  async function g2PreparationDelete(email, preparationId) {
+    const result = await pool.query(`DELETE FROM g2_preparations WHERE id=$1 AND email=$2`, [String(preparationId || ""), normEmail(email)]);
+    return result.rowCount > 0;
   }
 
   async function outboxPendingCount(email) {
@@ -1192,6 +1269,9 @@ export function createAskPostgresMethods(pool, deps) {
     outboxCancel,
     outboxListOpen,
     outboxHasOpenTitle,
+    g2PreparationPut,
+    g2PreparationGet,
+    g2PreparationDelete,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

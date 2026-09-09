@@ -42,6 +42,8 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  g2MirrorReceipt,
+  normalizeOutboxReceiptTarget,
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
@@ -94,6 +96,8 @@ export function createMemoryStore() {
   const g2Consents = new Map();
   /** recording id -> leased provider ownership and terminal transcript */
   const g2Transcriptions = new Map();
+  /** preparation id -> encrypted account/device-bound proposal */
+  const g2Preparations = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -677,6 +681,9 @@ export function createMemoryStore() {
     const e = normEmail(email);
     atomMirror.delete(e);
     askOutbox.delete(e);
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.email === e) g2Preparations.delete(preparationId);
+    }
     mcpRevokeForEmail(e);
     return { ok: true };
   }
@@ -754,6 +761,7 @@ export function createMemoryStore() {
       created_at: r.created_at,
       claimed_at: r.claimed_at,
       applied_at: r.applied_at,
+      receipt: r.receipt,
     });
   }
 
@@ -772,6 +780,9 @@ export function createMemoryStore() {
     if (crid) {
       for (const r of bucket.values()) {
         if (r.client_request_id === crid) {
+          if (opts.proposal_fingerprint && decryptOutboxPayload(r.payload_enc)?.proposal_fingerprint !== opts.proposal_fingerprint) {
+            return { ok: false, error: "idempotency_conflict" };
+          }
           return { ok: true, ...outboxPublic(r), duplicate: true };
         }
       }
@@ -790,6 +801,7 @@ export function createMemoryStore() {
       created_at: new Date().toISOString(),
       claimed_at: null,
       applied_at: null,
+      receipt: null,
     };
     bucket.set(row.id, row);
     return { ok: true, ...outboxPublic(row), duplicate: false };
@@ -847,6 +859,17 @@ export function createMemoryStore() {
     if (row.status === "applied" || row.status === "rejected") {
       return { ok: true, ...outboxPublic(row), already: true };
     }
+    if (st === "applied" && row.kind === "create") {
+      const payload = decryptOutboxPayload(row.payload_enc);
+      if (payload?.origin === "g2") {
+        const targetPath = normalizeOutboxReceiptTarget(opts.target_path);
+        const mirrorRow = targetPath ? atomMirror.get(e)?.get(targetPath) : null;
+        const mirror = mirrorRow ? rowToPublicAtom(mirrorRow, { includeBody: true }) : null;
+        const receipt = g2MirrorReceipt(payload, mirror, targetPath);
+        if (!receipt) return { ok: false, error: "mirror_receipt_required" };
+        row.receipt = receipt;
+      }
+    }
     row.status = st;
     row.error = opts.error ? String(opts.error).slice(0, 500) : null;
     row.applied_at = new Date().toISOString();
@@ -857,6 +880,25 @@ export function createMemoryStore() {
     const e = normEmail(email);
     const row = askOutbox.get(e)?.get(String(outboxId || ""));
     return outboxPublic(row);
+  }
+
+  function g2PreparationPut(email, row) {
+    const stored = { ...row, email: normEmail(email), payload_enc: encryptOutboxPayload(row.payload) };
+    delete stored.payload;
+    g2Preparations.set(row.id, stored);
+    return { ...row, email: stored.email };
+  }
+
+  function g2PreparationGet(email, preparationId, familyId) {
+    const row = g2Preparations.get(String(preparationId || ""));
+    if (!row || row.email !== normEmail(email) || row.familyId !== familyId) return null;
+    return { ...row, payload: decryptOutboxPayload(row.payload_enc) };
+  }
+
+  function g2PreparationDelete(email, preparationId) {
+    const row = g2Preparations.get(String(preparationId || ""));
+    if (!row || row.email !== normEmail(email)) return false;
+    return g2Preparations.delete(row.id);
   }
 
   function outboxPendingCount(email) {
@@ -1201,6 +1243,9 @@ export function createMemoryStore() {
     for (const row of g2Transcriptions.values()) {
       if (row.familyId === familyId) Object.assign(row, { state: "revoked", transcript: null, leaseOwner: null, leaseUntil: 0 });
     }
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.familyId === familyId) g2Preparations.delete(preparationId);
+    }
   }
 
   function g2RefreshTokens(token, jkt, opts = {}) {
@@ -1234,6 +1279,11 @@ export function createMemoryStore() {
     const family = g2Families.get(String(familyId));
     if (!family || family.email !== normEmail(email)) return false;
     revokeG2Family(family.familyId);
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.email === family.email && row.familyId === family.familyId) {
+        g2Preparations.delete(preparationId);
+      }
+    }
     return true;
   }
 
@@ -1254,6 +1304,11 @@ export function createMemoryStore() {
     const key = normEmail(email);
     const next = mergeG2Disclosure(g2Consents.get(key), update);
     if (next.revision > 0) g2Consents.set(key, next);
+    if (!next.g2Disclosure.granted) {
+      for (const [preparationId, row] of g2Preparations) {
+        if (row.email === key) g2Preparations.delete(preparationId);
+      }
+    }
     return next;
   }
 
@@ -1363,6 +1418,9 @@ export function createMemoryStore() {
     outboxCancel,
     outboxListOpen,
     outboxHasOpenTitle,
+    g2PreparationPut,
+    g2PreparationGet,
+    g2PreparationDelete,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

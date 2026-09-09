@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createG2Nonce, validateG2Dpop } from "./auth.mjs";
 import { subscriptionLive } from "../store/shared.mjs";
+import { createG2PreparationService } from "./preparation.mjs";
+import { generateG2Metadata } from "./metadata.mjs";
 
 const CONTENT_SCOPES = Object.freeze({
   transcribe: "g2:transcribe", prepare: "g2:prepare", commit: "g2:commit",
@@ -9,6 +11,16 @@ const CONTENT_SCOPES = Object.freeze({
 const nonceSecret = process.env.G2_DPOP_NONCE_SECRET || randomBytes(32).toString("hex");
 const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const MAX_WEBSOCKET_AUDIO_BYTES = 64 * 1024;
+const preparationServices = new WeakMap();
+
+function preparationFor(store) {
+  let service = preparationServices.get(store);
+  if (!service) {
+    service = createG2PreparationService({ store, generate: generateG2Metadata });
+    preparationServices.set(store, service);
+  }
+  return service;
+}
 
 function exactOrigin(req) {
   const configured = String(process.env.G2_APP_ORIGIN || "").replace(/\/$/, "");
@@ -200,7 +212,11 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       if (!account) { json(res, 401, { message: "Request denied" }); return true; }
       const familyId = decodeURIComponent(revoke[1]);
       const ok = await store.g2RevokeDevice(account.email, familyId);
-      if (ok) transcription?.revoke({ email: account.email, familyId, generation: Number.MAX_SAFE_INTEGER });
+      if (ok) {
+        const revocation = { email: account.email, familyId, generation: Number.MAX_SAFE_INTEGER };
+        transcription?.revoke(revocation);
+        preparationFor(store).revoke(revocation);
+      }
       json(res, ok ? 200 : 404, ok ? { ok: true } : { message: "Device not found" }); return true;
     }
     json(res, 404, { message: "Not found" }); return true;
@@ -255,6 +271,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         const next = await store.g2SynchronizeDisclosure(auth.email, await readBody(req));
         if (next.revision > consent.revision) {
           transcription.revoke({ email: auth.email, familyId: auth.familyId, generation: next.revision });
+          preparationFor(store).revoke({ email: auth.email, familyId: auth.familyId, generation: next.revision });
         }
         json(res, 200, next, extra); return true;
       }
@@ -310,6 +327,33 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         json(res, result.state === "not_found" ? 404 : 200, result, extra); return true;
       }
       json(res, 404, { message: "Not found" }, extra); return true;
+    }
+    if (route === "prepare" && req.method === "POST") {
+      const day = new Date().toISOString().slice(0, 10);
+      if (!await store.g2ConsumeAttempt(`prepare:${auth.email}:${day}`, { limit: 30, windowMs: 24 * 60 * 60 * 1000 })) {
+        json(res, 429, { state: "limit_reached" }, extra); return true;
+      }
+      const body = await readBody(req);
+      const terminal = transcription?.status(binding, body.recordingId);
+      if (!terminal || terminal.state !== "completed" || typeof terminal.transcript !== "string") {
+        json(res, 409, { state: terminal?.state || "not_found" }, extra); return true;
+      }
+      const result = await preparationFor(store).prepare(binding, {
+        transcript: terminal.transcript,
+        transcriptionId: body.recordingId,
+        capturedAt: body.capturedAt,
+      });
+      json(res, result.preparationId ? 200 : 409, result, extra); return true;
+    }
+    if (route === "commit" && req.method === "POST") {
+      const result = await preparationFor(store).commit(binding, await readBody(req));
+      const refusal = result.state === "queued" || result.state === "saved" ? 200
+        : result.state === "not_found" ? 404 : result.state === "setup_required" ? 403 : 409;
+      json(res, refusal, result, extra); return true;
+    }
+    if (route === "status" && req.method === "POST") {
+      const result = await preparationFor(store).status(binding, (await readBody(req)).outboxId);
+      json(res, result.state === "not_found" ? 404 : 200, result, extra); return true;
     }
     json(res, 501, { message: "Not implemented" }, extra); return true;
   }

@@ -22,6 +22,8 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  g2MirrorReceipt,
+  normalizeOutboxReceiptTarget,
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
@@ -134,6 +136,10 @@ CREATE TABLE IF NOT EXISTS g2_transcriptions (
   generation INTEGER NOT NULL, state TEXT NOT NULL, lease_owner TEXT,
   lease_until_ms INTEGER NOT NULL, transcript_enc TEXT
 );
+CREATE TABLE IF NOT EXISTS g2_preparations (
+  id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  payload_enc TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -145,6 +151,7 @@ CREATE TABLE IF NOT EXISTS ask_outbox (
   created_at TEXT NOT NULL,
   claimed_at TEXT,
   applied_at TEXT
+  , receipt_json TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
@@ -210,6 +217,7 @@ export function createAskSqliteMethods(db, deps) {
     db.prepare("UPDATE g2_access_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
     db.prepare("UPDATE g2_refresh_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
     db.prepare("UPDATE g2_transcriptions SET state='revoked', lease_owner=NULL, lease_until_ms=0, transcript_enc=NULL WHERE family_id=?").run(familyId);
+    db.prepare("DELETE FROM g2_preparations WHERE family_id=?").run(familyId);
   }
 
   function g2Refresh(token, jkt, opts = {}) {
@@ -245,7 +253,11 @@ export function createAskSqliteMethods(db, deps) {
   function g2RevokeDevice(email, familyId) {
     const row = db.prepare("SELECT 1 FROM g2_device_families WHERE family_id=? AND email=?").get(String(familyId), normEmail(email));
     if (!row) return false; db.exec("BEGIN IMMEDIATE");
-    try { revokeFamily(String(familyId)); db.exec("COMMIT"); return true; }
+    try {
+      revokeFamily(String(familyId));
+      db.prepare("DELETE FROM g2_preparations WHERE family_id=? AND email=?").run(String(familyId), normEmail(email));
+      db.exec("COMMIT"); return true;
+    }
     catch (error) { db.exec("ROLLBACK"); throw error; }
   }
 
@@ -296,6 +308,7 @@ export function createAskSqliteMethods(db, deps) {
           Number(next.askWrite.granted), next.askWrite.version,
         );
       }
+      if (!next.g2Disclosure.granted) db.prepare("DELETE FROM g2_preparations WHERE email=?").run(key);
       db.exec("COMMIT"); return next;
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   }
@@ -532,6 +545,7 @@ export function createAskSqliteMethods(db, deps) {
     const e = normEmail(email);
     db.prepare("DELETE FROM atom_mirror WHERE email = ?").run(e);
     db.prepare("DELETE FROM ask_outbox WHERE email = ?").run(e);
+    db.prepare("DELETE FROM g2_preparations WHERE email = ?").run(e);
     mcpRevokeForEmail(e);
     return { ok: true };
   }
@@ -609,6 +623,7 @@ export function createAskSqliteMethods(db, deps) {
       created_at: r.created_at,
       claimed_at: r.claimed_at,
       applied_at: r.applied_at,
+      receipt: r.receipt_json ? JSON.parse(r.receipt_json) : null,
     });
   }
 
@@ -634,6 +649,9 @@ export function createAskSqliteMethods(db, deps) {
         )
         .get(e, crid);
       if (existing) {
+        if (opts.proposal_fingerprint && decryptOutboxPayload(existing.payload_enc)?.proposal_fingerprint !== opts.proposal_fingerprint) {
+          return { ok: false, error: "idempotency_conflict" };
+        }
         return { ok: true, ...outboxRowFromDb(existing), duplicate: true };
       }
     }
@@ -643,11 +661,27 @@ export function createAskSqliteMethods(db, deps) {
     const idRow = id("obx");
     const now = new Date().toISOString();
     const payload_enc = encryptOutboxPayload(opts.payload);
-    db.prepare(
-      `INSERT INTO ask_outbox
-       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at)
-       VALUES (?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL)`,
+    const inserted = db.prepare(
+      `INSERT OR IGNORE INTO ask_outbox
+       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at, receipt_json)
+       VALUES (?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`,
     ).run(idRow, e, kind, payload_enc, crid || null, now);
+    if (inserted.changes === 0 && crid) {
+      const existing = db
+        .prepare(
+          `SELECT * FROM ask_outbox WHERE email = ? AND client_request_id = ?`,
+        )
+        .get(e, crid);
+      if (!existing) return { ok: false, error: "enqueue_conflict" };
+      if (
+        opts.proposal_fingerprint &&
+        decryptOutboxPayload(existing.payload_enc)?.proposal_fingerprint !==
+          opts.proposal_fingerprint
+      ) {
+        return { ok: false, error: "idempotency_conflict" };
+      }
+      return { ok: true, ...outboxRowFromDb(existing), duplicate: true };
+    }
     const row = db.prepare("SELECT * FROM ask_outbox WHERE id = ?").get(idRow);
     return { ok: true, ...outboxRowFromDb(row), duplicate: false };
   }
@@ -720,11 +754,23 @@ export function createAskSqliteMethods(db, deps) {
     if (row.status === "applied" || row.status === "rejected") {
       return { ok: true, ...outboxRowFromDb(row), already: true };
     }
+    let receipt = null;
+    if (st === "applied" && row.kind === "create") {
+      const payload = decryptOutboxPayload(row.payload_enc);
+      if (payload?.origin === "g2") {
+        const targetPath = normalizeOutboxReceiptTarget(opts.target_path);
+        const mirrorRow = targetPath
+          ? db.prepare("SELECT * FROM atom_mirror WHERE email=? AND path=?").get(e, targetPath)
+          : null;
+        receipt = g2MirrorReceipt(payload, mirrorRow ? rowToPublicAtom(mirrorRow, { includeBody: true }) : null, targetPath);
+        if (!receipt) return { ok: false, error: "mirror_receipt_required" };
+      }
+    }
     const now = new Date().toISOString();
     db.prepare(
-      `UPDATE ask_outbox SET status = ?, error = ?, applied_at = ?
+      `UPDATE ask_outbox SET status = ?, error = ?, applied_at = ?, receipt_json = ?
        WHERE id = ? AND email = ?`,
-    ).run(st, opts.error ? String(opts.error).slice(0, 500) : null, now, oid, e);
+    ).run(st, opts.error ? String(opts.error).slice(0, 500) : null, now, receipt ? JSON.stringify(receipt) : null, oid, e);
     const updated = db
       .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
       .get(oid, e);
@@ -737,6 +783,25 @@ export function createAskSqliteMethods(db, deps) {
       .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
       .get(String(outboxId || ""), e);
     return outboxRowFromDb(r);
+  }
+
+  function g2PreparationPut(email, row) {
+    const e = normEmail(email);
+    db.prepare(`INSERT OR REPLACE INTO g2_preparations VALUES (?,?,?,?,?)`).run(
+      row.id, e, row.familyId, encryptOutboxPayload(row.payload), row.expiresAt,
+    );
+    return { ...row, email: e };
+  }
+
+  function g2PreparationGet(email, preparationId, familyId) {
+    const row = db.prepare(`SELECT * FROM g2_preparations WHERE id=? AND email=? AND family_id=?`).get(
+      String(preparationId || ""), normEmail(email), String(familyId || ""),
+    );
+    return row ? { id: row.id, email: row.email, familyId: row.family_id, expiresAt: row.expires_at, payload: decryptOutboxPayload(row.payload_enc) } : null;
+  }
+
+  function g2PreparationDelete(email, preparationId) {
+    return db.prepare(`DELETE FROM g2_preparations WHERE id=? AND email=?`).run(String(preparationId || ""), normEmail(email)).changes > 0;
   }
 
   function outboxPendingCount(email) {
@@ -1122,6 +1187,9 @@ export function createAskSqliteMethods(db, deps) {
     outboxCancel,
     outboxListOpen,
     outboxHasOpenTitle,
+    g2PreparationPut,
+    g2PreparationGet,
+    g2PreparationDelete,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

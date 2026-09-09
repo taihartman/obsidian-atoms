@@ -1416,6 +1416,12 @@ export type AskOutboxItem = {
     close_answer?: string;
     state?: string;
     client_request_id?: string;
+    origin?: "g2";
+    captured_at?: string;
+    captured_record_sha256?: string;
+    loop_inference?: false;
+    proposal_fingerprint?: string;
+    preparation_id?: string;
   } | null;
 };
 
@@ -1469,7 +1475,7 @@ export async function askOutboxPull(
 export async function askOutboxAck(
   cfg: PlusMirrorConfig,
   sessionToken: string,
-  opts: { id: string; status: "applied" | "rejected"; error?: string },
+  opts: { id: string; status: "applied" | "rejected"; error?: string; target_path?: string },
 ): Promise<{ ok: true; id: string; status: string } | PlusApiError> {
   const refusal = refuseUnverifiedBase(cfg);
   if (refusal) return refusal;
@@ -1481,6 +1487,7 @@ export async function askOutboxAck(
       id: opts.id,
       status: opts.status,
       error: opts.error,
+      target_path: opts.target_path,
     },
   });
   if (!res.ok) return res;

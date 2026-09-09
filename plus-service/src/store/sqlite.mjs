@@ -124,6 +124,10 @@ function migrate(db) {
   if (!mirrorCols.some((c) => c.name === "loop_json")) {
     db.exec("ALTER TABLE atom_mirror ADD COLUMN loop_json TEXT");
   }
+  const outboxCols = db.prepare("PRAGMA table_info(ask_outbox)").all();
+  if (!outboxCols.some((c) => c.name === "receipt_json")) {
+    db.exec("ALTER TABLE ask_outbox ADD COLUMN receipt_json TEXT");
+  }
   // One free trial per email — existing DBs gain the flag on open.
   const acctCols = db.prepare("PRAGMA table_info(accounts)").all();
   if (!acctCols.some((c) => c.name === "trial_used")) {
