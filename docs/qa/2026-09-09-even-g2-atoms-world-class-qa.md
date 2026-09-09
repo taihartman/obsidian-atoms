@@ -73,8 +73,8 @@ Informational targets: unpaired, setup required, recording, transcribing, prepar
 
 ## Evidence
 
-- Root: 116 files, 2,369 tests passed; build and lint passed.
-- Plus service: 698 tests passed. Focused adversarial G2/Ask set: 82 passed.
+- Root: 116 files, 2,371 tests passed; build and lint passed after merging current `master`.
+- Plus service: 705 tests passed after merging current `master`. Focused adversarial G2/Ask set: 82 passed.
 - G2 companion: 11 files, 78 tests passed; typecheck and production build passed.
 - Package: `atoms-g2.ehpk` verified at 52,774 bytes with exact SDK pins, origins, permissions, CSP, and no secret-like material.
 - Simulator contract: pinned `@evenrealities/evenhub-simulator` 0.9.5 input, console, and 576 x 288 screenshot API contract passed. This is not a live simulator drive.
