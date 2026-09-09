@@ -44,8 +44,8 @@ async function nonce() {
   return (await response.json()).nonce;
 }
 
-async function rawUpgrade(ticket, origin = ORIGIN, extraQuery = "") {
-  const socket = connect(PORT, "127.0.0.1");
+async function rawUpgrade(ticket, origin = ORIGIN, extraQuery = "", port = PORT) {
+  const socket = connect(port, "127.0.0.1");
   await new Promise((resolve, reject) => {
     socket.once("connect", resolve);
     socket.once("error", reject);
@@ -53,7 +53,7 @@ async function rawUpgrade(ticket, origin = ORIGIN, extraQuery = "") {
   const pathName = `/v1/g2/transcribe/stream?ticket=${encodeURIComponent(ticket)}${extraQuery}`;
   socket.write([
     `GET ${pathName} HTTP/1.1`,
-    `Host: 127.0.0.1:${PORT}`,
+    `Host: 127.0.0.1:${port}`,
     "Upgrade: websocket",
     "Connection: Upgrade",
     "Sec-WebSocket-Version: 13",
@@ -211,6 +211,58 @@ describe("G2 HTTP authorization contract", () => {
     assert.equal(bad.status, 403); assert.equal(bad.headers.get("cache-control"), "no-store");
     const good = await fetch(`${BASE}/v1/g2/auth/nonce`, { headers: { origin: ORIGIN } });
     assert.equal(good.headers.get("access-control-allow-origin"), ORIGIN); assert.equal(good.headers.get("vary"), "Origin");
+  });
+
+  it("G2_NONCE_007 G2_STREAM_AUDIO_011 accept only canonical dynamic-port iPhone loopback Origins under the explicit sentinel", async () => {
+    const loopbackPort = PORT + 1_500;
+    const loopbackBase = `http://127.0.0.1:${loopbackPort}`;
+    const loopbackOrigin = "http://127.0.0.1:59263";
+    const loopbackChild = spawn("node", ["src/server.mjs"], { cwd: root, env: {
+      ...process.env, PORT: String(loopbackPort), PUBLIC_BASE_URL: loopbackBase,
+      G2_ENABLED: "1", G2_APP_ORIGIN: "http://127.0.0.1:*", G2_DPOP_NONCE_SECRET: "test-loopback-nonce-secret",
+      DOGFOOD_AUTO_GRANT: "1", ATOMS_PLUS_STORE: "memory", ATOMS_PLUS_ENV: "development",
+      ANTHROPIC_API_KEY: "", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: "",
+      STRIPE_PRICE_MONTHLY: "", STRIPE_PRICE_YEARLY: "", STRIPE_PRICE_TOPUP: "",
+    }, stdio: ["ignore", "pipe", "pipe"] });
+    let log = "";
+    loopbackChild.stdout.on("data", (data) => { log += data; });
+    loopbackChild.stderr.on("data", (data) => { log += data; });
+    try {
+      for (let i = 0; i < 50; i++) {
+        try { if ((await fetch(`${loopbackBase}/health`)).ok) break; } catch {}
+        if (i === 49) assert.fail(`loopback server did not start: ${log}`);
+        await sleep(100);
+      }
+
+      const good = await fetch(`${loopbackBase}/v1/g2/auth/nonce`, { headers: { origin: loopbackOrigin } });
+      assert.equal(good.status, 200);
+      assert.equal(good.headers.get("access-control-allow-origin"), loopbackOrigin);
+      assert.equal(good.headers.get("vary"), "Origin");
+
+      for (const invalid of [
+        undefined, "http://localhost:59263", "http://[::1]:59263", "https://127.0.0.1:59263",
+        "http://127.0.0.2:59263", "http://user@127.0.0.1:59263", "http://127.0.0.1:59263/",
+        "http://127.0.0.1:59263/path", "http://127.0.0.1:59263?query=1", "http://127.0.0.1:59263#fragment",
+        "http://127.0.0.1", "http://127.0.0.1:80", "http://127.0.0.1:0", "http://127.0.0.1:65536",
+        "http://127.0.0.1:not-a-port", "*", "http://127.0.0.1:*", "http://127.0.0.1:59263.evil.test",
+        "http://evil127.0.0.1:59263", "http://127.0.0.1:59263,http://127.0.0.1:59264",
+      ]) {
+        const requestHeaders = invalid === undefined ? {} : { origin: invalid };
+        const refused = await fetch(`${loopbackBase}/v1/g2/auth/nonce`, { headers: requestHeaders });
+        assert.equal(refused.status, 403, String(invalid));
+        assert.equal(refused.headers.get("cache-control"), "no-store", String(invalid));
+        assert.equal(refused.headers.get("access-control-allow-origin"), null, String(invalid));
+      }
+
+      const acceptedUpgrade = await rawUpgrade("g2t_not-issued", loopbackOrigin, "", loopbackPort);
+      assert.match(acceptedUpgrade.headers, /^HTTP\/1\.1 401 Unauthorized/);
+      acceptedUpgrade.socket.destroy();
+      const refusedUpgrade = await rawUpgrade("g2t_not-issued", "http://localhost:59263", "", loopbackPort);
+      assert.match(refusedUpgrade.headers, /^HTTP\/1\.1 403 Forbidden/);
+      refusedUpgrade.socket.destroy();
+    } finally {
+      if (!loopbackChild.killed) loopbackChild.kill("SIGTERM");
+    }
   });
 
   it("G2_SESSION_MINT_001 G2_SESSION_LIST_002 G2_SESSION_REVOKE_003 reject wrong credential families", async () => {

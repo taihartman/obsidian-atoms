@@ -95,7 +95,9 @@ export function checkProductionReady() {
     "ATOMS_ASK_MIRROR_KEY required in production (Ask atom mirror encryption)",
   );
   if (config.g2Enabled) {
-    need(!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(config.g2AppOrigin), "G2_APP_ORIGIN must be one exact https origin when G2 is enabled");
+    const validG2Origin = config.g2AppOrigin === "http://127.0.0.1:*" ||
+      /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(config.g2AppOrigin);
+    need(!validG2Origin, "G2_APP_ORIGIN must be one exact https origin or http://127.0.0.1:* when G2 is enabled");
     need(!config.g2OpenAiApiKey, "G2_OPENAI_API_KEY required when G2 is enabled");
     need(!config.g2AnthropicApiKey, "G2_ANTHROPIC_API_KEY required when G2 is enabled");
     need(

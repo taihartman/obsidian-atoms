@@ -118,7 +118,7 @@ describe("U8 G2 production boundary", () => {
     ]) assert.ok(result.errors.some((error) => error.includes(name)), name);
   });
 
-  it("accepts one configured HTTPS request Origin and rejects lists, wildcards, and URL components", async () => {
+  it("accepts one exact HTTPS Origin or the explicit iPhone loopback sentinel and rejects every other wildcard or URL shape", async () => {
     Object.assign(process.env, {
       ATOMS_PLUS_ENV: "production", DOGFOOD_AUTO_GRANT: "0", STRIPE_DOGFOOD_CHECKOUT: "0",
       STRIPE_SECRET_KEY: "stripe", STRIPE_WEBHOOK_SECRET: "webhook", STRIPE_PRICE_MONTHLY: "monthly",
@@ -140,6 +140,16 @@ describe("U8 G2 production boundary", () => {
     }
     process.env.G2_APP_ORIGIN = "https://webview-origin.example:8443";
     assert.deepEqual(checkProductionReady(), { ok: true, errors: [] });
+    process.env.G2_APP_ORIGIN = "http://127.0.0.1:*";
+    assert.deepEqual(checkProductionReady(), { ok: true, errors: [] });
+    for (const invalid of [
+      "http://127.0.0.1:59134", "http://localhost:*", "http://[::1]:*", "https://127.0.0.1:*",
+      "http://127.0.0.1:*/*", "http://127.0.0.1:*?query=1", "http://127.0.0.1:*#fragment",
+      "http://user@127.0.0.1:*", "http://127.0.0.1:**", "prefixhttp://127.0.0.1:*",
+    ]) {
+      process.env.G2_APP_ORIGIN = invalid;
+      assert.ok(checkProductionReady().errors.some((error) => error.includes("G2_APP_ORIGIN")), invalid);
+    }
   });
 });
 

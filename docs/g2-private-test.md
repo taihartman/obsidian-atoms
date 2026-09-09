@@ -8,7 +8,7 @@ This checklist separates automated evidence from checks that need the owner's gl
 - [x] Network and microphone are the only permissions
 - [x] HTTPS and WebSocket destination allowlists are exactly `plus.tryatoms.app`
 - [x] Strict CSP, build, private package, and package secret scan
-- [x] Feature-off, ticket replay, exact Origin, revocation race, encryption, rotation, migration, and rollback tests
+- [x] Feature-off, ticket replay, exact HTTPS or sentinel-validated dynamic loopback Origin, revocation race, encryption, rotation, migration, and rollback tests
 - [x] Pinned simulator automation API contract includes input, console, and 576 by 288 screenshots
 
 ## Simulator evidence
@@ -59,7 +59,8 @@ The private iPhone v1 is intentionally session-only. If iOS terminates the Even 
 ## Private package and Beta evidence
 
 - [ ] Install the generated `.ehpk` as Private through the Even developer portal
-- [ ] Record the actual `Origin` header emitted by the installed Private/Beta WebView and configure that one exact HTTPS value as `G2_APP_ORIGIN`; the destination allowlist is not evidence of the request Origin
+- [x] Record the installed iPhone WebView Origins: `http://127.0.0.1:59134`, then `http://127.0.0.1:59263` after a process restart; the changed port proves dynamic loopback hosting
+- [ ] After the supporting server image is deployed dark, configure `G2_APP_ORIGIN=http://127.0.0.1:*`; verify the service echoes only each exact canonical `http://127.0.0.1:<valid-port>` request Origin and rejects every other wildcard, host, scheme, or malformed form
 - [ ] Run create, mirror receipt, query, source, and recent flows against a throwaway vault
 - [ ] Lock the phone during recording, query, and queued states
 - [ ] Leave the app idle for two minutes, then reconnect without duplicate provider work
@@ -74,3 +75,4 @@ The private iPhone v1 is intentionally session-only. If iOS terminates the Even 
 
 Public submission is intentionally unchecked. These are human-owned gates.
 Keep `G2_ENABLED=0` until the installed Private/Beta package has supplied the request-Origin evidence above.
+Deploy supporting code with `G2_ENABLED=0` before setting the sentinel. Configure dedicated provider, data-encryption, DPoP nonce, retention, and origin secrets next; enable private G2 only after readiness passes. Public submission remains blocked.

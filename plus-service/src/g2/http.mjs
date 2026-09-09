@@ -14,6 +14,7 @@ const CONTENT_SCOPES = Object.freeze({
 const nonceSecret = process.env.G2_DPOP_NONCE_SECRET || randomBytes(32).toString("hex");
 const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const MAX_WEBSOCKET_AUDIO_BYTES = 64 * 1024;
+const IPHONE_LOOPBACK_ORIGIN = "http://127.0.0.1:*";
 const preparationServices = new WeakMap();
 const queryServices = new WeakMap();
 const readServices = new WeakMap();
@@ -47,12 +48,29 @@ function queryFor(store) {
 
 function exactOrigin(req) {
   const configured = config.g2AppOrigin;
-  return configured && req.headers.origin === configured ? configured : null;
+  const requested = req.headers.origin;
+  if (!configured || typeof requested !== "string") return null;
+  if (configured !== IPHONE_LOOPBACK_ORIGIN) return requested === configured ? requested : null;
+  const match = /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})$/.exec(requested);
+  const port = match ? Number(match[1]) : 0;
+  if (!match || port === 80 || port > 65_535) return null;
+  return requested;
 }
 
 function headers(origin) {
   return { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type, dpop, dpop-nonce",
     "access-control-allow-methods": "GET, POST, OPTIONS", "cache-control": "no-store", vary: "Origin" };
+}
+
+function denyOrigin(res) {
+  const body = JSON.stringify({ message: "Request denied" });
+  res.writeHead(403, {
+    "content-type": "application/json",
+    "content-length": Buffer.byteLength(body),
+    "cache-control": "no-store",
+    vary: "Origin",
+  });
+  res.end(body);
 }
 
 function target(req, path) {
@@ -267,7 +285,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     json(res, 404, { message: "Not found" }); return true;
   }
   const origin = exactOrigin(req);
-  if (!origin) { json(res, 403, { message: "Request denied" }, { "cache-control": "no-store", vary: "Origin" }); return true; }
+  if (!origin) { denyOrigin(res); return true; }
   const extra = headers(origin);
   if (req.method === "OPTIONS") { res.writeHead(204, { ...extra, "access-control-max-age": "600" }); res.end(); return true; }
 

@@ -11,8 +11,8 @@ rows:
     threatsCovered: [cross-origin proof priming, nonce forgery]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-08
-    notes: Shared attempt and DPoP replay budgets constrain use.
+    lastVerified: 2026-09-09
+    notes: Shared attempt and DPoP replay budgets constrain use. Origin is either the one configured exact HTTPS origin or, only when G2_APP_ORIGIN is exactly http://127.0.0.1:*, a canonical http://127.0.0.1 request Origin with an explicit valid numeric port. The validated request Origin is echoed; the sentinel never is.
   - id: G2_SESSION_MINT_001
     path: /v1/g2/pair/code
     operation: create
@@ -89,8 +89,8 @@ rows:
     threatsCovered: [code replay, bearer downgrade, key substitution, account enumeration]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-08
-    notes: Exact packaged-app Origin applies.
+    lastVerified: 2026-09-09
+    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. Missing, malformed, non-loopback, credentialed, path-bearing, query-bearing, fragment-bearing, IPv6, localhost, HTTPS-loopback, and portless Origins fail closed.
   - id: G2_REFRESH_005
     path: /v1/g2/auth/refresh
     operation: call
@@ -102,8 +102,8 @@ rows:
     threatsCovered: [refresh replay, stolen bearer use, split-brain rotation]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-08
-    notes: Exact packaged-app Origin applies.
+    lastVerified: 2026-09-09
+    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. The exact validated request Origin remains the DPoP/CORS boundary.
   - id: G2_SETUP_STATUS_015
     path: /v1/g2/setup/status
     operation: read
@@ -116,7 +116,7 @@ rows:
     status: verified
     owner: product-engineering
     lastVerified: 2026-09-09
-    notes: Additive recovery endpoint. Older clients do not call it; newer clients against an older server fail closed as Setup required.
+    notes: Additive recovery endpoint. The configured exact HTTPS origin or the sentinel-validated canonical dynamic-port iPhone loopback Origin applies before DPoP or setup-state lookup. Older clients do not call it; newer clients against an older server fail closed as Setup required.
   - id: G2_CONTENT_006
     path: /v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}
     operation: call
@@ -128,8 +128,8 @@ rows:
     threatsCovered: [proof replay, token theft, route confusion, tenant disclosure, lapsed entitlement]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-08
-    notes: Exact packaged-app Origin and no-store apply to success and error.
+    lastVerified: 2026-09-09
+    notes: The one configured exact HTTPS origin or a canonical dynamic-port loopback Origin validated under the explicit http://127.0.0.1:* sentinel applies to every G2 route. The exact validated request Origin is echoed with Vary Origin; no-store applies to success and error.
   - id: G2_PREPARE_METADATA_013
     path: /v1/g2/prepare
     operation: create
@@ -162,7 +162,7 @@ rows:
     allowedActors: [current g2a_ family member with matching DPoP proof, live Plus entitlement, and current G2 disclosure]
     deniedActors: [wrong scope, withdrawn disclosure, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
     identityType: g2-access-dpop
-    dataShape: Very short-lived single-use ticket stored only as a hash and bound to account, device family, key thumbprint, exact Origin, recording ID, purpose, authorization generation, byte limit, and duration limit; atomic cross-instance consumption happens before upgrade; disclosure revision advance or family revocation invalidates every matching unconsumed ticket; no audio is accepted by this route.
+    dataShape: Very short-lived single-use ticket stored only as a hash and bound to account, device family, key thumbprint, the exact validated request Origin, recording ID, purpose, authorization generation, byte limit, and duration limit; atomic cross-instance consumption happens before upgrade; disclosure revision advance or family revocation invalidates every matching unconsumed ticket; no audio is accepted by this route.
     tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs, plus-service/test/g2-operations.test.mjs]
     threatsCovered: [pre-auth audio egress, ticket replay, cross-device ticket theft, stale authorization generation, tenant disclosure]
     status: verified
@@ -175,7 +175,7 @@ rows:
     allowedActors: [consumer of a current single-use stream ticket or current scoped g2a_ owner of the recording with matching DPoP proof]
     deniedActors: [unused access without a ticket, replayed or stale ticket, wrong Origin, wrong account or device key, revoked generation, anonymous]
     identityType: g2-access-dpop
-    dataShape: Upgrade accepts only the exact packaged-app Origin and one ticket query key. The store-backed ticket is consumed before 101 and before any application bytes. Client text frames are bounded finalize/cancel controls; binary frames are uint32-be sequence followed by non-empty even-byte PCM16. Delivery is ack-driven; unacknowledged encrypted journal chunks replay from the server next-sequence after reconnect. Impossible forward state fails closed. Chunks are sequence-bound and limited to two minutes. Durable per-account workload slots enforce the provider ceiling across service instances. Retained transcripts use versioned AES-256-GCM bound to account, artifact, and row. One recording owns one leased provider call and durable terminal status; ambiguous completion requires status or explicit manual retry.
+    dataShape: Upgrade accepts only the exact validated request Origin and one ticket query key. With an exact HTTPS configuration that Origin must equal the configured value; with the explicit http://127.0.0.1:* private-iPhone sentinel it must be canonical HTTP IPv4 loopback with an explicit valid numeric port. The store-backed ticket is consumed before 101 and before any application bytes. Client text frames are bounded finalize/cancel controls; binary frames are uint32-be sequence followed by non-empty even-byte PCM16. Delivery is ack-driven; unacknowledged encrypted journal chunks replay from the server next-sequence after reconnect. Impossible forward state fails closed. Chunks are sequence-bound and limited to two minutes. Durable per-account workload slots enforce the provider ceiling across service instances. Retained transcripts use versioned AES-256-GCM bound to account, artifact, and row. One recording owns one leased provider call and durable terminal status; ambiguous completion requires status or explicit manual retry.
     tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs, plus-service/test/g2-operations.test.mjs, companion/even-g2/test/audio-recovery.test.ts]
     threatsCovered: [pre-auth audio egress, duplicate provider egress, unbounded buffering, stale completion disclosure, cross-tenant recovery]
     status: verified

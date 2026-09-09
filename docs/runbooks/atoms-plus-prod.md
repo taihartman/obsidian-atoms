@@ -204,11 +204,13 @@ G2 ships dark. Apply the additive schema with `G2_ENABLED=0`, run the Plus suite
 
 Set G2 secrets separately from Ask:
 
-The Even manifest destination allowlist and the WebView request `Origin` are different controls. Capture the actual request header from an installed Private/Beta package; do not infer `G2_APP_ORIGIN` from `plus.tryatoms.app` or the manifest destination.
+The Even manifest destination allowlist and the WebView request `Origin` are different controls. Installed iPhone Private builds produced `http://127.0.0.1:59134`, then `http://127.0.0.1:59263` after a process restart. The changing port proves the host serves the package from dynamic IPv4 loopback rather than one stable exact origin.
+
+For this private iPhone host, configure the single explicit sentinel `G2_APP_ORIGIN=http://127.0.0.1:*`. It is configuration syntax, never a response header: the service accepts only a canonical `http://127.0.0.1:<valid-explicit-numeric-port>` request Origin and echoes that exact validated Origin. It rejects missing or malformed Origins, `localhost`, IPv6, HTTPS loopback, credentials, paths, query strings, fragments, omitted/default ports, non-numeric or out-of-range ports, lists, and every other wildcard or prefix/suffix trick. A stable packaged host may instead use the existing one-exact-HTTPS-origin configuration.
 
 ```bash
 fly secrets set -a atoms-plus \
-  G2_APP_ORIGIN='https://<origin-recorded-from-the-private-beta-webview>' \
+  G2_APP_ORIGIN='http://127.0.0.1:*' \
   G2_OPENAI_API_KEY='<dedicated-least-privilege-key>' \
   G2_ANTHROPIC_API_KEY='<dedicated-least-privilege-key>' \
   G2_PROVIDER_CONTROLS_ACCEPTED=2026-09-09 \
@@ -218,6 +220,8 @@ fly secrets set -a atoms-plus \
 ```
 
 Do not put these values in `fly.toml`, container layers, logs, crash reports, environment dumps, or `.ehpk` packages. Apply provider spend caps and grant only the transcription or messages endpoints each key needs.
+
+Roll out in this order: deploy the new service code dark with `G2_ENABLED=0`; configure the dedicated provider, data-encryption, DPoP nonce, retention, and origin secrets; verify readiness and existing Ask traffic; enable private G2 last. Setting the loopback sentinel on an older service fails production readiness, so do not configure it before the supporting image is deployed. Old server plus new client fails closed; new server plus an old stable-origin client keeps exact HTTPS support; new server plus the current iPhone client accepts only the validated dynamic-port loopback form. DPoP, nonce, pairing code, scopes, entitlement, rate limits, no-store responses, and exact per-request Origin ticket binding remain unchanged.
 
 To rotate encryption, move the old current key and version to `G2_DATA_KEY_PREVIOUS` and `G2_DATA_KEY_PREVIOUS_VERSION`, install a new current pair, deploy, and let normal writes upgrade active rows. Keep the previous key until the maximum 24-hour transcript retention and 15-minute preparation window have elapsed and the sweep is green. Removing it sooner can strand mixed-version rows.
 
