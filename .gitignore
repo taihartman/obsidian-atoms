@@ -44,6 +44,10 @@ plus-service/data/
 test_vault
 firepit-log.txt
 
+# Even G2 companion build and private package artifacts
+companion/even-g2/dist/
+companion/even-g2/*.ehpk
+
 # Claude Code personal overrides (not shared)
 .claude/settings.local.json
 
