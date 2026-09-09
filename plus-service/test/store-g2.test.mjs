@@ -6,6 +6,79 @@ const modes = askStoreModes();
 
 describe("G2 device store contract", () => {
   for (const mode of modes) {
+    it(`${mode}: G2_SESSION_CONSENT_008 G2_SESSION_CONSENT_009 are monotonic and withdrawal wins`, async () => {
+      await withStore(mode, async (store) => {
+        assert.equal(typeof store.g2ReadConsent, "function");
+        assert.equal(typeof store.g2SynchronizeConsent, "function");
+        const email = `consent-${mode}@atoms.test`;
+        store.ensureAccount(email);
+        await store.grantPeriod(email, { status: "active" });
+
+        const initial = await store.g2ReadConsent(email);
+        assert.deepEqual(initial, {
+          revision: 0,
+          g2Disclosure: { granted: false, version: "" },
+          askMirror: { granted: false, version: "" },
+          askWrite: { granted: false, version: "" },
+        });
+
+        const granted = await store.g2SynchronizeConsent(email, {
+          baseRevision: 0,
+          freshGesture: true,
+          askMirror: { granted: true, version: "mirror-v1" },
+          askWrite: { granted: true, version: "write-v1" },
+        });
+        assert.equal(granted.revision, 1);
+        assert.equal(granted.askMirror.granted, true);
+        assert.equal(granted.askWrite.granted, true);
+
+        const withdrawn = await store.g2SynchronizeConsent(email, {
+          baseRevision: 1,
+          askMirror: { granted: false, version: "" },
+          askWrite: { granted: false, version: "" },
+        });
+        assert.equal(withdrawn.revision, 2);
+        assert.equal(withdrawn.askMirror.granted, false);
+        assert.equal(withdrawn.askWrite.granted, false);
+
+        const staleReplay = await store.g2SynchronizeConsent(email, {
+          baseRevision: 1,
+          freshGesture: true,
+          askMirror: { granted: true, version: "mirror-v1" },
+          askWrite: { granted: true, version: "write-v1" },
+        });
+        assert.equal(staleReplay.revision, 2);
+        assert.equal(staleReplay.askMirror.granted, false);
+        assert.equal(staleReplay.askWrite.granted, false);
+        assert.equal(staleReplay.regrantRequired, true);
+
+        const noGesture = await store.g2SynchronizeConsent(email, {
+          baseRevision: 2,
+          askMirror: { granted: true, version: "mirror-v1" },
+          askWrite: { granted: true, version: "write-v1" },
+        });
+        assert.equal(noGesture.revision, 2);
+        assert.equal(noGesture.regrantRequired, true);
+
+        const regranted = await store.g2SynchronizeConsent(email, {
+          baseRevision: 2,
+          freshGesture: true,
+          askMirror: { granted: true, version: "mirror-v1" },
+          askWrite: { granted: true, version: "write-v1" },
+        });
+        assert.equal(regranted.revision, 3);
+        assert.equal(regranted.askWrite.granted, true);
+
+        const staleWithdrawal = await store.g2SynchronizeConsent(email, {
+          baseRevision: 0,
+          askMirror: { granted: false, version: "" },
+        });
+        assert.equal(staleWithdrawal.revision, 4);
+        assert.equal(staleWithdrawal.askMirror.granted, false);
+        assert.equal(staleWithdrawal.askWrite.granted, false);
+      });
+    });
+
     it(`${mode}: G2_REDEEM_004 code is single-use and tenant-scoped`, async () => {
       await withStore(mode, async (store) => {
         store.ensureAccount("owner@atoms.test");

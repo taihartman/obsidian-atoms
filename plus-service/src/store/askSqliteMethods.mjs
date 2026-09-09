@@ -3,7 +3,8 @@
  */
 import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
-  G2_REFRESH_TTL_MS, hashToken, id, normalizeG2Scopes, publicG2Device,
+  G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, normalizeG2Scopes,
+  publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
@@ -122,6 +123,12 @@ CREATE TABLE IF NOT EXISTS g2_proof_replay (jti TEXT PRIMARY KEY, exp_ms INTEGER
 CREATE TABLE IF NOT EXISTS g2_attempt_budgets (
   attempt_key TEXT PRIMARY KEY, window_start_ms INTEGER NOT NULL, attempts INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS g2_consent (
+  email TEXT PRIMARY KEY, revision INTEGER NOT NULL,
+  g2_disclosure_granted INTEGER NOT NULL, g2_disclosure_version TEXT NOT NULL,
+  ask_mirror_granted INTEGER NOT NULL, ask_mirror_version TEXT NOT NULL,
+  ask_write_granted INTEGER NOT NULL, ask_write_version TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -234,6 +241,34 @@ export function createAskSqliteMethods(db, deps) {
     if (!row) return false; db.exec("BEGIN IMMEDIATE");
     try { revokeFamily(String(familyId)); db.exec("COMMIT"); return true; }
     catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2ReadConsent(email) {
+    return publicG2Consent(db.prepare("SELECT * FROM g2_consent WHERE email=?").get(normEmail(email)));
+  }
+
+  function g2SynchronizeConsent(email, update) {
+    const key = normEmail(email); db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = db.prepare("SELECT * FROM g2_consent WHERE email=?").get(key);
+      const next = mergeG2Consent(current, update);
+      if (next.revision !== publicG2Consent(current).revision) {
+        db.prepare(`INSERT INTO g2_consent VALUES (?,?,?,?,?,?,?,?)
+          ON CONFLICT(email) DO UPDATE SET revision=excluded.revision,
+          g2_disclosure_granted=excluded.g2_disclosure_granted,
+          g2_disclosure_version=excluded.g2_disclosure_version,
+          ask_mirror_granted=excluded.ask_mirror_granted,
+          ask_mirror_version=excluded.ask_mirror_version,
+          ask_write_granted=excluded.ask_write_granted,
+          ask_write_version=excluded.ask_write_version`).run(
+          key, next.revision, Number(next.g2Disclosure.granted), next.g2Disclosure.version,
+          Number(next.askMirror.granted), next.askMirror.version,
+          Number(next.askWrite.granted), next.askWrite.version,
+        );
+      }
+      db.exec("COMMIT");
+      return next;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
   }
 
   function g2ConsumeProof(jti, expMs, now = Date.now()) {
@@ -1024,6 +1059,6 @@ export function createAskSqliteMethods(db, deps) {
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
-    g2RevokeDevice, g2ConsumeProof, g2ConsumeAttempt,
+    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2ConsumeProof, g2ConsumeAttempt,
   };
 }

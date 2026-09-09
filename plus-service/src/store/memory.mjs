@@ -12,6 +12,8 @@ import {
   G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS,
   normalizeG2Scopes,
+  mergeG2Consent,
+  publicG2Consent,
   publicG2Device,
   accountHasUsedTrial,
   isEntitledAccount,
@@ -87,6 +89,8 @@ export function createMemoryStore() {
   const g2Refresh = new Map();
   const g2Proofs = new Map();
   const g2Attempts = new Map();
+  /** email -> account-scoped consent revision */
+  const g2Consents = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -1227,6 +1231,19 @@ export function createMemoryStore() {
     return true;
   }
 
+  function g2ReadConsent(email) {
+    return publicG2Consent(g2Consents.get(normEmail(email)));
+  }
+
+  function g2SynchronizeConsent(email, update) {
+    const key = normEmail(email);
+    const next = mergeG2Consent(g2Consents.get(key), update);
+    if (next.revision > 0) g2Consents.set(key, next);
+    return publicG2Consent(next).revision === next.revision && next.regrantRequired
+      ? { ...publicG2Consent(next), regrantRequired: true }
+      : publicG2Consent(next);
+  }
+
   function g2ConsumeProof(jti, expMs, now = Date.now()) {
     for (const [key, exp] of g2Proofs) if (exp < now) g2Proofs.delete(key);
     if (g2Proofs.has(jti)) return false;
@@ -1317,6 +1334,8 @@ export function createMemoryStore() {
     g2AccessLookup,
     g2ListDevices,
     g2RevokeDevice,
+    g2ReadConsent,
+    g2SynchronizeConsent,
     g2ConsumeProof,
     g2ConsumeAttempt,
     mintMcpTokensForTest: mintMcpTokens,

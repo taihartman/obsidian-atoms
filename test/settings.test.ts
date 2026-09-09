@@ -23,6 +23,7 @@ import {
   AtomsSettingTab,
   type ConnectivityRequest,
   deriveAccountState,
+  g2SetupReady,
 } from "../src/settings/settings";
 import {
   readPendingSignIns,
@@ -861,10 +862,10 @@ describe("copy lockstep on the screens this plan wrote (U11, R15)", () => {
    * records render; this pins the versions themselves, so a copy edit that "tidied" a
    * disclosure without bumping its version fails here rather than on somebody's device.
    */
-  it("moved every consent record without moving an ack version", () => {
+  it("keeps untouched consent versions and advances the widened connected-app write consent", () => {
     expect(EGRESS_ACK_VERSION).toBe("2026-08-06");
     expect(ASK_PRIVACY_ACK_VERSION).toBe("2026-08-07");
-    expect(ASK_WRITE_ACK_VERSION).toBe("2026-08-06");
+    expect(ASK_WRITE_ACK_VERSION).toBe("2026-09-08");
   });
 
   /** R8: a user reading Settings has to be able to say which build they are looking at. */
@@ -2933,6 +2934,7 @@ describe("the Privacy destination (U6)", () => {
 });
 
 describe("Connect Claude or ChatGPT destination (U6)", () => {
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
   // `Wipe cloud copy` left this list in U6: it moved to Privacy, beside the count of what it
   // deletes and under a render condition that survives a withdrawal turning the mirror off.
   const CONNECT_ROWS = [
@@ -2956,6 +2958,84 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     open(tab, "Connect Claude or ChatGPT");
 
     for (const name of CONNECT_ROWS) expect(rowNames(tab)).toContain(name);
+  });
+
+  it("keeps G2 unavailable without current Plus and shows connected device setup state", async () => {
+    const inactive = settingTab({ session: { ...PLUS_SESSION, status: "inactive" } });
+    inactive.tab.display();
+    open(inactive.tab, "Connect Claude or ChatGPT");
+    expect(rowNames(inactive.tab)).toContain("Even G2");
+    expect(inactive.tab.containerEl.textContent).toContain("current Atoms Plus subscription");
+
+    const request = async (p: { url: string }) => ({
+      status: 200,
+      text: "",
+      arrayBuffer: new ArrayBuffer(0),
+      headers: {},
+      json: p.url.endsWith("/v1/g2/devices")
+        ? { devices: [{ id: "g2d_walk", name: "Walk G2", scopes: ["g2:query"], createdAt: "2026-09-01", lastSeenAt: "2026-09-08", pendingWrites: 2 }] }
+        : { revision: 4, g2Disclosure: { granted: false, version: "" }, askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION }, askWrite: { granted: false, version: "" } },
+    });
+    const active = settingTab({ session: PLUS_SESSION, request: request as never });
+    active.tab.display();
+    open(active.tab, "Connect Claude or ChatGPT");
+    press(active.tab, "Connected glasses", "Refresh");
+    await flush();
+    await flush();
+    expect(rowNames(active.tab)).toContain("Walk G2");
+    expect(active.tab.containerEl.textContent).toContain("Setup required");
+    expect(active.tab.containerEl.textContent).toContain("2 confirmed atoms are still waiting");
+  });
+
+  it("names the selected G2 and pending work before disconnecting it", async () => {
+    let revoked = false;
+    const request = async (p: { url: string; method?: string }) => ({
+      status: 200,
+      text: "",
+      arrayBuffer: new ArrayBuffer(0),
+      headers: {},
+      json: p.url.endsWith("/v1/g2/devices")
+        ? { devices: revoked ? [] : [{ id: "g2d_walk", name: "Walk G2", scopes: [], createdAt: "", lastSeenAt: "", pendingWrites: 1 }] }
+        : p.url.includes("/revoke")
+          ? (revoked = true, { ok: true })
+          : { revision: 1, g2Disclosure: { granted: false, version: "" }, askMirror: { granted: false, version: "" }, askWrite: { granted: false, version: "" } },
+    });
+    const { tab } = settingTab({ session: PLUS_SESSION, request: request as never });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+    press(tab, "Connected glasses", "Refresh");
+    await flush();
+    await flush();
+    press(tab, "Walk G2", "Disconnect");
+    expect(sheetText()).toContain("Disconnect Walk G2?");
+    expect(sheetText()).toContain("1 confirmed atom stays queued");
+    expect(sheetText()).toContain("Ask mirror and other connected apps stay as they are");
+    pressSheet("Disconnect");
+    await flush();
+    expect(revoked).toBe(true);
+  });
+
+  it("requires every independent local and server gate before G2 is ready", () => {
+    const consent = {
+      revision: 2,
+      g2Disclosure: { granted: true, version: "g2-v1" },
+      askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION },
+      askWrite: { granted: true, version: ASK_WRITE_ACK_VERSION },
+    };
+    expect(g2SetupReady(consent, {
+      askEnabled: true,
+      askPrivacyAckAt: ACKED,
+      askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
+      askWriteAckAt: ACKED,
+      askWriteAckVersion: ASK_WRITE_ACK_VERSION,
+    })).toBe(true);
+    expect(g2SetupReady({ ...consent, g2Disclosure: { granted: false, version: "" } }, {
+      askEnabled: true,
+      askPrivacyAckAt: ACKED,
+      askPrivacyAckVersion: ASK_PRIVACY_ACK_VERSION,
+      askWriteAckAt: ACKED,
+      askWriteAckVersion: ASK_WRITE_ACK_VERSION,
+    })).toBe(false);
   });
 
   /**
@@ -5160,4 +5240,3 @@ describe("Capture and File groups (U3)", () => {
   });
   });
 });
-

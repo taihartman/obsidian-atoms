@@ -96,9 +96,9 @@ const CENSUS: ReadonlyArray<{ file: string; count: number; carries: string }> = 
   },
   {
     file: "src/settings/settings.ts",
-    count: 14,
+    count: 16,
     carries:
-      "one content site, thirteen token sites. The content one is the Connect destination, which publishes an origin for a third party to OAuth against and then pairs the session token to it; it is gated against the stamp. The rest are billing, entitlement, sign-out and pairing.",
+      "one content site, fifteen token sites. The content one is the Connect destination, which publishes an origin for a third party to OAuth against and then pairs the session token to it; it is gated against the stamp. The rest are billing, entitlement, sign-out, pairing, and G2 consent or inventory calls.",
   },
 ];
 
@@ -127,13 +127,13 @@ describe("#508 — the Plus sender inventory is a test, not a claim", () => {
     );
   });
 
-  it("the census adds up to the 23 resolutions that are actually code", () => {
+  it("the census adds up to the 25 resolutions that are actually code", () => {
     // The plan said 23, counting the one quoted in a doc comment. The count
     // that matters is the one that can send. It was 22 until the A5/A6 recovery
     // row added a twenty-third: a *reader* of the same rule, listed because the
     // census is about the idiom, not about intent -- the day a real sender hides
     // behind "it only reads it" is the day this test stops working.
-    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(23);
+    expect(CENSUS.reduce((n, c) => n + c.count, 0)).toBe(25);
   });
 
   it("counts code, not prose", () => {

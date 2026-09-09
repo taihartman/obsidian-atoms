@@ -222,6 +222,11 @@ const FROZEN_ASK_WRITE: Readonly<Record<string, { title: string; disclosure: str
     disclosure:
       "Claude or ChatGPT can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only — existing bodies are never rewritten. This is a separate consent from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.",
   },
+  "2026-09-08": {
+    title: "Vault write acknowledgment",
+    disclosure:
+      "Connected apps, including Claude, ChatGPT, and Even G2, can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only. Existing bodies are never rewritten. This is separate from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.",
+  },
 };
 
 describe("#360 the ack versions name the wording actually shipped", () => {

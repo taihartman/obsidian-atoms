@@ -52,6 +52,82 @@ export function publicG2Device(row) {
   };
 }
 
+const EMPTY_G2_CONSENT = Object.freeze({
+  revision: 0,
+  g2Disclosure: Object.freeze({ granted: false, version: "" }),
+  askMirror: Object.freeze({ granted: false, version: "" }),
+  askWrite: Object.freeze({ granted: false, version: "" }),
+});
+
+function consentDecision(value) {
+  if (!value || typeof value !== "object" || typeof value.granted !== "boolean") return null;
+  return {
+    granted: value.granted,
+    version: value.granted && typeof value.version === "string"
+      ? value.version.trim().slice(0, 80)
+      : "",
+  };
+}
+
+/** Public, shape-stable consent state for one Plus account. */
+export function publicG2Consent(row) {
+  if (!row) return structuredClone(EMPTY_G2_CONSENT);
+  const decision = (prefix, snake) => {
+    const nested = row[prefix];
+    if (nested && typeof nested === "object") {
+      return { granted: Boolean(nested.granted), version: String(nested.version ?? "") };
+    }
+    return {
+      granted: Boolean(row[`${prefix}Granted`] ?? row[`${snake}_granted`]),
+      version: String(row[`${prefix}Version`] ?? row[`${snake}_version`] ?? ""),
+    };
+  };
+  return {
+    revision: Math.max(0, Number(row.revision) || 0),
+    g2Disclosure: decision("g2Disclosure", "g2_disclosure"),
+    askMirror: decision("askMirror", "ask_mirror"),
+    askWrite: decision("askWrite", "ask_write"),
+  };
+}
+
+/**
+ * Merge a plugin consent update without allowing stale or gesture-free grants.
+ * Withdrawals are monotonic and always win a concurrent grant.
+ */
+export function mergeG2Consent(currentValue, update = {}) {
+  const current = publicG2Consent(currentValue);
+  const next = structuredClone(current);
+  const baseRevision = Number.isInteger(update.baseRevision) && update.baseRevision >= 0
+    ? update.baseRevision
+    : -1;
+  const stale = baseRevision !== current.revision;
+  const freshGesture = update.freshGesture === true;
+  let regrantRequired = false;
+
+  for (const key of ["askMirror", "askWrite"]) {
+    const wanted = consentDecision(update[key]);
+    if (!wanted) continue;
+    if (!wanted.granted) {
+      next[key] = wanted;
+      continue;
+    }
+    if (stale || !freshGesture) {
+      if (!current[key].granted || current[key].version !== wanted.version) {
+        regrantRequired = true;
+      }
+      continue;
+    }
+    next[key] = wanted;
+  }
+
+  // Write consent is narrower than mirror consent and cannot outlive it.
+  if (!next.askMirror.granted) next.askWrite = { granted: false, version: "" };
+  const changed = JSON.stringify({ askMirror: current.askMirror, askWrite: current.askWrite }) !==
+    JSON.stringify({ askMirror: next.askMirror, askWrite: next.askWrite });
+  if (changed) next.revision = current.revision + 1;
+  return regrantRequired ? { ...next, regrantRequired: true } : next;
+}
+
 /**
  * #240 U2 — what `peekMagic` reports. Uniform across the three backends: the
  * same keys are present whatever the verdict, so a caller never has to tell an

@@ -64,6 +64,36 @@ before(async () => {
 after(() => { if (child && !child.killed) child.kill("SIGTERM"); });
 
 describe("G2 HTTP authorization contract", () => {
+  it("G2_SESSION_CONSENT_008 G2_SESSION_CONSENT_009 accept only a verified session", async () => {
+    const session = await sessionFor(`g2-consent-${randomUUID()}@atoms.test`);
+    const accepted = await fetch(`${BASE}/v1/g2/consent`, {
+      headers: { authorization: `Bearer ${session}` },
+    });
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(await accepted.json(), {
+      revision: 0,
+      g2Disclosure: { granted: false, version: "" },
+      askMirror: { granted: false, version: "" },
+      askWrite: { granted: false, version: "" },
+    });
+    const updated = await fetch(`${BASE}/v1/g2/consent`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${session}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        baseRevision: 0,
+        freshGesture: true,
+        askMirror: { granted: true, version: "mirror-v1" },
+        askWrite: { granted: true, version: "write-v1" },
+      }),
+    });
+    assert.equal(updated.status, 200);
+    assert.equal((await updated.json()).revision, 1);
+    const refused = await fetch(`${BASE}/v1/g2/consent`, {
+      headers: { authorization: "Bearer g2a_wrong" },
+    });
+    assert.equal(refused.status, 401);
+  });
+
   it("G2_NONCE_007 and all G2 responses enforce exact Origin and no-store", async () => {
     const bad = await fetch(`${BASE}/v1/g2/auth/nonce`, { headers: { origin: "https://lookalike.invalid" } });
     assert.equal(bad.status, 403); assert.equal(bad.headers.get("cache-control"), "no-store");

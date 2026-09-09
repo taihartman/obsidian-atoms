@@ -24,7 +24,8 @@ function target(req, path) {
 
 export async function handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp }) {
   if (!path.startsWith("/v1/g2/")) return false;
-  const sessionRoute = path === "/v1/g2/pair/code" || path === "/v1/g2/devices" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
+  const sessionRoute = path === "/v1/g2/pair/code" || path === "/v1/g2/devices" ||
+    path === "/v1/g2/consent" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
   // Plugin management endpoints retain the existing Obsidian-compatible
   // wildcard policy. Only the packaged companion boundary is exact-origin.
   if (req.method === "OPTIONS" && sessionRoute) return false;
@@ -39,6 +40,14 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       const account = await store.accountFromSession(bearer(req), { requireVerified: true });
       if (!account) { json(res, 401, { message: "Request denied" }); return true; }
       json(res, 200, { devices: await store.g2ListDevices(account.email) }); return true;
+    }
+    if ((req.method === "GET" || req.method === "POST") && path === "/v1/g2/consent") {
+      const account = await store.accountFromSession(bearer(req), { requireVerified: true });
+      if (!account || !subscriptionLive(account)) { json(res, 401, { message: "Request denied" }); return true; }
+      const consent = req.method === "GET"
+        ? await store.g2ReadConsent(account.email)
+        : await store.g2SynchronizeConsent(account.email, await readBody(req));
+      json(res, 200, consent); return true;
     }
     const revoke = /^\/v1\/g2\/devices\/([^/]+)\/revoke$/.exec(path);
     if (req.method === "POST" && revoke) {

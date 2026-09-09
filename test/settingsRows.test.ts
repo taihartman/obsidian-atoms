@@ -43,6 +43,15 @@ import {
   type TextComponent,
   type ToggleComponent,
 } from "./mocks/obsidian";
+import { G2_EN } from "../src/i18n/g2";
+
+describe("G2 settings locale catalog", () => {
+  it("owns every new G2 settings string in one scoped English catalog", () => {
+    expect(G2_EN.connect.name).toBe("Even G2");
+    expect(G2_EN.devices.disconnectLabel).toBe("Disconnect");
+    expect(G2_EN.status.setupRequired).toBe("Setup required");
+  });
+});
 
 /**
  * Harness self-test. Everything the row-grammar units assert — a row's name, its description,

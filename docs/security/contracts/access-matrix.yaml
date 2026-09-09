@@ -52,6 +52,32 @@ rows:
     owner: product-engineering
     lastVerified: 2026-09-08
     notes: Generic not-found response does not disclose ownership.
+  - id: G2_SESSION_CONSENT_008
+    path: /v1/g2/consent
+    operation: read
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Account-scoped G2 disclosure plus plugin-owned Ask mirror and connected-app write consent. Updates carry the last observed server revision; stale grants are refused while stale withdrawals may advance the revision.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [cross-tenant consent disclosure, stale grant replay, concurrent regrant race, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Withdrawal wins concurrent conflicts. Regrant requires a fresh user gesture against the current server revision. Old clients do not call this additive endpoint and keep their existing local gates; new clients against old servers fail closed as Setup required.
+  - id: G2_SESSION_CONSENT_009
+    path: /v1/g2/consent
+    operation: update
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Plugin-owned Ask mirror and connected-app write decisions with the last observed revision and an explicit fresh-gesture marker for grants. G2 disclosure is read-only to this authority.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [stale grant replay, concurrent regrant race, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Stale withdrawals may advance state; stale or gesture-free grants are refused. Wrong rollout order fails closed because the new client treats an absent endpoint as Setup required.
   - id: G2_REDEEM_004
     path: /v1/g2/pair/redeem
     operation: call

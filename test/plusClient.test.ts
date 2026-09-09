@@ -57,6 +57,69 @@ function neverCalled() {
 }
 
 describe("plusClient", () => {
+  it("exposes the G2 session-authenticated device and consent client", async () => {
+    const client = await import("../src/platform/plusClient");
+    expect(typeof client.g2CreatePairingCode).toBe("function");
+    expect(typeof client.g2ListDevices).toBe("function");
+    expect(typeof client.g2RevokeDevice).toBe("function");
+    expect(typeof client.g2ReadConsent).toBe("function");
+    expect(typeof client.g2SynchronizeConsent).toBe("function");
+  });
+
+  it("mints a replacement G2 code without exposing it outside the result", async () => {
+    const { g2CreatePairingCode, G2_V1_SCOPES } = await import("../src/platform/plusClient");
+    const request = mockRequest((p) => {
+      expect(p.url).toBe("https://plus.test/v1/g2/pair/code");
+      expect(p.headers?.authorization).toBe("Bearer sess_g2");
+      expect(JSON.parse(String(p.body))).toEqual({ scopes: [...G2_V1_SCOPES] });
+      return { json: { code: "ABCD1234", expiresAt: "2026-09-08T23:00:00Z" } };
+    });
+    await expect(g2CreatePairingCode({ baseUrl: base, request }, "sess_g2")).resolves.toEqual({
+      ok: true,
+      code: "ABCD1234",
+      expiresAt: "2026-09-08T23:00:00Z",
+    });
+  });
+
+  it("lists and revokes only the selected G2 device", async () => {
+    const { g2ListDevices, g2RevokeDevice } = await import("../src/platform/plusClient");
+    const seen: RequestUrlParam[] = [];
+    const request = mockRequest((p) => {
+      seen.push(p);
+      return p.method === "GET"
+        ? { json: { devices: [{ id: "g2d_one", name: "Walk glasses", scopes: ["g2:query"], createdAt: "a", lastSeenAt: "b", pendingWrites: 2 }] } }
+        : { json: { ok: true } };
+    });
+    const listed = await g2ListDevices({ baseUrl: base, request }, "sess_g2");
+    expect(listed.ok && listed.devices[0]?.pendingWrites).toBe(2);
+    await expect(g2RevokeDevice({ baseUrl: base, request }, "sess_g2", "g2d_one/slash")).resolves.toEqual({ ok: true });
+    expect(seen[1]?.url).toBe("https://plus.test/v1/g2/devices/g2d_one%2Fslash/revoke");
+  });
+
+  it("round-trips the server consent revision and withdrawal-wins response", async () => {
+    const { g2ReadConsent, g2SynchronizeConsent } = await import("../src/platform/plusClient");
+    const state = {
+      revision: 7,
+      g2Disclosure: { granted: true, version: "voice-v1" },
+      askMirror: { granted: false, version: "" },
+      askWrite: { granted: false, version: "" },
+      regrantRequired: true,
+    };
+    const request = mockRequest((p) => {
+      if (p.method === "POST") {
+        expect(JSON.parse(String(p.body))).toMatchObject({ baseRevision: 6, freshGesture: true });
+      }
+      return { json: state };
+    });
+    await expect(g2ReadConsent({ baseUrl: base, request }, "sess_g2")).resolves.toEqual({ ok: true, consent: state });
+    await expect(g2SynchronizeConsent({ baseUrl: base, request }, "sess_g2", {
+      baseRevision: 6,
+      freshGesture: true,
+      askMirror: { granted: true, version: "mirror-v1" },
+      askWrite: { granted: true, version: "write-v1" },
+    })).resolves.toEqual({ ok: true, consent: state });
+  });
+
   it("startPlusAccount posts email and returns session", async () => {
     const request = mockRequest((p) => {
       expect(p.url).toBe("https://plus.test/v1/auth/start");

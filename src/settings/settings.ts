@@ -96,6 +96,7 @@ import {
 import {
   API_KEY_SECRET_ID_DEFAULT,
   LOCAL_STORAGE_API_KEY,
+  type LinkerSettings,
 } from "../shared/types";
 import { formatUsd, PLUS_PRICING } from "../shared/plusPricing";
 import {
@@ -153,8 +154,15 @@ import {
   askMcpPair,
   askMirrorStatus,
   askMirrorWipe,
+  g2CreatePairingCode,
+  g2ListDevices,
+  g2ReadConsent,
+  g2RevokeDevice,
+  g2SynchronizeConsent,
   plusFetchRequest,
   PLUS_UNREACHABLE_MESSAGE,
+  type G2ConsentState,
+  type G2Device,
 } from "../platform/plusClient";
 import {
   plusAddressAdvisory,
@@ -189,6 +197,20 @@ import {
   removeActiveTag,
   tagCountsSorted,
 } from "../pipeline/vocabulary";
+import { G2_EN } from "../i18n/g2";
+
+const LS_G2_CONSENT_REVISION = "atoms:g2:consent-revision";
+const LS_G2_PAIRING_STARTED = "atoms:g2:pairing-started";
+
+export function g2SetupReady(
+  consent: G2ConsentState,
+  local: Pick<LinkerSettings, "askEnabled" | "askPrivacyAckAt" | "askPrivacyAckVersion" | "askWriteAckAt" | "askWriteAckVersion">,
+): boolean {
+  return consent.g2Disclosure.granted &&
+    consent.askMirror.granted && consent.askMirror.version === ASK_PRIVACY_ACK_VERSION &&
+    consent.askWrite.granted && consent.askWrite.version === ASK_WRITE_ACK_VERSION &&
+    askMirrorPermitted(local) && askWriteAckIsCurrent(local);
+}
 
 /** Public marketing + pricing page. Source lives in `www/` in this repo. */
 export const ATOMS_SITE_URL = "https://tryatoms.app";
@@ -1023,6 +1045,13 @@ export class AtomsSettingTab extends PluginSettingTab {
    * `redisplay()` or `openRoute()`, which is one impatient tap-back-and-in away.
    */
   private readonly inFlight = new InFlightActions();
+  private g2Inventory: {
+    sessionToken: string;
+    loading: boolean;
+    devices: G2Device[];
+    consent: G2ConsentState | null;
+    error?: string;
+  } | null = null;
 
   /**
    * The button-carrying row builders, bound to this tab's registry. Wrapped rather than passed at
@@ -1123,7 +1152,6 @@ export class AtomsSettingTab extends PluginSettingTab {
 
     this.route = route;
     this.display();
-
     const scroller = this.settingsScrollEl();
     if (!scroller) return;
     const top = this.routeScroll.get(route) ?? 0;
@@ -1302,6 +1330,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     // whose handlers still close over the state this gesture was rendered under.
     this.redisplay();
     await this.plugin.saveSettings();
+    if (loadLocal(this.app, LS_G2_PAIRING_STARTED) === true) {
+      await this.synchronizeG2Consent(enabled);
+    }
     // Read live rather than from `enabled`: the save is an await, and a withdrawal landing
     // inside it turns both the consent and the mirror off. The push is the egress itself, so
     // it answers to the state now, not to the gesture that started it.
@@ -1342,6 +1373,9 @@ export class AtomsSettingTab extends PluginSettingTab {
     // whose handlers still hold the granted state.
     this.redisplay();
     await this.plugin.saveSettings();
+    if (loadLocal(this.app, LS_G2_PAIRING_STARTED) === true) {
+      await this.synchronizeG2Consent(granted);
+    }
     // Live, for the same reason the mirror push is: applying the outbox writes files, and the
     // ack authorizing that may have been withdrawn while this was waiting on disk.
     if (askWriteAckIsCurrent(this.plugin.settings)) {
@@ -1442,6 +1476,185 @@ export class AtomsSettingTab extends PluginSettingTab {
    * The destructive row sits beside what it destroys rather than in a general danger zone: the
    * cloud copy is what these rows are about, so the way to delete it belongs with them.
    */
+  private g2Config(base: string) {
+    return { baseUrl: base, request: this.deps.request ?? plusFetchRequest };
+  }
+
+  private async refreshG2Inventory(): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session || this.route !== "connect") return;
+    if (this.g2Inventory?.sessionToken === session.sessionToken && this.g2Inventory.loading) return;
+    const base = this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    this.g2Inventory = {
+      sessionToken: session.sessionToken,
+      loading: true,
+      devices: this.g2Inventory?.sessionToken === session.sessionToken
+        ? this.g2Inventory.devices
+        : [],
+      consent: this.g2Inventory?.sessionToken === session.sessionToken
+        ? this.g2Inventory.consent
+        : null,
+    };
+    this.redisplay();
+    const [devices, consent] = await Promise.all([
+      g2ListDevices(this.g2Config(base), session.sessionToken),
+      g2ReadConsent(this.g2Config(base), session.sessionToken),
+    ]);
+    if (this.route !== "connect" || readPlusSession(this.app)?.sessionToken !== session.sessionToken) return;
+    if (!devices.ok || !consent.ok) {
+      this.g2Inventory = {
+        sessionToken: session.sessionToken,
+        loading: false,
+        devices: devices.ok ? devices.devices : [],
+        consent: consent.ok ? consent.consent : null,
+        error: !devices.ok ? devices.message : !consent.ok ? consent.message : G2_EN.status.unavailable,
+      };
+      this.redisplay();
+      return;
+    }
+    this.app.saveLocalStorage(LS_G2_CONSENT_REVISION, consent.consent.revision);
+    this.g2Inventory = {
+      sessionToken: session.sessionToken,
+      loading: false,
+      devices: devices.devices.filter((device) => !device.revoked),
+      consent: consent.consent,
+    };
+    if (devices.devices.some((device) => !device.revoked)) {
+      this.app.saveLocalStorage(LS_G2_PAIRING_STARTED, true);
+    }
+    this.redisplay();
+  }
+
+  private async synchronizeG2Consent(freshGesture: boolean): Promise<void> {
+    const session = readPlusSession(this.app);
+    if (!session) return;
+    const storedRevision = loadLocal(this.app, LS_G2_CONSENT_REVISION);
+    const baseRevision = this.g2Inventory?.consent?.revision ??
+      (typeof storedRevision === "number" && Number.isInteger(storedRevision) ? storedRevision : 0);
+    const base = this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const result = await g2SynchronizeConsent(
+      this.g2Config(base),
+      session.sessionToken,
+      {
+        baseRevision,
+        freshGesture,
+        askMirror: {
+          granted: askMirrorPermitted(this.plugin.settings),
+          version: askPrivacyAckIsCurrent(this.plugin.settings) ? ASK_PRIVACY_ACK_VERSION : "",
+        },
+        askWrite: {
+          granted: askWriteAckIsCurrent(this.plugin.settings),
+          version: askWriteAckIsCurrent(this.plugin.settings) ? ASK_WRITE_ACK_VERSION : "",
+        },
+      },
+    );
+    if (!result.ok) return;
+    this.app.saveLocalStorage(LS_G2_CONSENT_REVISION, result.consent.revision);
+    if (!result.consent.askMirror.granted) {
+      this.plugin.settings.askEnabled = false;
+      this.writeAskAck("privacy", false);
+      this.writeAskAck("write", false);
+    } else if (!result.consent.askWrite.granted) {
+      this.writeAskAck("write", false);
+    }
+    if (result.consent.regrantRequired) {
+      new Notice(G2_EN.consent.regrantRequired);
+      await this.plugin.saveSettings();
+    }
+    if (this.g2Inventory?.sessionToken === session.sessionToken) {
+      this.g2Inventory = { ...this.g2Inventory, consent: result.consent };
+    }
+  }
+
+  private renderG2Controls(containerEl: HTMLElement, session: PlusSession, base: string): void {
+    if (session.status !== "active" && session.status !== "trialing") {
+      statusRow(containerEl, { name: G2_EN.connect.name, value: G2_EN.connect.unavailable });
+      return;
+    }
+    const inventory = this.g2Inventory?.sessionToken === session.sessionToken
+      ? this.g2Inventory
+      : null;
+    const setup = inventory?.consent
+      ? g2SetupReady(inventory.consent, this.plugin.settings)
+      : false;
+    this.actionRow(containerEl, {
+      action: "g2:pairing-code",
+      name: G2_EN.connect.name,
+      desc: G2_EN.connect.rowDescription(setup),
+      label: G2_EN.connect.label,
+      onClick: async () => {
+        const result = await g2CreatePairingCode(this.g2Config(base), session.sessionToken);
+        if (!result.ok) {
+          new Notice(G2_EN.connect.failed(result.message));
+          return;
+        }
+        this.app.saveLocalStorage(LS_G2_PAIRING_STARTED, true);
+        const raw = result.code.replace(/-/g, "");
+        const display = raw.length === 8 ? `${raw.slice(0, 4)}-${raw.slice(4)}` : result.code;
+        try {
+          await navigator.clipboard.writeText(display);
+          new Notice(G2_EN.connect.codeCopied(display));
+        } catch {
+          new Notice(G2_EN.connect.codeVisible(display));
+        }
+      },
+    });
+    if (inventory?.loading) {
+      statusRow(containerEl, { name: G2_EN.devices.heading, value: G2_EN.status.checking });
+      return;
+    }
+    if (inventory?.error) {
+      statusRow(containerEl, { name: G2_EN.devices.heading, value: G2_EN.status.unavailable });
+      return;
+    }
+    const devices = inventory?.devices ?? [];
+    if (!devices.length) {
+      this.actionRow(containerEl, {
+        action: "g2:refresh-devices",
+        name: G2_EN.devices.heading,
+        desc: G2_EN.status.none,
+        label: G2_EN.devices.refresh,
+        onClick: () => this.refreshG2Inventory(),
+      });
+      return;
+    }
+    const pending = devices.reduce((count, device) => count + device.pendingWrites, 0);
+    if (pending > 0) {
+      containerEl.createEl("p", {
+        text: G2_EN.devices.pending(pending),
+        cls: "setting-item-description",
+      });
+    }
+    for (const device of devices) {
+      const day = device.lastSeenAt && !Number.isNaN(Date.parse(device.lastSeenAt))
+        ? device.lastSeenAt.slice(0, 10)
+        : "";
+      this.destructiveRow(containerEl, {
+        action: `g2:disconnect:${device.id}`,
+        name: device.name,
+        desc: G2_EN.devices.rowDescription(day, setup),
+        label: G2_EN.devices.disconnectLabel,
+        onClick: () => confirmSheet({
+          app: this.app,
+          title: G2_EN.devices.confirmTitle(device.name),
+          body: G2_EN.devices.confirmBody(device.name, device.pendingWrites),
+          cancelLabel: G2_EN.devices.cancel,
+          confirmLabel: G2_EN.devices.confirm,
+          onConfirm: async () => {
+            const result = await g2RevokeDevice(this.g2Config(base), session.sessionToken, device.id);
+            if (!result.ok) {
+              new Notice(G2_EN.connect.failed(result.message));
+              return;
+            }
+            new Notice(G2_EN.devices.disconnected(device.name));
+            this.g2Inventory = null;
+            await this.refreshG2Inventory();
+          },
+        }),
+      });
+    }
+  }
+
   private renderConnectDestination(containerEl: HTMLElement): void {
     const session = readPlusSession(this.app);
     if (!session) {
@@ -1491,6 +1704,8 @@ export class AtomsSettingTab extends PluginSettingTab {
       return;
     }
     const mcpUrl = askMcpUrl(base);
+
+    this.renderG2Controls(containerEl, session, base);
 
     const status = this.mirrorStatusLine(session.email);
     containerEl.createEl("p", {
@@ -4272,8 +4487,8 @@ export class AtomsSettingTab extends PluginSettingTab {
     // and it is the switch that decides something (R17).
     const writeAck = askWriteAckIsCurrent(this.plugin.settings);
     settingRow(containerEl, {
-      name: "Allow filing from Claude or ChatGPT",
-      desc: "When on, this vault applies create/continue outbox items under your Atoms folder (new files only; never rewrites existing bodies). Requires Ask mirror enabled.",
+      name: G2_EN.consent.writeRow,
+      desc: G2_EN.consent.writeDescription,
       control: {
         kind: "toggle",
         configure: (tog) => {

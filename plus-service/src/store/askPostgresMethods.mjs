@@ -3,7 +3,8 @@
  */
 import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
-  G2_REFRESH_TTL_MS, hashToken, id, normalizeG2Scopes, publicG2Device,
+  G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, normalizeG2Scopes,
+  publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
@@ -121,6 +122,12 @@ CREATE TABLE IF NOT EXISTS g2_refresh_tokens (
 CREATE TABLE IF NOT EXISTS g2_proof_replay (jti TEXT PRIMARY KEY, exp_ms BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS g2_attempt_budgets (
   attempt_key TEXT PRIMARY KEY, window_start_ms BIGINT NOT NULL, attempts INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS g2_consent (
+  email TEXT PRIMARY KEY, revision BIGINT NOT NULL,
+  g2_disclosure_granted BOOLEAN NOT NULL, g2_disclosure_version TEXT NOT NULL,
+  ask_mirror_granted BOOLEAN NOT NULL, ask_mirror_version TEXT NOT NULL,
+  ask_write_granted BOOLEAN NOT NULL, ask_write_version TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
@@ -244,6 +251,36 @@ export function createAskPostgresMethods(pool, deps) {
       const row = (await client.query("SELECT 1 FROM g2_device_families WHERE family_id=$1 AND email=$2 FOR UPDATE", [String(familyId), normEmail(email)])).rows[0];
       if (!row) { await client.query("ROLLBACK"); return false; }
       await revokeFamily(client, String(familyId)); await client.query("COMMIT"); return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2ReadConsent(email) {
+    const { rows } = await pool.query("SELECT * FROM g2_consent WHERE email=$1", [normEmail(email)]);
+    return publicG2Consent(rows[0]);
+  }
+
+  async function g2SynchronizeConsent(email, update) {
+    const key = normEmail(email); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [key]);
+      const current = (await client.query("SELECT * FROM g2_consent WHERE email=$1 FOR UPDATE", [key])).rows[0];
+      const next = mergeG2Consent(current, update);
+      if (next.revision !== publicG2Consent(current).revision) {
+        await client.query(`INSERT INTO g2_consent VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT(email) DO UPDATE SET revision=excluded.revision,
+          g2_disclosure_granted=excluded.g2_disclosure_granted,
+          g2_disclosure_version=excluded.g2_disclosure_version,
+          ask_mirror_granted=excluded.ask_mirror_granted,
+          ask_mirror_version=excluded.ask_mirror_version,
+          ask_write_granted=excluded.ask_write_granted,
+          ask_write_version=excluded.ask_write_version`, [
+          key, next.revision, next.g2Disclosure.granted, next.g2Disclosure.version,
+          next.askMirror.granted, next.askMirror.version,
+          next.askWrite.granted, next.askWrite.version,
+        ]);
+      }
+      await client.query("COMMIT"); return next;
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
 
@@ -1087,6 +1124,6 @@ export function createAskPostgresMethods(pool, deps) {
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
-    g2RevokeDevice, g2ConsumeProof, g2ConsumeAttempt,
+    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2ConsumeProof, g2ConsumeAttempt,
   };
 }
