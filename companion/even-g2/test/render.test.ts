@@ -6,6 +6,12 @@ import { EvenGlassesRenderer, renderGlasses } from "../src/ui/render";
 import { paginateUtf8Text } from "../src/ui/paginate";
 
 describe("G2 rendering", () => {
+  it("adds a selectable Return row after populated answer, match, and recent sources", () => {
+    expect(renderGlasses({ screen: "answer", answer: "Friday", sources: [{ id: "a", title: "Launch" }], selectedIndex: 0 }).items).toEqual(["Launch", "Return"]);
+    expect(renderGlasses({ screen: "closest-matches", matches: [{ id: "a", title: "Launch" }], selectedIndex: 0 }).items).toEqual(["Launch", "Return"]);
+    expect(renderGlasses({ screen: "recent", items: [{ id: "a", title: "Launch" }], selectedIndex: 0, coverageComplete: true }).items).toEqual(["Launch", "Return"]);
+  });
+
   it("never emits a blank 576 by 288 page for any stable U7 state", () => {
     for (const state of allStableStates()) {
       const page = renderGlasses(state);

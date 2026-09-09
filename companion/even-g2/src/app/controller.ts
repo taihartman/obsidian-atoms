@@ -130,6 +130,10 @@ export class G2AppController {
       await this.finishRecording();
       return;
     }
+    if (this.state.screen === "body" && this.state.pages.length === 1 && action.envelope === "list") {
+      await this.back();
+      return;
+    }
     if (this.state.screen === "confirmation") {
       if ((action.selectedIndex ?? this.state.selectedIndex) !== 0) { await this.dependencies.create.cancel?.(); this.showRoot(); return; }
       this.show(reduceAppState(this.state, { type: "confirm-create" }));
@@ -138,18 +142,23 @@ export class G2AppController {
     }
     if (this.state.screen === "answer") {
       const index = action.selectedIndex ?? this.state.selectedIndex;
+      if (index === this.state.sources.length) { this.showRoot(); return; }
       const id = this.dependencies.query.openSource(index);
       const source = this.state.sources[index];
       if (id && source) await this.openBody(id, source.title, "answer");
       return;
     }
     if (this.state.screen === "closest-matches") {
-      const source = this.state.matches[action.selectedIndex ?? this.state.selectedIndex];
+      const index = action.selectedIndex ?? this.state.selectedIndex;
+      if (index === this.state.matches.length) { this.showRoot(); return; }
+      const source = this.state.matches[index];
       if (source) await this.openBody(source.id, source.title, "answer");
       return;
     }
     if (this.state.screen === "recent") {
-      const source = this.state.items[action.selectedIndex ?? this.state.selectedIndex];
+      const index = action.selectedIndex ?? this.state.selectedIndex;
+      if (index === this.state.items.length) { this.showRoot(); return; }
+      const source = this.state.items[index];
       if (source) await this.openBody(source.id, source.title, "recent");
       return;
     }

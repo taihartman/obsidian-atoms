@@ -120,6 +120,79 @@ describe("G2 lifecycle controller", () => {
     expect(app.snapshot().screen).toBe("closest-matches");
   });
 
+  it("returns from source bodies to retained answer/recent lists and then returns to root", async () => {
+    const answer = { state: "answered" as const, answer: "Friday", sources: [{ id: "atm-answer", title: "Launch" }] };
+    const recent = { items: [{ id: "atm-recent", title: "Notes" }], selectedIndex: 0, coverageComplete: true };
+    const read = {
+      loadRecent: vi.fn(async () => recent),
+      openById: vi.fn(async () => ({ text: "Short body", position: { offset: 0, next_offset: null } })),
+    };
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(),
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }) },
+      query: { ask: async () => answer, openSource: () => "atm-answer" },
+      read,
+    });
+
+    await app.submitSpeech("When?");
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "body", title: "Launch", pageIndex: 0 });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toEqual({ screen: "answer", answer: "Friday", sources: answer.sources, selectedIndex: 0 });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
+    expect(app.snapshot()).toEqual({ screen: "root", selectedIndex: 0 });
+
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 2 });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "body", title: "Notes", pageIndex: 0 });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toEqual({ screen: "recent", ...recent });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
+    expect(app.snapshot()).toEqual({ screen: "root", selectedIndex: 0 });
+  });
+
+  it("returns from closest-match source context and then its Return row to root", async () => {
+    const matches = [{ id: "atm-match", title: "Possible match" }];
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(),
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }) },
+      query: { ask: async () => ({ state: "closest_matches", matches }), openSource: () => null },
+      read: {
+        loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }),
+        openById: async () => ({ text: "Body", position: { offset: 0, next_offset: null } }),
+      },
+    });
+
+    await app.submitSpeech("Maybe?");
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "body", title: "Possible match" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toEqual({ screen: "closest-matches", matches, selectedIndex: 0 });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
+    expect(app.snapshot()).toEqual({ screen: "root", selectedIndex: 0 });
+  });
+
+  it("keeps multi-page body navigation on scroll gestures", async () => {
+    const sources = [{ id: "atm-long", title: "Long note" }];
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(),
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }) },
+      query: { ask: async () => ({ state: "answered", answer: "Answer", sources }), openSource: () => "atm-long" },
+      read: {
+        loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }),
+        openById: async () => ({ text: "x".repeat(451), position: { offset: 0, next_offset: null } }),
+      },
+    });
+
+    await app.submitSpeech("Question");
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "body", pageIndex: 0, pages: ["x".repeat(450), "x"] });
+    await app.handle({ kind: "scroll-down", envelope: "text" });
+    expect(app.snapshot()).toMatchObject({ screen: "body", pageIndex: 1 });
+    await app.handle({ kind: "scroll-up", envelope: "text" });
+    expect(app.snapshot()).toEqual({ screen: "answer", answer: "Answer", sources, selectedIndex: 0 });
+  });
+
   it("does not let a repeated New atom gesture stop a recording whose start is unfinished", async () => {
     let releaseStart!: () => void;
     const startRecording = vi.fn(() => new Promise<void>((resolve) => { releaseStart = resolve; }));

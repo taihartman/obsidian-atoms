@@ -26,6 +26,7 @@ export type EvenAction = {
 type RawContainerEvent = {
   eventType?: unknown;
   containerID?: number;
+  containerName?: string;
   currentSelectItemIndex?: number;
 };
 
@@ -54,7 +55,8 @@ const ACTION_BY_EVENT = new Map<OsEventTypeList, EvenActionKind>([
   [OsEventTypeList.SYSTEM_EXIT_EVENT, "system-exit"],
 ]);
 
-function actionKind(raw: unknown): EvenActionKind | undefined {
+function actionKind(raw: unknown, omittedMeansClick = false): EvenActionKind | undefined {
+  if (raw === undefined && omittedMeansClick) return "click";
   const event = OsEventTypeList.fromJson(raw);
   return event === undefined ? undefined : ACTION_BY_EVENT.get(event);
 }
@@ -66,7 +68,7 @@ function actionKind(raw: unknown): EvenActionKind | undefined {
  */
 export function normalizeEvenAction(event: RawEvenHubEvent): EvenAction | null {
   if (event.listEvent) {
-    const kind = actionKind(event.listEvent.eventType);
+    const kind = actionKind(event.listEvent.eventType, true);
     return kind
       ? {
           kind,
@@ -78,7 +80,7 @@ export function normalizeEvenAction(event: RawEvenHubEvent): EvenAction | null {
   }
 
   if (event.textEvent) {
-    const kind = actionKind(event.textEvent.eventType);
+    const kind = actionKind(event.textEvent.eventType, true);
     return kind
       ? {
           kind,
@@ -89,12 +91,16 @@ export function normalizeEvenAction(event: RawEvenHubEvent): EvenAction | null {
   }
 
   if (event.sysEvent) {
-    const kind = actionKind(event.sysEvent.eventType);
+    const source = EventSourceType.fromJson(event.sysEvent.eventSource);
+    const kind = actionKind(
+      event.sysEvent.eventType,
+      event.sysEvent.eventType === undefined && source !== undefined,
+    );
     return kind
       ? {
           kind,
           envelope: "system",
-          source: EventSourceType.fromJson(event.sysEvent.eventSource),
+          source,
         }
       : null;
   }

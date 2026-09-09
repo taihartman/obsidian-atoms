@@ -40,8 +40,19 @@ const secretPatterns = [
   /whsec_[A-Za-z0-9_-]{12,}/,
   /(?:G2_DATA_KEY_CURRENT|ANTHROPIC_API_KEY|OPENAI_API_KEY)\s*[=:]\s*[^\s"']+/,
 ];
+const simulatorPatterns = [
+  /\blocalhost\b/i,
+  /127\.0\.0\.1/,
+  /simulator\.html/i,
+  /simulator-base-url-refused/i,
+  /simulator-only/i,
+  /autoDriveSimulatorSetup/,
+  /auto=1/i,
+  /pair=/i,
+];
 for (const bytes of candidates) {
   const text = bytes.toString("utf8");
   if (secretPatterns.some((pattern) => pattern.test(text))) throw new Error("secret-like material found in G2 package");
+  if (simulatorPatterns.some((pattern) => pattern.test(text))) throw new Error("simulator-only material found in G2 package");
 }
-console.log(`G2 package verified: ${statSync(artifact).size} bytes, exact pins/origins/permissions/CSP, no secret-like material`);
+console.log(`G2 package verified: ${statSync(artifact).size} bytes, exact pins/origins/permissions/CSP, no secret-like or simulator-only material`);

@@ -25,6 +25,14 @@ describe("G2 app state", () => {
     }
   });
 
+  it("clamps list selection to each screen's visible Return row", () => {
+    const answer = { screen: "answer" as const, answer: "Friday", sources: [{ id: "a", title: "Launch" }], selectedIndex: 0 };
+    expect(reduceAppState(answer, { type: "select", index: 99 }).selectedIndex).toBe(1);
+    expect(reduceAppState(answer, { type: "select", index: -4 }).selectedIndex).toBe(0);
+    const recent = { screen: "recent" as const, items: [{ id: "a", title: "Launch" }, { id: "b", title: "Owner" }], coverageComplete: true, selectedIndex: 0 };
+    expect(reduceAppState(recent, { type: "select", index: 99 }).selectedIndex).toBe(2);
+  });
+
   it("truncates ASCII, CJK, and emoji labels on UTF-8 boundaries", () => {
     for (const value of ["a".repeat(90), "記憶".repeat(30), "🌱".repeat(30)]) {
       const result = truncateUtf8(value, 63);

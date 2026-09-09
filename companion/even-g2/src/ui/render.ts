@@ -38,9 +38,9 @@ export function renderGlasses(state: AppState): GlassesView {
     case "confirmation": return page(`Create “${state.title}”?${state.message ? `\n${state.message}` : ""}`, [G2_COPY.create, G2_COPY.tryAgain], state.selectedIndex);
     case "queued": return page(state.stillQueued ? `${G2_COPY.stillQueued}${state.acceptedAt ? ` · ${state.acceptedAt}` : ""}` : G2_COPY.queued, [G2_COPY.actions.wait]);
     case "saved": return page(state.title ? `${G2_COPY.saved}\n${state.title}` : G2_COPY.saved, [G2_COPY.actions.return]);
-    case "answer": return page(state.answer, state.sources.length ? state.sources.map((source) => source.title) : [G2_COPY.actions.return], state.selectedIndex);
-    case "closest-matches": return page(G2_COPY.weakEvidence, state.matches.length ? state.matches.map((match) => match.title) : [G2_COPY.actions.return], state.selectedIndex);
-    case "recent": return page(state.coverageComplete ? G2_COPY.sources : `${G2_COPY.sources} · ${G2_COPY.errors.stale}`, state.items.length ? state.items.map((item) => item.title) : [G2_COPY.actions.return], state.selectedIndex);
+    case "answer": return page(state.answer, [...state.sources.map((source) => source.title), G2_COPY.actions.return], state.selectedIndex);
+    case "closest-matches": return page(G2_COPY.weakEvidence, [...state.matches.map((match) => match.title), G2_COPY.actions.return], state.selectedIndex);
+    case "recent": return page(state.coverageComplete ? G2_COPY.sources : `${G2_COPY.sources} · ${G2_COPY.errors.stale}`, [...state.items.map((item) => item.title), G2_COPY.actions.return], state.selectedIndex);
     case "body": return page(`${state.title}\n${state.pages[state.pageIndex] ?? ""}`, state.pages.length > 1 ? [`${state.pageIndex + 1}/${state.pages.length}`] : [G2_COPY.actions.return]);
     case "empty": return page(state.kind === "recent" ? G2_COPY.noRecent : G2_COPY.noSources, [G2_COPY.actions.return]);
     case "recovery": return page(G2_COPY.recovered, state.kind === "queued" ? [G2_COPY.actions.wait] : [G2_COPY.actions.retry, G2_COPY.actions.discard]);

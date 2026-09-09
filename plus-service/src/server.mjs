@@ -1251,8 +1251,10 @@ server.on("upgrade", (req, socket, head) => {
   });
 });
 
-server.listen(config.port, () => {
+server.listen(config.port, config.bindHost || undefined, () => {
+  const address = server.address();
+  const bindAddress = typeof address === "object" && address ? address.address : "unknown";
   console.log(
-    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} env=${isProduction() ? "production" : "dev"} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
+    `[plus] listening bind=${bindAddress} port=${config.port} publicBase=${config.publicBaseUrl} env=${isProduction() ? "production" : "dev"} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
   );
 });

@@ -5,12 +5,20 @@
  */
 
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 function env(name, fallback = "") {
   const v = process.env[name];
   return v === undefined || v === "" ? fallback : v;
+}
+
+export function parseBindHost(raw) {
+  const host = String(raw || "").trim();
+  if (!host) return "";
+  if (isIP(host) === 0) throw new Error("invalid_bind_host");
+  return host;
 }
 
 function loadPricingSsot() {
@@ -47,6 +55,9 @@ export const config = {
   get port() {
     const port = Number(env("PORT", "8787"));
     return Number.isFinite(port) && port > 0 ? port : 8787;
+  },
+  get bindHost() {
+    return parseBindHost(env("ATOMS_PLUS_BIND_HOST"));
   },
   get anthropicApiKey() {
     return env("ANTHROPIC_API_KEY");

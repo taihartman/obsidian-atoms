@@ -36,6 +36,16 @@ export function initialState(): AppState {
   return { screen: "checking", selectedIndex: 0 };
 }
 
+function maxSelectableIndex(state: AppState): number {
+  if (state.screen === "root") return ROOT_ACTIONS.length - 1;
+  if (state.screen === "confirmation" || state.screen === "discard-confirmation") return 1;
+  if (state.screen === "answer") return state.sources.length;
+  if (state.screen === "closest-matches") return state.matches.length;
+  if (state.screen === "recent") return state.items.length;
+  if (state.screen === "recovery" && state.kind !== "queued") return 1;
+  return 0;
+}
+
 function actionFor(reason: ErrorReason): PrimaryAction {
   if (reason === "revoked") return "reconnect";
   if (reason === "commit-unknown") return "wait";
@@ -46,7 +56,10 @@ function actionFor(reason: ErrorReason): PrimaryAction {
 
 export function reduceAppState(state: AppState, event: AppEvent): AppState {
   if (event.type === "fail") return { screen: "error", reason: event.reason, primaryAction: actionFor(event.reason), selectedIndex: 0 };
-  if (event.type === "select") return { ...state, selectedIndex: Math.max(0, event.index) };
+  if (event.type === "select") {
+    const index = Number.isFinite(event.index) ? Math.trunc(event.index) : 0;
+    return { ...state, selectedIndex: Math.min(maxSelectableIndex(state), Math.max(0, index)) };
+  }
   if (event.type === "select-root" && state.screen === "root") {
     if (event.index === 0) return { screen: "starting-recording", purpose: "create", selectedIndex: 0 };
     if (event.index === 1) return { screen: "starting-recording", purpose: "query", selectedIndex: 0 };

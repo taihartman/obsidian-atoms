@@ -211,6 +211,38 @@ describe("recovery capability probe", () => {
 });
 
 describe("Even event normalization", () => {
+  it("treats the simulator's omitted protobuf list eventType as the default click", () => {
+    expect(normalizeEvenAction({
+      listEvent: { containerID: 2, containerName: "atoms-actions" },
+    })).toEqual({
+      kind: "click",
+      envelope: "list",
+      containerId: 2,
+      selectedIndex: undefined,
+    });
+  });
+
+  it("treats an omitted text eventType as click but still ignores explicit unknown values", () => {
+    expect(normalizeEvenAction({ textEvent: { containerID: 1 } })).toEqual({
+      kind: "click",
+      envelope: "text",
+      containerId: 1,
+    });
+    expect(normalizeEvenAction({ listEvent: { eventType: "NOT_A_REAL_EVENT", containerID: 2 } })).toBeNull();
+  });
+
+  it("treats the simulator's sourced protobuf system default as click", () => {
+    expect(normalizeEvenAction({ sysEvent: { eventSource: 1 } })).toEqual({
+      kind: "click",
+      envelope: "system",
+      source: 1,
+    });
+    expect(normalizeEvenAction({ sysEvent: {} })).toBeNull();
+    expect(normalizeEvenAction({
+      sysEvent: { eventType: "NOT_A_REAL_EVENT", eventSource: 1 },
+    })).toBeNull();
+  });
+
   it.each([
     [{ textEvent: { eventType: 0, containerID: 1 } }, "text"],
     [
