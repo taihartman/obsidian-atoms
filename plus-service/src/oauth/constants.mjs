@@ -11,6 +11,18 @@ export const LOOPBACK_PATH = "/callback";
 /** Single path segment under /connector/oauth/{id} */
 const CHATGPT_CALLBACK_ID = /^[A-Za-z0-9_-]+$/;
 
+/**
+ * @param {string} uri
+ * @returns {boolean}
+ */
+function isCanonicalChatGptCallback(uri) {
+  const prefix = "https://chatgpt.com/connector/oauth/";
+  return (
+    uri.startsWith(prefix) &&
+    CHATGPT_CALLBACK_ID.test(uri.slice(prefix.length))
+  );
+}
+
 export const COOKIE_NAME = "atoms_oauth_bs";
 /** Read tools: search, fetch, neighbors, list */
 export const SCOPE_READ = "atoms:read";
@@ -65,6 +77,7 @@ export function isAllowedRedirectUri(uri) {
   if (!uri || typeof uri !== "string") return false;
   if (uri === CLAUDE_CALLBACK) return true;
   if (uri === CHATGPT_LEGACY_CALLBACK) return true;
+  if (isCanonicalChatGptCallback(uri)) return true;
   try {
     const u = new URL(uri);
     if (u.protocol !== "http:" && u.protocol !== "https:") return false;
@@ -76,18 +89,6 @@ export function isAllowedRedirectUri(uri) {
     if (loopback) {
       return u.pathname === LOOPBACK_PATH || u.pathname === "/callback/";
     }
-    // ChatGPT production: https://chatgpt.com/connector/oauth/{callback_id}
-    if (u.protocol === "https:" && host === "chatgpt.com") {
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (
-        parts.length === 3 &&
-        parts[0] === "connector" &&
-        parts[1] === "oauth" &&
-        CHATGPT_CALLBACK_ID.test(parts[2])
-      ) {
-        return true;
-      }
-    }
     return false;
   } catch {
     return false;
@@ -95,25 +96,29 @@ export function isAllowedRedirectUri(uri) {
 }
 
 /**
- * Label for OAuth consent from client_id / redirect host.
+ * Trusted label for OAuth consent. Client IDs are attacker-controlled, so only
+ * an already-allowlisted hosted redirect URI may identify the AI provider.
+ * @param {string} _clientId
+ * @param {string} [redirectUri]
+ */
+export function oauthClientLabel(_clientId, redirectUri = "") {
+  const redir = String(redirectUri || "");
+  if (redir === CLAUDE_CALLBACK) return "Claude";
+  if (redir === CHATGPT_LEGACY_CALLBACK) return "ChatGPT";
+  if (isCanonicalChatGptCallback(redir)) return "ChatGPT";
+  if (!isAllowedRedirectUri(redir)) return "AI app";
+  return "AI app";
+}
+
+/**
+ * User-facing OAuth client name. Keep every page and message on this helper so
+ * unknown, opaque, and loopback clients cannot display a provider identity.
  * @param {string} clientId
  * @param {string} [redirectUri]
  */
-export function oauthClientLabel(clientId, redirectUri = "") {
-  const id = String(clientId || "");
-  const redir = String(redirectUri || "");
-  if (
-    id.includes("chatgpt.com") ||
-    redir.includes("chatgpt.com") ||
-    id.toLowerCase().includes("openai")
-  ) {
-    return "ChatGPT";
-  }
-  if (id.includes("claude.ai") || redir.includes("claude.ai")) {
-    return "Claude";
-  }
-  if (id.startsWith("http")) return "AI app";
-  return id || "AI app";
+export function oauthClientDisplayName(clientId, redirectUri = "") {
+  const label = oauthClientLabel(clientId, redirectUri);
+  return label === "ChatGPT" || label === "Claude" ? label : "your AI app";
 }
 
 /**

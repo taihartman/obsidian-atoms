@@ -14,6 +14,14 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 | CLI | Settings → General → Advanced → Command line interface **ON** |
 | Install (agent QA) | `./scripts/install-to-vault.sh` then `obsidian plugin:reload id=atoms` (throwaway vault only) |
 
+### ChatGPT custom app (external web surface)
+
+- **Production entrypoint:** ChatGPT web → Settings → Security → Developer mode in the Plugins UI, or Settings → Apps → Advanced Settings → Developer mode on accounts that use Apps. Then Plugins / Apps → Create app.
+- **Connector details:** Name `Atoms Plus`; MCP server URL `https://plus.tryatoms.app/mcp`; authentication `OAuth`; action `Sign in with Atoms Plus`.
+- **Successful return:** a hosted `chatgpt.com` callback and an installed Atoms Plus app. A `127.0.0.1` or localhost callback is a local-client flow, not a ChatGPT custom app; close it and restart from ChatGPT web. Never use the callback URL as the MCP server URL.
+- **Local QA boundary:** local `plus-service` can prove the changed OAuth HTML, trusted client labeling, chooser, consent, and error redisplay. It cannot prove the new copy is deployed or substitute for the fresh production ChatGPT entrypoint. Keep those evidence types separate.
+- **Safety:** do not invoke atom search, fetch, list, create, continue, cancel, or other atom-content MCP tools while validating installation.
+
 ## Key Surfaces
 
 ### Atoms home
