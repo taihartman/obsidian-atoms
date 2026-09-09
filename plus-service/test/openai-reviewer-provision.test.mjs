@@ -426,6 +426,7 @@ describe("OpenAI reviewer provisioning", () => {
         ...process.env,
         ATOMS_PLUS_ENV: "development",
         NODE_ENV: "test",
+        NODE_NO_WARNINGS: "1",
         ATOMS_PLUS_STORE: "memory",
         ATOMS_ASK_MIRROR_KEY: "b".repeat(64),
         DATABASE_URL: secret,
