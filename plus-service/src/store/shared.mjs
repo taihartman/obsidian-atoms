@@ -21,6 +21,7 @@ export function hashToken(token) {
 export const G2_PAIR_CODE_TTL_MS = 5 * 60 * 1000;
 export const G2_ACCESS_TTL_MS = 10 * 60 * 1000;
 export const G2_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const G2_RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const G2_ALLOWED_SCOPES = Object.freeze([
   "g2:transcribe",
   "g2:prepare",

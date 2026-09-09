@@ -5,6 +5,8 @@ type RecoveryDependencies = {
   crypto?: Crypto;
   databaseName?: string;
   maxBytes?: number;
+  now?: () => number;
+  retentionMs?: number;
 };
 
 type Binding = { accountId: string; deviceFamilyId: string };
@@ -15,8 +17,9 @@ type JournalData = {
   nextSequence: number;
   chunks: number[][];
   transcriptionId?: string;
+  expiresAt: number;
 };
-type CipherRow = { iv: Uint8Array; ciphertext: ArrayBuffer };
+type CipherRow = { iv: Uint8Array; ciphertext: ArrayBuffer; expiresAt: number };
 
 const DB_VERSION = 1;
 const META = "meta";
@@ -64,6 +67,8 @@ export class RecoveryJournal {
   private database: IDBDatabase | null = null;
   private binding: Binding | null = null;
   private key: CryptoKey | null = null;
+  private readonly now: () => number;
+  private readonly retentionMs: number;
 
   constructor(dependencies: RecoveryDependencies = {}) {
     if (!dependencies.indexedDB && !globalThis.indexedDB) throw new Error("indexeddb_unavailable");
@@ -72,6 +77,8 @@ export class RecoveryJournal {
     this.crypto = dependencies.crypto ?? globalThis.crypto;
     this.databaseName = dependencies.databaseName ?? "atoms-g2-recovery";
     this.maxBytes = dependencies.maxBytes ?? MAX_RECORDING_BYTES;
+    this.now = dependencies.now ?? Date.now;
+    this.retentionMs = dependencies.retentionMs ?? 24 * 60 * 60 * 1000;
   }
 
   async open(accountId: string, deviceFamilyId: string): Promise<void> {
@@ -100,6 +107,7 @@ export class RecoveryJournal {
       await done(write);
     }
     this.binding = requested;
+    await this.sweepExpired();
   }
 
   close(): void {
@@ -119,7 +127,7 @@ export class RecoveryJournal {
     const iv = this.crypto.getRandomValues(new Uint8Array(12));
     const plaintext = new TextEncoder().encode(JSON.stringify(data));
     const additionalData = new TextEncoder().encode(`${binding.accountId}\0${binding.deviceFamilyId}`);
-    return { iv, ciphertext: await this.crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData }, key, plaintext) };
+    return { iv, ciphertext: await this.crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData }, key, plaintext), expiresAt: data.expiresAt };
   }
 
   private async decrypt(row: CipherRow): Promise<JournalData> {
@@ -146,7 +154,7 @@ export class RecoveryJournal {
   }
 
   async start(recordingId: string, capturedAt: string): Promise<void> {
-    await this.write({ recordingId, capturedAt, revision: 1, nextSequence: 0, chunks: [] });
+    await this.write({ recordingId, capturedAt, revision: 1, nextSequence: 0, chunks: [], expiresAt: this.now() + this.retentionMs });
   }
 
   async append(recordingId: string, sequence: number, pcm: Uint8Array): Promise<void> {
@@ -163,12 +171,10 @@ export class RecoveryJournal {
   }
 
   async completeTranscription(recordingId: string, transcriptionId: string): Promise<void> {
-    const row = await this.read(recordingId);
-    if (!row) throw new Error("recording_not_found");
-    row.chunks = [];
-    row.transcriptionId = transcriptionId;
-    row.revision += 1;
-    await this.write(row);
+    const { database } = this.ready();
+    const transaction = database.transaction(JOURNALS, "readwrite");
+    transaction.objectStore(JOURNALS).delete(recordingId);
+    await done(transaction);
   }
 
   async restore(recordingId: string): Promise<(Omit<JournalData, "chunks"> & {
@@ -183,5 +189,27 @@ export class RecoveryJournal {
       pcm: new Uint8Array(chunks.flat()),
       chunks: chunks.map((pcm, sequence) => ({ sequence, pcm: new Uint8Array(pcm) })),
     };
+  }
+
+  async sweepExpired(limit = 100): Promise<{ deleted: number; failed: number }> {
+    const { database } = this.ready();
+    const cap = Math.max(0, Math.min(1000, Math.floor(limit)));
+    if (!cap) return { deleted: 0, failed: 0 };
+    const read = database.transaction(JOURNALS, "readonly");
+    const store = read.objectStore(JOURNALS);
+    const [keys, rows] = await Promise.all([
+      request(store.getAllKeys(null, cap)), request(store.getAll(null, cap)),
+    ]) as [IDBValidKey[], CipherRow[]];
+    await done(read);
+    const expired = keys.filter((_key, index) => !Number.isFinite(rows[index]?.expiresAt) || Number(rows[index]?.expiresAt) <= this.now());
+    if (!expired.length) return { deleted: 0, failed: 0 };
+    try {
+      const write = database.transaction(JOURNALS, "readwrite");
+      for (const key of expired) write.objectStore(JOURNALS).delete(key);
+      await done(write);
+      return { deleted: expired.length, failed: 0 };
+    } catch {
+      return { deleted: 0, failed: expired.length };
+    }
   }
 }

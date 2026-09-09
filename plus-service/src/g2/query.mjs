@@ -70,7 +70,7 @@ function parseAnswer(raw) {
 }
 
 export function createG2QueryAdapter({
-  apiKey = config.anthropicApiKey,
+  apiKey = config.g2AnthropicApiKey,
   fetchImpl = globalThis.fetch,
   url = config.anthropicUrl,
   version = config.anthropicVersion,
@@ -210,7 +210,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
       inFlight.add(work);
       let generated;
       try {
-        logger({ event: "g2_query_model_start", familyId: binding.familyId, sourceCount: snapshots.length });
+        logger({ event: "g2_query_model_start", sourceCount: snapshots.length });
         generated = await generate({ question, chunks: chunks.map(({ id, sourceId, title, text }) => ({ id, sourceId, title, text })), signal: controller.signal });
       } catch {
         generated = { ok: false, reason: "upstream_error" };
@@ -221,7 +221,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
       for (const snapshot of snapshots) {
         const current = await store.mirrorFetch(binding.email, snapshot.id);
         if (!current || current.id !== snapshot.id || current.title !== snapshot.title || current.path !== snapshot.path || current.contentHash !== snapshot.contentHash) {
-          logger({ event: "g2_query_snapshot_changed", familyId: binding.familyId });
+          logger({ event: "g2_query_snapshot_changed" });
           return { state: "closest_matches", matches, ...searchContext(search) };
         }
       }
@@ -247,7 +247,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
       }
       if (snapshots.some((source) => !citedSources.has(source.id))) return { state: "closest_matches", matches, ...searchContext(search) };
       const sources = snapshots.filter((source) => claims.some((claim) => claim.citations.some((citation) => citation.source_id === source.id))).map(({ id, title }) => ({ id, title }));
-      logger({ event: "g2_query_answered", familyId: binding.familyId, claimCount: claims.length, sourceCount: sources.length });
+      logger({ event: "g2_query_answered", claimCount: claims.length, sourceCount: sources.length });
       return { state: "answered", answer: claims.map((claim) => claim.text).join(" "), claims, sources, ...searchContext(search) };
     },
   };

@@ -198,6 +198,45 @@ fly deploy -a atoms-plus --image <previous-image-ref> \
 - Stripe: disable webhook endpoint if minting incorrectly  
 - Rotate `ANTHROPIC_API_KEY` / Stripe / Resend if leaked  
 
+### Even G2 dark deploy and key rotation
+
+G2 ships dark. Apply the additive schema with `G2_ENABLED=0`, run the Plus suite against the upgraded database, and verify existing Ask traffic before enabling a private device.
+
+Set G2 secrets separately from Ask:
+
+The Even manifest destination allowlist and the WebView request `Origin` are different controls. Capture the actual request header from an installed Private/Beta package; do not infer `G2_APP_ORIGIN` from `plus.tryatoms.app` or the manifest destination.
+
+```bash
+fly secrets set -a atoms-plus \
+  G2_APP_ORIGIN='https://<origin-recorded-from-the-private-beta-webview>' \
+  G2_OPENAI_API_KEY='<dedicated-least-privilege-key>' \
+  G2_ANTHROPIC_API_KEY='<dedicated-least-privilege-key>' \
+  G2_PROVIDER_CONTROLS_ACCEPTED=2026-09-09 \
+  G2_RETENTION_DISCLOSURE_VERSION=g2-retention-v1 \
+  G2_DATA_KEY_CURRENT='<64-hex-characters>' \
+  G2_DATA_KEY_CURRENT_VERSION=k1
+```
+
+Do not put these values in `fly.toml`, container layers, logs, crash reports, environment dumps, or `.ehpk` packages. Apply provider spend caps and grant only the transcription or messages endpoints each key needs.
+
+To rotate encryption, move the old current key and version to `G2_DATA_KEY_PREVIOUS` and `G2_DATA_KEY_PREVIOUS_VERSION`, install a new current pair, deploy, and let normal writes upgrade active rows. Keep the previous key until the maximum 24-hour transcript retention and 15-minute preparation window have elapsed and the sweep is green. Removing it sooner can strand mixed-version rows.
+
+Enable only for private evidence:
+
+```bash
+fly secrets set -a atoms-plus G2_ENABLED=1 G2_TRANSCRIPTION_ENABLED=1
+```
+
+Emergency stop:
+
+```bash
+fly secrets set -a atoms-plus G2_ENABLED=0
+```
+
+Then revoke the dedicated provider keys. Existing Ask remains available. Do not roll back the additive schema. If an older image is required, disable G2 first, allow short-lived tickets to expire, deploy the older image, and leave the G2 tables in place.
+
+The bounded retention sweep reports only row counts, status, and latency. A failed sweep must alert operations but must not delete unbounded rows or stop Ask. Public submission stays blocked by [`../g2-private-test.md`](../g2-private-test.md).
+
 
 ## Local dogfood (not production)
 

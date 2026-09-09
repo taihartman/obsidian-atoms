@@ -126,6 +126,16 @@ export async function createPostgresStore(databaseUrl) {
   await pool.query(
     `ALTER TABLE ask_outbox ADD COLUMN IF NOT EXISTS receipt_json JSONB`,
   );
+  await pool.query(
+    `ALTER TABLE ask_outbox ADD COLUMN IF NOT EXISTS g2_receipt_expires_at BIGINT`,
+  );
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_ask_outbox_g2_receipt_expiry ON ask_outbox(g2_receipt_expires_at)
+     WHERE g2_receipt_expires_at IS NOT NULL`,
+  );
+  await pool.query(
+    `ALTER TABLE g2_transcriptions ADD COLUMN IF NOT EXISTS retained_until_ms BIGINT`,
+  );
   // #240 U1 — existing DBs created before the magic-token columns
   await pool.query(
     `ALTER TABLE magic_tokens ADD COLUMN IF NOT EXISTS verifier_hash TEXT`,

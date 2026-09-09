@@ -104,7 +104,7 @@ export function parseG2MetadataResponse(raw) {
 }
 
 export function createG2MetadataAdapter({
-  apiKey = config.anthropicApiKey,
+  apiKey = config.g2AnthropicApiKey,
   fetchImpl = globalThis.fetch,
   url = config.anthropicUrl,
   version = config.anthropicVersion,

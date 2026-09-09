@@ -9,6 +9,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "pack": "evenhub pack app.json dist --output atoms-g2.ehpk --sdk-ver 0.0.15",
+    "package": "npm run pack",
+    "package:verify": "node scripts/verify-package.mjs",
+    "simulator:contract": "node scripts/simulator-contract.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

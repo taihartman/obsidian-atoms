@@ -38,6 +38,7 @@ export function createG2TranscriptionService({
   ticketTtlMs = DEFAULT_TICKET_TTL_MS,
   repository = null,
   leaseMs = 30_000,
+  metrics = () => {},
 } = {}) {
   if (!provider?.transcribe) throw new Error("transcription_provider_required");
   const tickets = new Map();
@@ -45,8 +46,10 @@ export function createG2TranscriptionService({
   const recordings = new Map();
 
   function log(event, row, extra = {}) {
-    logger({ event, recordingId: row?.recordingId, familyId: row?.binding?.familyId, ...extra });
+    logger({ event, state: row?.state, ...extra });
   }
+
+  const then = (value, next) => value && typeof value.then === "function" ? value.then(next) : next(value);
 
   function activeFor(email) {
     let count = 0;
@@ -59,18 +62,26 @@ export function createG2TranscriptionService({
   function mintTicket(binding, { recordingId, purpose }) {
     if (!recordingId || !["stream", "batch"].includes(purpose)) throw new Error("invalid_ticket_request");
     const value = opaque("g2t");
-    tickets.set(ticketKey(value), {
+    const stored = {
       binding: { ...binding }, recordingId: String(recordingId), purpose,
       expiresAt: now() + ticketTtlMs,
-    });
+    };
+    const write = repository?.ticketPut
+      ? repository.ticketPut(ticketKey(value), stored.binding, stored)
+      : tickets.set(ticketKey(value), stored);
     log("ticket_minted", { recordingId, binding });
-    return { value, expiresAt: now() + ticketTtlMs, recordingId, purpose, maxBytes: G2_MAX_PCM_BYTES };
+    return then(write, () => ({ value, expiresAt: stored.expiresAt, recordingId, purpose, maxBytes: G2_MAX_PCM_BYTES }));
   }
 
   function open(value, binding) {
     const key = ticketKey(value);
-    const ticket = tickets.get(key);
-    tickets.delete(key); // consume atomically even when the binding is wrong
+    let consumed;
+    if (repository?.ticketConsume) consumed = repository.ticketConsume(key, binding, now());
+    else { consumed = tickets.get(key); tickets.delete(key); }
+    return then(consumed, (ticket) => openConsumed(ticket, binding));
+  }
+
+  function openConsumed(ticket, binding) {
     if (!ticket || ticket.expiresAt < now() || !sameBinding(ticket.binding, binding)) {
       return { state: "blocked", error: "ticket_invalid" };
     }
@@ -85,9 +96,15 @@ export function createG2TranscriptionService({
         nextSequence: existing.nextSequence,
       };
     }
-    if (activeFor(binding.email) >= maxConcurrentPerAccount) {
-      return { state: "blocked", error: "concurrency_limit" };
+    if (repository?.acquireSlot) {
+      return then(repository.acquireSlot(binding, ticket.recordingId, now(), 5 * 60_000, maxConcurrentPerAccount),
+        (acquired) => acquired ? createOpenSession(ticket, binding) : { state: "blocked", error: "concurrency_limit" });
     }
+    if (activeFor(binding.email) >= maxConcurrentPerAccount) return { state: "blocked", error: "concurrency_limit" };
+    return createOpenSession(ticket, binding);
+  }
+
+  function createOpenSession(ticket, binding) {
     const sessionId = opaque("g2s");
     const row = {
       recordingId: ticket.recordingId,
@@ -112,12 +129,13 @@ export function createG2TranscriptionService({
 
   function openWebSocket(value, origin) {
     const key = ticketKey(value);
-    const ticket = tickets.get(key);
-    if (!ticket || ticket.binding.origin !== origin) {
-      tickets.delete(key);
-      return { state: "blocked", error: "ticket_invalid" };
-    }
-    return open(value, ticket.binding);
+    let consumed;
+    if (repository?.ticketConsume) consumed = repository.ticketConsume(key, { origin }, now());
+    else { consumed = tickets.get(key); tickets.delete(key); }
+    return then(consumed, (ticket) => {
+      if (!ticket?.binding || ticket.binding.origin !== origin) return { state: "blocked", error: "ticket_invalid" };
+      return openConsumed(ticket, ticket.binding);
+    });
   }
 
   function push(sessionId, { sequence, pcm }, context) {
@@ -159,13 +177,16 @@ export function createG2TranscriptionService({
     const owner = row.leaseOwner;
     const generation = row.binding.generation;
     const pcm = Buffer.concat(row.chunks.map((chunk) => chunk.bytes), row.bytes);
+    const audioDurationMs = Math.round(row.bytes / (G2_PCM_SAMPLE_RATE_HZ * 2) * 1000);
+    const providerStartedAt = now();
     log("provider_started", row, { bytes: row.bytes });
     row.completion = (async () => {
-      if (repository) {
+      if (repository?.claim) {
         const claim = await repository.claim(row.binding, row.recordingId, owner, leaseMs);
         if (!claim?.acquired) {
           row.state = claim?.state ?? "transcribing";
           row.transcript = claim?.transcript ?? null;
+          if (row.state === "completed") await repository?.releaseSlot?.(row.binding, row.recordingId);
           return publicStatus(row);
         }
       }
@@ -194,13 +215,20 @@ export function createG2TranscriptionService({
         row.chunks = [];
         row.bytes = 0;
         log("provider_completed", row);
+        metrics({ operation: "transcription", count: 1, statusClass: "ok", durationMs: audioDurationMs,
+          providerLatencyMs: now() - providerStartedAt });
         return publicStatus(row);
       } catch (error) {
         if (row.state === "revoked" || row.abortController?.signal.aborted) return publicStatus(row);
         row.state = error?.ambiguous ? "completion_unknown" : "retryable";
         await repository?.fail?.(row.binding, row.recordingId, owner, row.state);
         log("provider_failed", row, { ambiguous: Boolean(error?.ambiguous) });
+        metrics({ operation: "transcription", count: 1,
+          statusClass: error?.ambiguous ? "retryable" : "failed", durationMs: audioDurationMs,
+          providerLatencyMs: now() - providerStartedAt });
         return publicStatus(row);
+      } finally {
+        if (row.state !== "completion_unknown") await repository?.releaseSlot?.(row.binding, row.recordingId);
       }
     })();
     return row.completion;
@@ -233,6 +261,7 @@ export function createG2TranscriptionService({
     row.bytes = 0;
     log("recording_cancelled", row, { reason });
     for (const listener of row.closeListeners ?? []) listener(reason);
+    void repository?.releaseSlot?.(row.binding, row.recordingId);
     return publicStatus(row);
   }
 

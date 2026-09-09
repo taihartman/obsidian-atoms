@@ -4,10 +4,13 @@
 import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, mergeG2Disclosure, normalizeG2Scopes,
+  G2_RECEIPT_RETENTION_MS,
   publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
 import { decryptMirrorField, encryptMirrorField } from "../mirror/crypto.mjs";
+import { config } from "../config.mjs";
+import { decryptG2ArtifactOrLegacy, encryptG2Artifact } from "../g2/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
@@ -134,12 +137,22 @@ CREATE TABLE IF NOT EXISTS g2_consent (
 CREATE TABLE IF NOT EXISTS g2_transcriptions (
   recording_id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
   generation INTEGER NOT NULL, state TEXT NOT NULL, lease_owner TEXT,
-  lease_until_ms INTEGER NOT NULL, transcript_enc TEXT
+  lease_until_ms INTEGER NOT NULL, transcript_enc TEXT, retained_until_ms INTEGER
 );
 CREATE TABLE IF NOT EXISTS g2_preparations (
   id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
   payload_enc TEXT NOT NULL, expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS g2_transcription_tickets (
+  ticket_hash TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, origin TEXT NOT NULL, generation INTEGER NOT NULL,
+  recording_id TEXT NOT NULL, purpose TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_g2_tickets_binding ON g2_transcription_tickets(email, family_id, generation);
+CREATE TABLE IF NOT EXISTS g2_transcription_slots (
+  recording_id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_g2_slots_email ON g2_transcription_slots(email, expires_at);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -151,9 +164,12 @@ CREATE TABLE IF NOT EXISTS ask_outbox (
   created_at TEXT NOT NULL,
   claimed_at TEXT,
   applied_at TEXT
-  , receipt_json TEXT
+  , receipt_json TEXT,
+  g2_receipt_expires_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
+CREATE INDEX IF NOT EXISTS idx_ask_outbox_g2_receipt_expiry ON ask_outbox(g2_receipt_expires_at)
+  WHERE g2_receipt_expires_at IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
   ON ask_outbox(email, client_request_id)
   WHERE client_request_id IS NOT NULL AND client_request_id != '';
@@ -218,6 +234,8 @@ export function createAskSqliteMethods(db, deps) {
     db.prepare("UPDATE g2_refresh_tokens SET revoked = 1 WHERE family_id = ?").run(familyId);
     db.prepare("UPDATE g2_transcriptions SET state='revoked', lease_owner=NULL, lease_until_ms=0, transcript_enc=NULL WHERE family_id=?").run(familyId);
     db.prepare("DELETE FROM g2_preparations WHERE family_id=?").run(familyId);
+    db.prepare("DELETE FROM g2_transcription_tickets WHERE family_id=?").run(familyId);
+    db.prepare("DELETE FROM g2_transcription_slots WHERE family_id=?").run(familyId);
   }
 
   function g2Refresh(token, jkt, opts = {}) {
@@ -283,6 +301,7 @@ export function createAskSqliteMethods(db, deps) {
           Number(next.askMirror.granted), next.askMirror.version,
           Number(next.askWrite.granted), next.askWrite.version,
         );
+        db.prepare("DELETE FROM g2_transcription_tickets WHERE email=? AND generation<?").run(key, next.revision);
       }
       db.exec("COMMIT");
       return next;
@@ -307,6 +326,7 @@ export function createAskSqliteMethods(db, deps) {
           Number(next.askMirror.granted), next.askMirror.version,
           Number(next.askWrite.granted), next.askWrite.version,
         );
+        db.prepare("DELETE FROM g2_transcription_tickets WHERE email=? AND generation<?").run(key, next.revision);
       }
       if (!next.g2Disclosure.granted) db.prepare("DELETE FROM g2_preparations WHERE email=?").run(key);
       db.exec("COMMIT"); return next;
@@ -317,7 +337,10 @@ export function createAskSqliteMethods(db, deps) {
     return row ? {
       recordingId: row.recording_id, email: row.email, familyId: row.family_id,
       generation: Number(row.generation), state: row.state, leaseOwner: row.lease_owner,
-      leaseUntil: Number(row.lease_until_ms), transcript: row.transcript_enc ? decryptMirrorField(row.transcript_enc) : null,
+      leaseUntil: Number(row.lease_until_ms), retainedUntil: Number(row.retained_until_ms || 0),
+      transcript: row.transcript_enc ? decryptG2ArtifactOrLegacy(row.transcript_enc, {
+        account: row.email, artifact: "transcript", row: row.recording_id,
+      }) : null,
     } : null;
   }
 
@@ -331,11 +354,15 @@ export function createAskSqliteMethods(db, deps) {
       if (current?.state === "completed" || (current?.state === "transcribing" && current.leaseUntil > now && current.leaseOwner !== owner)) {
         db.exec("ROLLBACK"); return { ...current, acquired: false };
       }
-      db.prepare(`INSERT INTO g2_transcriptions VALUES (?,?,?,?,?,?,?,?)
+      db.prepare(`INSERT INTO g2_transcriptions
+        (recording_id,email,family_id,generation,state,lease_owner,lease_until_ms,transcript_enc)
+        VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(recording_id) DO UPDATE SET state='transcribing', lease_owner=excluded.lease_owner,
         lease_until_ms=excluded.lease_until_ms`).run(
         idValue, normEmail(binding.email), binding.familyId, binding.generation,
-        "transcribing", owner, now + leaseMs, current?.transcript ? encryptMirrorField(current.transcript) : null,
+        "transcribing", owner, now + leaseMs, current?.transcript ? encryptG2Artifact(current.transcript, {
+          account: normEmail(binding.email), artifact: "transcript", row: idValue,
+        }) : null,
       );
       db.exec("COMMIT");
       return { ...(current ?? { recordingId: idValue, email: normEmail(binding.email), familyId: binding.familyId, generation: binding.generation, transcript: null }), state: "transcribing", leaseOwner: owner, leaseUntil: now + leaseMs, acquired: true };
@@ -344,9 +371,11 @@ export function createAskSqliteMethods(db, deps) {
 
   function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
     return db.prepare(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
-      lease_until_ms=0, transcript_enc=? WHERE recording_id=? AND email=? AND family_id=?
+      lease_until_ms=0, transcript_enc=?, retained_until_ms=? WHERE recording_id=? AND email=? AND family_id=?
       AND generation=? AND lease_owner=? AND state='transcribing'`).run(
-      encryptMirrorField(String(transcript)), String(recordingId), normEmail(binding.email),
+      encryptG2Artifact(String(transcript), {
+        account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
+      }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
       binding.familyId, binding.generation, owner,
     ).changes > 0;
   }
@@ -377,6 +406,78 @@ export function createAskSqliteMethods(db, deps) {
       window_start_ms=CASE WHEN window_start_ms + ? <= ? THEN ? ELSE window_start_ms END,
       attempts=CASE WHEN window_start_ms + ? <= ? THEN 1 ELSE attempts + 1 END`).run(key, now, windowMs, now, now, windowMs, now);
     return db.prepare("SELECT attempts FROM g2_attempt_budgets WHERE attempt_key=?").get(key).attempts <= limit;
+  }
+
+  function g2TranscriptionTicketPut(ticketHash, binding, ticket) {
+    db.prepare(`INSERT OR REPLACE INTO g2_transcription_tickets
+      (ticket_hash,email,family_id,key_thumbprint,origin,generation,recording_id,purpose,expires_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      String(ticketHash), normEmail(binding.email), String(binding.familyId), String(binding.jkt),
+      String(binding.origin), Number(binding.generation), String(ticket.recordingId), String(ticket.purpose), Number(ticket.expiresAt),
+    );
+    return true;
+  }
+
+  function g2TranscriptionTicketConsume(ticketHash, binding, now = Date.now()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const row = db.prepare("SELECT * FROM g2_transcription_tickets WHERE ticket_hash=?").get(String(ticketHash));
+      db.prepare("DELETE FROM g2_transcription_tickets WHERE ticket_hash=?").run(String(ticketHash));
+      const valid = row && Number(row.expires_at) >= now && (!binding.email || row.email === normEmail(binding.email)) &&
+        (!binding.familyId || row.family_id === String(binding.familyId)) && (!binding.jkt || row.key_thumbprint === String(binding.jkt)) &&
+        (!binding.origin || row.origin === String(binding.origin)) &&
+        (binding.generation === undefined || Number(row.generation) === Number(binding.generation));
+      db.exec("COMMIT");
+      return valid ? { recordingId: row.recording_id, purpose: row.purpose, expiresAt: Number(row.expires_at),
+        binding: { email: row.email, familyId: row.family_id, jkt: row.key_thumbprint, origin: row.origin, generation: Number(row.generation) } } : null;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2TranscriptionTicketsInvalidate(email, familyId, generation) {
+    const result = familyId
+      ? db.prepare("DELETE FROM g2_transcription_tickets WHERE email=? AND family_id=? AND generation<?").run(normEmail(email), String(familyId), Number(generation))
+      : db.prepare("DELETE FROM g2_transcription_tickets WHERE email=? AND generation<?").run(normEmail(email), Number(generation));
+    return result.changes;
+  }
+
+  function g2SweepExpired(now = Date.now(), limit = 100) {
+    const cap = Math.max(1, Math.min(1000, Number(limit) || 100));
+    const remove = (table, column) => db.prepare(`DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE ${column} <= ? LIMIT ?)`);
+    const counts = {
+      tickets: remove("g2_transcription_tickets", "expires_at").run(now, cap).changes,
+      preparations: remove("g2_preparations", "expires_at").run(now, cap).changes,
+      transcriptions: db.prepare(`DELETE FROM g2_transcriptions WHERE rowid IN
+        (SELECT rowid FROM g2_transcriptions WHERE retained_until_ms IS NOT NULL AND retained_until_ms <= ? LIMIT ?)`)
+        .run(now, cap).changes,
+      receipts: 0,
+    };
+    counts.receipts = db.prepare(`DELETE FROM ask_outbox WHERE rowid IN
+      (SELECT rowid FROM ask_outbox WHERE status='applied' AND g2_receipt_expires_at IS NOT NULL
+       AND g2_receipt_expires_at<=? LIMIT ?)`)
+      .run(now, cap).changes;
+    return counts;
+  }
+
+  function g2TranscriptionSlotAcquire(binding, recordingId, now = Date.now(), leaseMs = 300_000, max = 2) {
+    const email = normEmail(binding.email); const idValue = String(recordingId); db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("DELETE FROM g2_transcription_slots WHERE expires_at<=?").run(now);
+      const existing = db.prepare("SELECT * FROM g2_transcription_slots WHERE recording_id=?").get(idValue);
+      if (existing) {
+        if (existing.email !== email) { db.exec("ROLLBACK"); return false; }
+        db.prepare("UPDATE g2_transcription_slots SET expires_at=? WHERE recording_id=?").run(now + leaseMs, idValue);
+        db.exec("COMMIT"); return true;
+      }
+      const count = db.prepare("SELECT COUNT(*) AS n FROM g2_transcription_slots WHERE email=?").get(email).n;
+      if (count >= max) { db.exec("ROLLBACK"); return false; }
+      db.prepare("INSERT INTO g2_transcription_slots VALUES (?,?,?,?)").run(idValue, email, String(binding.familyId), now + leaseMs);
+      db.exec("COMMIT"); return true;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  }
+
+  function g2TranscriptionSlotRelease(binding, recordingId) {
+    return db.prepare("DELETE FROM g2_transcription_slots WHERE recording_id=? AND email=?")
+      .run(String(recordingId), normEmail(binding.email)).changes > 0;
   }
   function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
@@ -768,9 +869,10 @@ export function createAskSqliteMethods(db, deps) {
     }
     const now = new Date().toISOString();
     db.prepare(
-      `UPDATE ask_outbox SET status = ?, error = ?, applied_at = ?, receipt_json = ?
+      `UPDATE ask_outbox SET status = ?, error = ?, applied_at = ?, receipt_json = ?, g2_receipt_expires_at = ?
        WHERE id = ? AND email = ?`,
-    ).run(st, opts.error ? String(opts.error).slice(0, 500) : null, now, receipt ? JSON.stringify(receipt) : null, oid, e);
+    ).run(st, opts.error ? String(opts.error).slice(0, 500) : null, now, receipt ? JSON.stringify(receipt) : null,
+      receipt ? Date.now() + G2_RECEIPT_RETENTION_MS : null, oid, e);
     const updated = db
       .prepare(`SELECT * FROM ask_outbox WHERE id = ? AND email = ?`)
       .get(oid, e);
@@ -788,7 +890,9 @@ export function createAskSqliteMethods(db, deps) {
   function g2PreparationPut(email, row) {
     const e = normEmail(email);
     db.prepare(`INSERT OR REPLACE INTO g2_preparations VALUES (?,?,?,?,?)`).run(
-      row.id, e, row.familyId, encryptOutboxPayload(row.payload), row.expiresAt,
+      row.id, e, row.familyId, encryptG2Artifact(JSON.stringify(row.payload), {
+        account: e, artifact: "preparation", row: row.id,
+      }), row.expiresAt,
     );
     return { ...row, email: e };
   }
@@ -797,7 +901,10 @@ export function createAskSqliteMethods(db, deps) {
     const row = db.prepare(`SELECT * FROM g2_preparations WHERE id=? AND email=? AND family_id=?`).get(
       String(preparationId || ""), normEmail(email), String(familyId || ""),
     );
-    return row ? { id: row.id, email: row.email, familyId: row.family_id, expiresAt: row.expires_at, payload: decryptOutboxPayload(row.payload_enc) } : null;
+    return row ? { id: row.id, email: row.email, familyId: row.family_id, expiresAt: row.expires_at,
+      payload: JSON.parse(decryptG2ArtifactOrLegacy(row.payload_enc, {
+        account: row.email, artifact: "preparation", row: row.id,
+      })) } : null;
   }
 
   function g2PreparationDelete(email, preparationId) {
@@ -1211,6 +1318,8 @@ export function createAskSqliteMethods(db, deps) {
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
     g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2SynchronizeDisclosure,
     g2TranscriptionClaim, g2TranscriptionComplete, g2TranscriptionFail, g2TranscriptionGet,
+    g2TranscriptionTicketPut, g2TranscriptionTicketConsume, g2TranscriptionTicketsInvalidate, g2SweepExpired,
+    g2TranscriptionSlotAcquire, g2TranscriptionSlotRelease,
     g2ConsumeProof, g2ConsumeAttempt,
   };
 }

@@ -43,6 +43,7 @@ import {
   createG2TranscriptionService,
   createOpenAiBatchTranscriptionProvider,
 } from "./g2/transcription.mjs";
+import { createG2Metrics } from "./g2/telemetry.mjs";
 import {
   handleOauthRoutes,
   maybeFinishOauthAfterExchange,
@@ -61,14 +62,23 @@ try {
 }
 
 const store = await createStore();
+const g2Metrics = createG2Metrics((metric) => console.info("[g2-metric]", JSON.stringify(metric)));
 const g2Transcription = createG2TranscriptionService({
   provider: createOpenAiBatchTranscriptionProvider({
-    apiKey: config.g2TranscriptionEnabled ? config.openAiApiKey : "",
+    apiKey: config.g2Enabled && config.g2TranscriptionEnabled ? config.g2OpenAiApiKey : "",
     url: config.openAiTranscriptionUrl,
     model: config.openAiTranscriptionModel,
   }),
   maxConcurrentPerAccount: config.g2MaxConcurrentPerAccount,
   repository: {
+    ticketPut: (ticketHash, binding, ticket) =>
+      store.g2TranscriptionTicketPut(ticketHash, binding, ticket),
+    ticketConsume: (ticketHash, binding, now) =>
+      store.g2TranscriptionTicketConsume(ticketHash, binding, now),
+    acquireSlot: (binding, recordingId, now, leaseMs, max) =>
+      store.g2TranscriptionSlotAcquire(binding, recordingId, now, leaseMs, max),
+    releaseSlot: (binding, recordingId) =>
+      store.g2TranscriptionSlotRelease(binding, recordingId),
     claim: (binding, recordingId, owner, leaseMs) =>
       store.g2TranscriptionClaim(binding, recordingId, owner, Date.now(), leaseMs),
     complete: (binding, recordingId, owner, transcript) =>
@@ -78,7 +88,22 @@ const g2Transcription = createG2TranscriptionService({
     get: (binding, recordingId) => store.g2TranscriptionGet(binding, recordingId),
   },
   logger: (row) => console.info("[g2-transcription]", JSON.stringify(row)),
+  metrics: (row) => g2Metrics.record(row),
 });
+
+if (config.g2Enabled) {
+  const sweep = async () => {
+    const started = Date.now();
+    try {
+      const counts = await store.g2SweepExpired(Date.now(), 100);
+      console.info("[g2-maintenance]", JSON.stringify({ event: "retention_sweep", ...counts, latencyMs: Date.now() - started, status: "ok" }));
+    } catch {
+      console.warn("[g2-maintenance]", JSON.stringify({ event: "retention_sweep", latencyMs: Date.now() - started, status: "failed" }));
+    }
+  };
+  const timer = setInterval(() => void sweep(), config.g2SweepIntervalMs);
+  timer.unref?.();
+}
 
 /** Browser (Obsidian fetch) CORS — must allow Idempotency-Key or POST preflight fails. */
 const CORS_HEADERS = {
@@ -387,7 +412,7 @@ async function handler(req, res) {
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
   try {
-    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription: g2Transcription })) return;
+    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription: g2Transcription, metrics: g2Metrics })) return;
 
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
@@ -1215,7 +1240,7 @@ const server = createServer((req, res) => {
 });
 
 server.on("upgrade", (req, socket, head) => {
-  handleG2WebSocketUpgrade({
+  void handleG2WebSocketUpgrade({
     req,
     socket,
     head,

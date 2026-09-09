@@ -73,6 +73,42 @@ export const config = {
   get g2MetadataModel() {
     return env("G2_METADATA_MODEL", this.anthropicModel);
   },
+  /** Entire private G2 surface is disabled unless explicitly enabled. */
+  get g2Enabled() {
+    return env("G2_ENABLED", "0") === "1";
+  },
+  get g2AppOrigin() {
+    return env("G2_APP_ORIGIN");
+  },
+  get g2AnthropicApiKey() {
+    return env("G2_ANTHROPIC_API_KEY");
+  },
+  get g2OpenAiApiKey() {
+    return env("G2_OPENAI_API_KEY");
+  },
+  get g2RetentionDisclosureVersion() {
+    return env("G2_RETENTION_DISCLOSURE_VERSION");
+  },
+  get g2DataKeyCurrent() {
+    return env("G2_DATA_KEY_CURRENT");
+  },
+  get g2DataKeyCurrentVersion() {
+    return env("G2_DATA_KEY_CURRENT_VERSION", "k1");
+  },
+  get g2DataKeyPrevious() {
+    return env("G2_DATA_KEY_PREVIOUS");
+  },
+  get g2DataKeyPreviousVersion() {
+    return env("G2_DATA_KEY_PREVIOUS_VERSION");
+  },
+  get g2TranscriptRetentionMs() {
+    const hours = Number(env("G2_TRANSCRIPT_RETENTION_HOURS", "24"));
+    return Number.isFinite(hours) && hours >= 0 && hours <= 24 ? hours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  },
+  get g2SweepIntervalMs() {
+    const value = Number(env("G2_SWEEP_INTERVAL_MS", "60000"));
+    return Number.isInteger(value) && value >= 10_000 && value <= 3_600_000 ? value : 60_000;
+  },
   get g2MetadataTimeoutMs() {
     const value = Number(env("G2_METADATA_TIMEOUT_MS", "12000"));
     return Number.isInteger(value) && value >= 1000 && value <= 60_000 ? value : 12_000;

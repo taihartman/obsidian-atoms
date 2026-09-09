@@ -36,7 +36,17 @@ describe("G2 create flow", () => {
     const coldStart = new CreateFlow(h.api, h.recovery, () => "unused");
     expect(await coldStart.restore()).toMatchObject({ state: "queued", message: "Queued" });
     expect(await coldStart.refresh()).toMatchObject({ state: "saved", message: "Saved to Atoms" });
+    expect(h.saved()).toBeNull();
     expect(h.commits).toHaveLength(1);
+  });
+
+  it("clears recovery when commit immediately returns a verified saved receipt", async () => {
+    const h = harness();
+    h.api.commit = async () => ({ state: "saved", receipt: { path: "Atoms/A thought from the walk.md", title: "A thought from the walk" } });
+    const flow = new CreateFlow(h.api, h.recovery, () => "commit_saved");
+    await flow.prepare("rec_saved", "2026-09-08T17:14:03-04:00");
+    expect(await flow.confirm()).toMatchObject({ state: "saved", message: "Saved to Atoms" });
+    expect(h.saved()).toBeNull();
   });
 
   it("renders title collision and revoked access as truthful terminal states", async () => {

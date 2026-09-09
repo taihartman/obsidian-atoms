@@ -115,7 +115,8 @@ export class CreateFlow {
     } else {
       this.record.state = "rejected";
     }
-    await this.recovery.save(this.record);
+    if (this.record.state === "saved" && this.record.receipt) await this.recovery.clear();
+    else await this.recovery.save(this.record);
     return this.view();
   }
 
@@ -131,7 +132,8 @@ export class CreateFlow {
       } else if (result.state === "rejected") {
         this.record.state = "rejected";
       }
-      await this.recovery.save(this.record);
+      if (this.record.state === "saved" && this.record.receipt) await this.recovery.clear();
+      else await this.recovery.save(this.record);
       return this.view();
     } catch {
       return { ...this.view(), message: CREATE_COPY.waiting };

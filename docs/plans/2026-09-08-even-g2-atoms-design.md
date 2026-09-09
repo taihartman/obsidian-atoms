@@ -349,6 +349,14 @@ Vault-writing proof uses the throwaway test vault. Agents do not install into or
 5. Run the repository shipping tail and attach hardware evidence to the PR.
 6. Submit for public Even Hub review only after private hardware behavior is stable.
 
+## Shipped implementation pins
+
+- The entire service surface is dark unless `G2_ENABLED=1`. `G2_APP_ORIGIN` is the one exact HTTPS request Origin recorded from an installed Private/Beta WebView, not the manifest destination allowlist. G2 keeps dedicated OpenAI, Anthropic, and encryption credentials.
+- Transcription tickets are hash-only, store-backed, single-use, and consumed before HTTP session open or RFC6455 upgrade. Durable per-account slots keep the provider ceiling shared across service instances.
+- Retained transcripts and preparations use versioned AES-256-GCM with account, artifact, and row associated data. One previous read key supports bounded rotation; production has no plaintext fallback.
+- The companion package pins SDK `0.0.15`, CLI `0.1.14`, simulator `0.9.5`, and Even App `2.2.10`. Its manifest has only network and microphone permissions, exact Plus origins, and a strict CSP.
+- CI proves tests, build, packaging, secret scan, and the pinned simulator automation contract. Simulator screenshots, Private installation, Beta behavior, and physical G2 evidence remain unchecked in [`../g2-private-test.md`](../g2-private-test.md).
+
 ## Implementation gate
 
 This design approves the product shape, not implementation. Before code:

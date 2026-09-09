@@ -141,10 +141,10 @@ async function pair(scopes = ["g2:query"]) {
 
 before(async () => {
   child = spawn("node", ["src/server.mjs"], { cwd: root, env: { ...process.env, PORT: String(PORT), PUBLIC_BASE_URL: BASE,
-    G2_APP_ORIGIN: ORIGIN, G2_DPOP_NONCE_SECRET: "test-g2-nonce-secret", DOGFOOD_AUTO_GRANT: "1", ATOMS_PLUS_STORE: "memory",
+    G2_ENABLED: "1", G2_APP_ORIGIN: ORIGIN, G2_DPOP_NONCE_SECRET: "test-g2-nonce-secret", DOGFOOD_AUTO_GRANT: "1", ATOMS_PLUS_STORE: "memory",
     ATOMS_PLUS_ENV: "development", ANTHROPIC_API_KEY: "", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: "",
     STRIPE_PRICE_MONTHLY: "", STRIPE_PRICE_YEARLY: "", STRIPE_PRICE_TOPUP: "", G2_TRANSCRIPTION_ENABLED: "1",
-    OPENAI_API_KEY: "test-openai-key", G2_SOCKET_IDLE_TIMEOUT_MS: "5000", G2_MAX_CONCURRENT_PER_ACCOUNT: "2" }, stdio: ["ignore", "pipe", "pipe"] });
+    G2_OPENAI_API_KEY: "test-openai-key", G2_SOCKET_IDLE_TIMEOUT_MS: "5000", G2_MAX_CONCURRENT_PER_ACCOUNT: "2" }, stdio: ["ignore", "pipe", "pipe"] });
   let log = ""; child.stdout.on("data", (d) => { log += d; }); child.stderr.on("data", (d) => { log += d; }); child._log = () => log;
   await waitHealth();
 });

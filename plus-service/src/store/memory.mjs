@@ -3,6 +3,7 @@
  */
 import { config } from "../config.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
+import { decryptG2ArtifactOrLegacy, encryptG2Artifact } from "../g2/crypto.mjs";
 import {
   applyStatusRules,
   CHECKOUT_BINDING_TTL_MS,
@@ -11,6 +12,7 @@ import {
   G2_ACCESS_TTL_MS,
   G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS,
+  G2_RECEIPT_RETENTION_MS,
   normalizeG2Scopes,
   mergeG2Consent,
   mergeG2Disclosure,
@@ -70,6 +72,8 @@ export function createMemoryStore() {
   const atomMirror = new Map();
   /** email → Map<id, outbox row> */
   const askOutbox = new Map();
+  /** Applied G2 receipt expiry index; avoids unbounded scans of normal Ask rows. */
+  const g2ReceiptExpiries = new Map();
   /** pending_id → pending oauth */
   const mcpPending = new Map();
   /** code_hash → auth code row */
@@ -92,6 +96,9 @@ export function createMemoryStore() {
   const g2Refresh = new Map();
   const g2Proofs = new Map();
   const g2Attempts = new Map();
+  /** SHA-256 ticket hash -> short-lived bound ticket. */
+  const g2TranscriptionTickets = new Map();
+  const g2TranscriptionSlots = new Map();
   /** email -> account-scoped consent revision */
   const g2Consents = new Map();
   /** recording id -> leased provider ownership and terminal transcript */
@@ -681,6 +688,9 @@ export function createMemoryStore() {
     const e = normEmail(email);
     atomMirror.delete(e);
     askOutbox.delete(e);
+    for (const [outboxId, row] of g2ReceiptExpiries) {
+      if (row.email === e) g2ReceiptExpiries.delete(outboxId);
+    }
     for (const [preparationId, row] of g2Preparations) {
       if (row.email === e) g2Preparations.delete(preparationId);
     }
@@ -868,6 +878,7 @@ export function createMemoryStore() {
         const receipt = g2MirrorReceipt(payload, mirror, targetPath);
         if (!receipt) return { ok: false, error: "mirror_receipt_required" };
         row.receipt = receipt;
+        g2ReceiptExpiries.set(row.id, { email: e, expiresAt: Date.now() + G2_RECEIPT_RETENTION_MS });
       }
     }
     row.status = st;
@@ -883,7 +894,10 @@ export function createMemoryStore() {
   }
 
   function g2PreparationPut(email, row) {
-    const stored = { ...row, email: normEmail(email), payload_enc: encryptOutboxPayload(row.payload) };
+    const account = normEmail(email);
+    const stored = { ...row, email: account, payload_enc: encryptG2Artifact(JSON.stringify(row.payload), {
+      account, artifact: "preparation", row: row.id,
+    }) };
     delete stored.payload;
     g2Preparations.set(row.id, stored);
     return { ...row, email: stored.email };
@@ -892,7 +906,9 @@ export function createMemoryStore() {
   function g2PreparationGet(email, preparationId, familyId) {
     const row = g2Preparations.get(String(preparationId || ""));
     if (!row || row.email !== normEmail(email) || row.familyId !== familyId) return null;
-    return { ...row, payload: decryptOutboxPayload(row.payload_enc) };
+    return { ...row, payload: JSON.parse(decryptG2ArtifactOrLegacy(row.payload_enc, {
+      account: row.email, artifact: "preparation", row: row.id,
+    })) };
   }
 
   function g2PreparationDelete(email, preparationId) {
@@ -1246,6 +1262,12 @@ export function createMemoryStore() {
     for (const [preparationId, row] of g2Preparations) {
       if (row.familyId === familyId) g2Preparations.delete(preparationId);
     }
+    for (const [ticketHash, row] of g2TranscriptionTickets) {
+      if (row.familyId === familyId) g2TranscriptionTickets.delete(ticketHash);
+    }
+    for (const [recordingId, row] of g2TranscriptionSlots) {
+      if (row.familyId === familyId) g2TranscriptionSlots.delete(recordingId);
+    }
   }
 
   function g2RefreshTokens(token, jkt, opts = {}) {
@@ -1293,8 +1315,10 @@ export function createMemoryStore() {
 
   function g2SynchronizeConsent(email, update) {
     const key = normEmail(email);
+    const before = publicG2Consent(g2Consents.get(key));
     const next = mergeG2Consent(g2Consents.get(key), update);
     if (next.revision > 0) g2Consents.set(key, next);
+    if (next.revision > before.revision) g2TranscriptionTicketsInvalidate(key, null, next.revision);
     return publicG2Consent(next).revision === next.revision && next.regrantRequired
       ? { ...publicG2Consent(next), regrantRequired: true }
       : publicG2Consent(next);
@@ -1302,8 +1326,10 @@ export function createMemoryStore() {
 
   function g2SynchronizeDisclosure(email, update) {
     const key = normEmail(email);
+    const before = publicG2Consent(g2Consents.get(key));
     const next = mergeG2Disclosure(g2Consents.get(key), update);
     if (next.revision > 0) g2Consents.set(key, next);
+    if (next.revision > before.revision) g2TranscriptionTicketsInvalidate(key, null, next.revision);
     if (!next.g2Disclosure.granted) {
       for (const [preparationId, row] of g2Preparations) {
         if (row.email === key) g2Preparations.delete(preparationId);
@@ -1335,7 +1361,8 @@ export function createMemoryStore() {
   function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
     const row = g2Transcriptions.get(String(recordingId));
     if (!sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner || row.state !== "transcribing") return false;
-    Object.assign(row, { state: "completed", transcript: String(transcript), leaseOwner: null, leaseUntil: 0 });
+    Object.assign(row, { state: "completed", transcript: String(transcript), leaseOwner: null, leaseUntil: 0,
+      retainedUntil: Date.now() + config.g2TranscriptRetentionMs });
     return true;
   }
 
@@ -1367,6 +1394,82 @@ export function createMemoryStore() {
     row.count += 1;
     g2Attempts.set(key, row);
     return row.count <= limit;
+  }
+
+  function g2TranscriptionTicketPut(ticketHash, binding, ticket) {
+    g2TranscriptionTickets.set(String(ticketHash), {
+      email: normEmail(binding.email), familyId: String(binding.familyId), jkt: String(binding.jkt),
+      origin: String(binding.origin), generation: Number(binding.generation),
+      recordingId: String(ticket.recordingId), purpose: String(ticket.purpose), expiresAt: Number(ticket.expiresAt),
+    });
+    return true;
+  }
+
+  function g2TranscriptionTicketConsume(ticketHash, binding, now = Date.now()) {
+    const key = String(ticketHash); const row = g2TranscriptionTickets.get(key);
+    g2TranscriptionTickets.delete(key);
+    if (!row || row.expiresAt < now || (binding.email && row.email !== normEmail(binding.email)) ||
+      (binding.familyId && row.familyId !== String(binding.familyId)) || (binding.jkt && row.jkt !== String(binding.jkt)) ||
+      (binding.origin && row.origin !== String(binding.origin)) ||
+      (binding.generation !== undefined && row.generation !== Number(binding.generation))) return null;
+    return { recordingId: row.recordingId, purpose: row.purpose, expiresAt: row.expiresAt,
+      binding: { email: row.email, familyId: row.familyId, jkt: row.jkt, origin: row.origin, generation: row.generation } };
+  }
+
+  function g2TranscriptionTicketsInvalidate(email, familyId, generation) {
+    const target = normEmail(email);
+    let removed = 0;
+    for (const [key, row] of g2TranscriptionTickets) {
+      if (row.email === target && (!familyId || row.familyId === String(familyId)) && row.generation < Number(generation)) {
+        g2TranscriptionTickets.delete(key); removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  function g2SweepExpired(now = Date.now(), limit = 100) {
+    const counts = { tickets: 0, transcriptions: 0, preparations: 0, receipts: 0 };
+    const sweep = (map, field, key) => {
+      for (const [idValue, row] of map) {
+        if (counts.tickets + counts.transcriptions + counts.preparations >= limit) break;
+        if (Number(row[field] || Infinity) <= now) { map.delete(idValue); counts[key] += 1; }
+      }
+    };
+    sweep(g2TranscriptionTickets, "expiresAt", "tickets");
+    sweep(g2Preparations, "expiresAt", "preparations");
+    sweep(g2Transcriptions, "retainedUntil", "transcriptions");
+    let receiptsInspected = 0;
+    for (const [outboxId, indexed] of g2ReceiptExpiries) {
+      if (receiptsInspected >= limit) break;
+      receiptsInspected += 1;
+      if (indexed.expiresAt > now) continue;
+      const bucket = askOutbox.get(indexed.email); const row = bucket?.get(outboxId);
+      if (row?.receipt && decryptOutboxPayload(row.payload_enc)?.origin === "g2") {
+        bucket.delete(outboxId); counts.receipts += 1;
+      }
+      g2ReceiptExpiries.delete(outboxId);
+    }
+    for (const [key, row] of g2TranscriptionSlots) if (row.expiresAt <= now) g2TranscriptionSlots.delete(key);
+    return counts;
+  }
+
+  function g2TranscriptionSlotAcquire(binding, recordingId, now = Date.now(), leaseMs = 300_000, max = 2) {
+    for (const [key, row] of g2TranscriptionSlots) if (row.expiresAt <= now) g2TranscriptionSlots.delete(key);
+    const email = normEmail(binding.email); const idValue = String(recordingId);
+    const existing = g2TranscriptionSlots.get(idValue);
+    if (existing) {
+      if (existing.email !== email) return false;
+      existing.expiresAt = now + leaseMs; return true;
+    }
+    if ([...g2TranscriptionSlots.values()].filter((row) => row.email === email).length >= max) return false;
+    g2TranscriptionSlots.set(idValue, { email, familyId: String(binding.familyId), expiresAt: now + leaseMs });
+    return true;
+  }
+
+  function g2TranscriptionSlotRelease(binding, recordingId) {
+    const row = g2TranscriptionSlots.get(String(recordingId));
+    if (!row || row.email !== normEmail(binding.email)) return false;
+    return g2TranscriptionSlots.delete(String(recordingId));
   }
 
   return {
@@ -1451,6 +1554,12 @@ export function createMemoryStore() {
     g2TranscriptionComplete,
     g2TranscriptionFail,
     g2TranscriptionGet,
+    g2TranscriptionTicketPut,
+    g2TranscriptionTicketConsume,
+    g2TranscriptionTicketsInvalidate,
+    g2SweepExpired,
+    g2TranscriptionSlotAcquire,
+    g2TranscriptionSlotRelease,
     g2ConsumeProof,
     g2ConsumeAttempt,
     mintMcpTokensForTest: mintMcpTokens,

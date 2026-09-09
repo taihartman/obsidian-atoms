@@ -42,8 +42,7 @@ describe("G2 audio recovery", () => {
     await switched.append("rec-b", 0, new Uint8Array([3, 4]));
     await switched.completeTranscription("rec-b", "tx-b");
     const terminal = await switched.restore("rec-b");
-    expect(terminal?.pcm.byteLength).toBe(0);
-    expect(terminal?.transcriptionId).toBe("tx-b");
+    expect(terminal).toBeNull();
   });
 
   it("refuses to journal beyond the two-minute byte bound", async () => {

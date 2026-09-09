@@ -1,7 +1,7 @@
 import type { CreateRecovery, CreateRecoveryRecord } from "../app/createFlow";
 
-type Dependencies = { indexedDB?: IDBFactory; crypto?: Crypto; databaseName?: string };
-type Cipher = { binding: string; iv: Uint8Array; ciphertext: ArrayBuffer };
+type Dependencies = { indexedDB?: IDBFactory; crypto?: Crypto; databaseName?: string; now?: () => number; retentionMs?: number };
+type Cipher = { binding: string; iv: Uint8Array; ciphertext: ArrayBuffer; expiresAt?: number };
 const VERSION = 1;
 const KEYS = "keys";
 const RECORDS = "records";
@@ -30,6 +30,8 @@ export class AppRecoveryStore implements CreateRecovery {
   private readonly factory: IDBFactory;
   private readonly crypto: Crypto;
   private readonly name: string;
+  private readonly now: () => number;
+  private readonly retentionMs: number;
 
   constructor(dependencies: Dependencies = {}) {
     if (!dependencies.indexedDB && !globalThis.indexedDB) throw new Error("indexeddb_unavailable");
@@ -37,11 +39,14 @@ export class AppRecoveryStore implements CreateRecovery {
     this.factory = dependencies.indexedDB ?? globalThis.indexedDB;
     this.crypto = dependencies.crypto ?? globalThis.crypto;
     this.name = dependencies.databaseName ?? "atoms-g2-app-recovery";
+    this.now = dependencies.now ?? Date.now;
+    this.retentionMs = dependencies.retentionMs ?? 7 * 24 * 60 * 60 * 1000;
   }
 
   async open(accountId: string, deviceFamilyId: string): Promise<void> {
     this.database = await open(this.factory, this.name);
     this.binding = `${accountId}\0${deviceFamilyId}`;
+    await this.sweepExpired();
     const read = this.database.transaction(KEYS, "readonly");
     this.key = await request(read.objectStore(KEYS).get("content")) as CryptoKey | null;
     await done(read);
@@ -77,11 +82,22 @@ export class AppRecoveryStore implements CreateRecovery {
     const iv = this.crypto.getRandomValues(new Uint8Array(12));
     const ciphertext = await this.crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(this.binding) }, key, new TextEncoder().encode(JSON.stringify(record)));
     const write = database.transaction(RECORDS, "readwrite");
-    write.objectStore(RECORDS).put({ binding: this.binding, iv, ciphertext } satisfies Cipher, "create"); await done(write);
+    const proposalExpiry = Date.parse(record.expiresAt);
+    const expiresAt = record.state === "prepared" && Number.isFinite(proposalExpiry)
+      ? Math.min(proposalExpiry, this.now() + this.retentionMs) : this.now() + this.retentionMs;
+    write.objectStore(RECORDS).put({ binding: this.binding, iv, ciphertext, expiresAt } satisfies Cipher, "create"); await done(write);
   }
 
   async clear(): Promise<void> {
     if (!this.database) return;
     const write = this.database.transaction(RECORDS, "readwrite"); write.objectStore(RECORDS).delete("create"); await done(write);
+  }
+
+  async sweepExpired(limit = 10): Promise<number> {
+    if (!this.database) return 0;
+    const row = await this.row();
+    if (!row || (Number.isFinite(row.expiresAt) && Number(row.expiresAt) > this.now()) || limit < 1) return 0;
+    await this.clear();
+    return 1;
   }
 }

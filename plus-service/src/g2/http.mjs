@@ -4,6 +4,8 @@ import { subscriptionLive } from "../store/shared.mjs";
 import { createG2PreparationService } from "./preparation.mjs";
 import { generateG2Metadata } from "./metadata.mjs";
 import { createG2QueryService, createG2ReadService } from "./query.mjs";
+import { config } from "../config.mjs";
+import { g2ResultStatusClass } from "./telemetry.mjs";
 
 const CONTENT_SCOPES = Object.freeze({
   transcribe: "g2:transcribe", prepare: "g2:prepare", commit: "g2:commit",
@@ -44,7 +46,7 @@ function queryFor(store) {
 }
 
 function exactOrigin(req) {
-  const configured = String(process.env.G2_APP_ORIGIN || "").replace(/\/$/, "");
+  const configured = config.g2AppOrigin;
   return configured && req.headers.origin === configured ? configured : null;
 }
 
@@ -90,7 +92,8 @@ function closePayload(code, reason) {
 }
 
 /** Literal RFC6455 boundary for the packaged browser companion. */
-export function handleG2WebSocketUpgrade({ req, socket, head, transcription, idleTimeoutMs = 30_000 }) {
+export async function handleG2WebSocketUpgrade({ req, socket, head, transcription, idleTimeoutMs = 30_000 }) {
+  if (!config.g2Enabled) { rejectUpgrade(socket, "404 Not Found", "Not found"); return false; }
   const origin = exactOrigin(req);
   let url;
   try { url = new URL(req.url || "/", "http://g2.invalid"); }
@@ -109,7 +112,7 @@ export function handleG2WebSocketUpgrade({ req, socket, head, transcription, idl
 
   // The ticket is the sole pre-auth URL credential and is consumed before 101
   // or any application/audio frame can be processed.
-  const opened = transcription.openWebSocket(ticketValues[0], origin);
+  const opened = await transcription.openWebSocket(ticketValues[0], origin);
   if (opened.error) {
     rejectUpgrade(socket, opened.error === "concurrency_limit" ? "429 Too Many Requests" : "401 Unauthorized", "Request denied");
     return false;
@@ -200,8 +203,12 @@ export function handleG2WebSocketUpgrade({ req, socket, head, transcription, idl
   return true;
 }
 
-export async function handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription, queryService }) {
+export async function handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription, queryService, metrics }) {
   if (!path.startsWith("/v1/g2/")) return false;
+  if (!config.g2Enabled) {
+    json(res, 404, { message: "Not found" }, { "cache-control": "no-store" });
+    return true;
+  }
   const sessionRoute = path === "/v1/g2/pair/code" || path === "/v1/g2/devices" ||
     path === "/v1/g2/consent" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
   // Plugin management endpoints retain the existing Obsidian-compatible
@@ -308,13 +315,13 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       }
       const body = await readBody(req);
       if (action === "ticket") {
-        json(res, 200, transcription.mintTicket(binding, {
+        json(res, 200, await transcription.mintTicket(binding, {
           recordingId: body.recordingId,
           purpose: body.purpose,
         }), extra); return true;
       }
       if (action === "open") {
-        const result = transcription.open(body.ticket, binding);
+        const result = await transcription.open(body.ticket, binding);
         json(res, result.error ? 409 : 200, result, extra); return true;
       }
       if (action === "status") {
@@ -353,6 +360,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       json(res, 404, { message: "Not found" }, extra); return true;
     }
     if (route === "prepare" && req.method === "POST") {
+      const metricStarted = Date.now();
       const day = new Date().toISOString().slice(0, 10);
       if (!await store.g2ConsumeAttempt(`prepare:${auth.email}:${day}`, { limit: 30, windowMs: 24 * 60 * 60 * 1000 })) {
         json(res, 429, { state: "limit_reached" }, extra); return true;
@@ -367,6 +375,9 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         transcriptionId: body.recordingId,
         capturedAt: body.capturedAt,
       });
+      metrics?.record({ operation: "preparation", count: 1,
+        statusClass: g2ResultStatusClass("preparation", result),
+        durationMs: Date.now() - metricStarted });
       json(res, result.preparationId ? 200 : 409, result, extra); return true;
     }
     if (route === "commit" && req.method === "POST") {
@@ -386,7 +397,11 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         json(res, 501, { message: "Not implemented" }, extra); return true;
       }
       if (route === "query") {
+        const metricStarted = Date.now();
         const result = await (queryService || queryFor(store)).query(binding, body);
+        metrics?.record({ operation: "query", count: 1,
+          statusClass: g2ResultStatusClass("query", result),
+          durationMs: Date.now() - metricStarted });
         const status = result.state === "limit_reached" ? 429 : result.state === "setup_required" ? 403 : 200;
         json(res, status, result, extra); return true;
       }
