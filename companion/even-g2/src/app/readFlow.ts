@@ -11,6 +11,7 @@ export class ReadFlow {
   private selectedIndex = 0;
   private coverageComplete = true;
   private page: ReadPage | null = null;
+  private activeId: string | null = null;
 
   constructor(private readonly api: ReadApi) {}
 
@@ -30,18 +31,25 @@ export class ReadFlow {
     const selected = this.items[this.selectedIndex];
     if (!selected) throw new Error("no_selection");
     this.page = await this.api.fetch(selected.id, 0);
+    this.activeId = selected.id;
+    return this.page;
+  }
+
+  async openById(id: string): Promise<ReadPage> {
+    this.page = await this.api.fetch(id, 0);
+    this.activeId = id;
     return this.page;
   }
 
   async nextPage(): Promise<ReadPage> {
-    const selected = this.items[this.selectedIndex];
-    if (!selected || !this.page || this.page.position.next_offset == null) throw new Error("no_next_page");
-    this.page = await this.api.fetch(selected.id, this.page.position.next_offset);
+    if (!this.activeId || !this.page || this.page.position.next_offset == null) throw new Error("no_next_page");
+    this.page = await this.api.fetch(this.activeId, this.page.position.next_offset);
     return this.page;
   }
 
   backToList() {
     this.page = null;
+    this.activeId = null;
     return { items: [...this.items], selectedIndex: this.selectedIndex, coverageComplete: this.coverageComplete };
   }
 }

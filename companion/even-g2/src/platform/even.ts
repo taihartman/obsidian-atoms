@@ -9,7 +9,11 @@ export type EvenActionKind =
   | "scroll-up"
   | "scroll-down"
   | "long-press"
-  | "long-press-release";
+  | "long-press-release"
+  | "foreground-enter"
+  | "foreground-exit"
+  | "abnormal-exit"
+  | "system-exit";
 
 export type EvenAction = {
   kind: EvenActionKind;
@@ -44,6 +48,10 @@ const ACTION_BY_EVENT = new Map<OsEventTypeList, EvenActionKind>([
   [OsEventTypeList.SCROLL_BOTTOM_EVENT, "scroll-down"],
   [OsEventTypeList.LONG_PRESS_EVENT, "long-press"],
   [OsEventTypeList.LONG_PRESS_RELEASE_EVENT, "long-press-release"],
+  [OsEventTypeList.FOREGROUND_ENTER_EVENT, "foreground-enter"],
+  [OsEventTypeList.FOREGROUND_EXIT_EVENT, "foreground-exit"],
+  [OsEventTypeList.ABNORMAL_EXIT_EVENT, "abnormal-exit"],
+  [OsEventTypeList.SYSTEM_EXIT_EVENT, "system-exit"],
 ]);
 
 function actionKind(raw: unknown): EvenActionKind | undefined {
