@@ -160,6 +160,23 @@ describe("setup guide quotes labels the plugin still renders", () => {
     expect(sentence).toContain("Connect Claude or ChatGPT");
   });
 
+  it("gives ChatGPT users a complete hosted custom-app path and localhost recovery", () => {
+    for (const instruction of [
+      "ChatGPT web",
+      "Plugins",
+      "Developer mode",
+      "Create app",
+      "Atoms Plus",
+      "https://plus.tryatoms.app/mcp",
+      "Sign in with Atoms Plus",
+      "chatgpt.com",
+      "127.0.0.1",
+    ]) {
+      expect(guide.includes(instruction), `guide omits ${instruction}`).toBe(true);
+    }
+    expect(guide).toContain("restart from ChatGPT web");
+  });
+
   it("names the self-host controls the Advanced screen renders, and where they are", () => {
     // Owning source: src/settings/settings.ts, renderAdvancedDestination. U7 renamed both — the
     // URL field lost its "override" and the guide link stopped being "DIY" — so the shipped page
