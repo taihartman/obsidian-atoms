@@ -334,7 +334,9 @@ describe("OAuth Ask AS", () => {
       assert.equal(r.status, 200, redirect);
       const html = await r.text();
       assert.match(html, /pending_id/);
-      assert.match(html, /Claude or ChatGPT|mirrored atoms/i);
+      assert.match(html, /Atoms Plus/);
+      assert.match(html, /Connect Atoms Plus to ChatGPT/i);
+      assert.doesNotMatch(html, /Claude or ChatGPT/i);
       const csp = r.headers.get("content-security-policy") || "";
       assert.match(csp, /form-action 'self'/);
       assert.match(csp, /claude\.ai/);
@@ -656,16 +658,45 @@ describe("OAuth Ask AS", () => {
     const { challenge: ch2 } = pkce();
     const authUrl2 = new URL(`${BASE}/oauth/authorize`);
     authUrl2.searchParams.set("response_type", "code");
-    authUrl2.searchParams.set("client_id", "cli_chooser2");
-    authUrl2.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl2.searchParams.set(
+      "client_id",
+      "https://chatgpt.com/oauth/chooser/client.json",
+    );
+    authUrl2.searchParams.set(
+      "redirect_uri",
+      "https://chatgpt.com/connector/oauth/chooser",
+    );
     authUrl2.searchParams.set("state", "st_ch2");
     authUrl2.searchParams.set("code_challenge", ch2);
     authUrl2.searchParams.set("code_challenge_method", "S256");
     authUrl2.searchParams.set("resource", RESOURCE);
     const page2 = await fetch(authUrl2, { headers: { cookie } });
     const html2 = await page2.text();
-    assert.match(html2, /Continue as|Choose account|Use a code/i);
+    assert.match(html2, /Choose your Atoms Plus account/i);
+    assert.match(html2, /ChatGPT/);
+    assert.match(html2, /Continue as|Use a code/i);
     assert.doesNotMatch(html2, /name="decision" value="allow"/);
+
+    const pm2 = html2.match(/name="pending_id" value="([^"]+)"/);
+    assert.ok(pm2);
+    const consent = await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        pending_id: pm2[1],
+        mode: "continue",
+      }).toString(),
+    });
+    const consentHtml = await consent.text();
+    assert.match(consentHtml, /Connect Atoms Plus to ChatGPT/i);
+    assert.match(consentHtml, new RegExp(email));
+    assert.match(consentHtml, /atoms:read/);
+    assert.match(consentHtml, /atoms:write/);
+    assert.match(consentHtml, /OpenAI/);
+    assert.match(consentHtml, /name="decision" value="allow"/);
   });
 
 });

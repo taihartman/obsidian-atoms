@@ -3,16 +3,22 @@ import { escHtml, renderPage } from "../html/shell.mjs";
 function htmlPage(title, bodyInner) {
   return renderPage({
     title,
-    eyebrow: "Atoms Ask",
+    eyebrow: "Atoms Plus",
     bodyHtml: bodyInner,
   });
 }
 
-export function authorizeEmailForm(pendingId, error = "") {
+function clientName(clientLabel) {
+  const label = String(clientLabel || "").trim();
+  return label && label !== "AI app" ? label : "your AI app";
+}
+
+export function authorizeEmailForm(pendingId, error = "", clientLabel = "") {
+  const client = escHtml(clientName(clientLabel));
   return htmlPage(
-    "Atoms Ask — Sign in",
-    `<h1>Atoms Ask</h1>
-<p>Connect Claude or ChatGPT to your <strong>Atoms Plus</strong> cloud atom mirror. Your Claude/ChatGPT account email does not need to match.</p>
+    "Atoms Plus — Sign in",
+    `<h1>Connect Atoms Plus to ${client}</h1>
+<p>Choose the Atoms Plus account ${client} can use for Atoms Ask. Your account emails do not need to match.</p>
 ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
@@ -24,7 +30,7 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 </form>
 <hr />
 <p><strong>Or use a code from Obsidian</strong></p>
-<p class="muted">In Obsidian: Settings → Atoms → Ask → <em>Link Claude / ChatGPT</em>. Paste the code here. Codes are secrets — do not share them.</p>
+<p class="muted">In Obsidian, open Settings → Atoms → Ask and create a pairing code for ${client}. Paste the code here. Codes are secrets — do not share them.</p>
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <input type="hidden" name="mode" value="pair" />
@@ -38,11 +44,18 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 }
 
 /** When an OAuth browser session already exists (R5). */
-export function authorizeChooserForm(pendingId, sessionEmail, error = "") {
+export function authorizeChooserForm(
+  pendingId,
+  sessionEmail,
+  error = "",
+  clientLabel = "",
+) {
+  const client = escHtml(clientName(clientLabel));
   return htmlPage(
-    "Atoms Ask — Choose account",
-    `<h1>Atoms Ask</h1>
+    "Atoms Plus — Choose account",
+    `<h1>Choose your Atoms Plus account</h1>
 <p>This browser is signed in as <strong>${escHtml(sessionEmail)}</strong> (Atoms Plus).</p>
+<p>Continue connecting to <strong>${client}</strong>, or choose another account.</p>
 ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 <form method="POST" action="/oauth/authorize" class="stack">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
@@ -57,7 +70,7 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
   </label>
   <button type="submit" class="btn btn--secondary">Continue with code</button>
 </form>
-<p class="muted">Open Obsidian → Settings → Atoms → Ask → Link Claude / ChatGPT if you need a code. Or use a different Atoms Plus email:</p>
+<p class="muted">Open Obsidian → Settings → Atoms → Ask if you need a pairing code for ${client}. Or use a different Atoms Plus email:</p>
 <form method="POST" action="/oauth/authorize">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <input type="hidden" name="mode" value="email" />
@@ -70,11 +83,12 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 }
 
 export function consentForm(pendingId, email, clientLabel) {
+  const client = escHtml(clientName(clientLabel));
   return htmlPage(
-    "Atoms Ask — Allow access",
-    `<h1>Allow Atoms Ask?</h1>
+    "Atoms Plus — Allow access",
+    `<h1>Connect Atoms Plus to ${client}?</h1>
 <p>Signed in as <strong>${escHtml(email)}</strong> (Atoms Plus account)</p>
-<p>Client: <strong>${escHtml(clientLabel)}</strong></p>
+<p>Client: <strong>${client}</strong></p>
 <p><strong>Permissions (scopes)</strong></p>
 <ul>
 <li><code>atoms:read</code> — search &amp; fetch your cloud atom mirror (not the whole vault)</li>
