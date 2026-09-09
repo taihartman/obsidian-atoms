@@ -3,6 +3,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 
 import { PcmRecorder } from "../src/audio/recorder";
+import { EvenAudioSession } from "../src/platform/audio";
 import { RecoveryJournal } from "../src/storage/recovery";
 import { AudioTransport, G2WebSocketTransport } from "../src/audio/transport";
 
@@ -26,7 +27,7 @@ describe("G2 audio recovery", () => {
     await expect(cold.append("rec-1", 1, new Uint8Array([3, 4]))).rejects.toThrow("sequence_gap");
   });
 
-  it("purges content on account switch and keeps only next IDs after final transcript", async () => {
+  it("purges content on account switch and keeps the exact transcript until preparation is durable", async () => {
     const indexedDB = new IDBFactory();
     const journal = new RecoveryJournal({ indexedDB, crypto, databaseName: "binding" });
     await journal.open("a@atoms.test", "g2d-a");
@@ -40,9 +41,197 @@ describe("G2 audio recovery", () => {
 
     await switched.start("rec-b", "2026-09-09T12:01:00Z");
     await switched.append("rec-b", 0, new Uint8Array([3, 4]));
-    await switched.completeTranscription("rec-b", "tx-b");
+    const transcript = "  exact\r\ntranscript 🌱  ";
+    await switched.completeTranscription("rec-b", "tx-b", transcript);
     const terminal = await switched.restore("rec-b");
-    expect(terminal).toBeNull();
+    expect(terminal).toMatchObject({ state: "transcribed", transcriptionId: "tx-b", transcript, nextSequence: 1 });
+    expect(terminal?.chunks).toEqual([]);
+    expect(terminal?.pcm).toEqual(new Uint8Array());
+    await expect(switched.completeTranscription("rec-b", "tx-b", `${transcript}!`)).rejects.toThrow("transcription_conflict");
+    await switched.completePreparation("rec-b");
+    expect(await switched.restore("rec-b")).toBeNull();
+  });
+
+  it("stores PCM as incremental encrypted chunk rows instead of rewriting one journal blob", async () => {
+    const indexedDB = new IDBFactory();
+    const journal = new RecoveryJournal({ indexedDB, crypto, databaseName: "incremental" });
+    await journal.open("owner@atoms.test", "g2d-one");
+    await journal.start("rec-incremental", "2026-09-09T12:00:00Z");
+    await journal.append("rec-incremental", 0, new Uint8Array([1, 2]));
+    await journal.append("rec-incremental", 1, new Uint8Array([3, 4]));
+
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const opening = indexedDB.open("incremental");
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    expect(Array.from(database.objectStoreNames)).toContain("chunks");
+    const read = database.transaction(["journals", "chunks"], "readonly");
+    expect(Array.from(read.objectStore("chunks").indexNames)).toContain("by-recording-id");
+    const journalRows = await new Promise<unknown[]>((resolve) => { const request = read.objectStore("journals").getAll(); request.onsuccess = () => resolve(request.result); });
+    const chunkRows = await new Promise<unknown[]>((resolve) => { const request = read.objectStore("chunks").getAll(); request.onsuccess = () => resolve(request.result); });
+    expect(journalRows).toHaveLength(1);
+    expect(chunkRows).toHaveLength(2);
+    database.close();
+  });
+
+  it("upgrades and recovers the encrypted v1 whole-journal format", async () => {
+    const indexedDB = new IDBFactory();
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const opening = indexedDB.open("legacy-whole-journal", 1);
+      opening.onupgradeneeded = () => {
+        opening.result.createObjectStore("meta");
+        opening.result.createObjectStore("keys");
+        opening.result.createObjectStore("journals");
+      };
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const binding = { accountId: "owner@atoms.test", deviceFamilyId: "g2d-one" };
+    const legacy = {
+      recordingId: "rec-legacy", capturedAt: "2026-09-09T12:00:00Z", revision: 3,
+      nextSequence: 2, chunks: [[1, 2], [3, 4]], expiresAt: Date.now() + 60_000,
+    };
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const additionalData = new TextEncoder().encode(`${binding.accountId}\0${binding.deviceFamilyId}`);
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData }, key, new TextEncoder().encode(JSON.stringify(legacy)));
+    const write = database.transaction(["meta", "keys", "journals"], "readwrite");
+    write.objectStore("meta").put(binding, "binding");
+    write.objectStore("keys").put(key, "content");
+    write.objectStore("journals").put({ iv, ciphertext, expiresAt: legacy.expiresAt }, legacy.recordingId);
+    await new Promise<void>((resolve, reject) => { write.oncomplete = () => resolve(); write.onerror = () => reject(write.error); });
+    database.close();
+
+    const upgraded = new RecoveryJournal({ indexedDB, crypto, databaseName: "legacy-whole-journal" });
+    await upgraded.open(binding.accountId, binding.deviceFamilyId);
+    expect(await upgraded.restore(legacy.recordingId)).toMatchObject({
+      state: "recording", nextSequence: 2,
+      chunks: [{ sequence: 0, pcm: new Uint8Array([1, 2]) }, { sequence: 1, pcm: new Uint8Array([3, 4]) }],
+    });
+  });
+
+  it("rolls back a denied microphone setup and ignores late PCM", async () => {
+    const journal = new RecoveryJournal({ indexedDB: new IDBFactory(), crypto, databaseName: "denied" });
+    await journal.open("owner@atoms.test", "g2d-one");
+    const teardown = vi.fn();
+    const checkpoint = { save: vi.fn(async (_value: { recordingId: string; purpose: "create" | "query" }) => undefined), clear: vi.fn(async () => undefined) };
+    const bridge = { audioControl: vi.fn(async (enabled: boolean) => !enabled) };
+    const audio = new EvenAudioSession(
+      bridge as never,
+      { ticket: async () => ({ ticket: "g2t_denied" }) },
+      journal,
+      "https://plus.tryatoms.app/v1/g2/transcribe/stream",
+      checkpoint,
+      { transportFactory: () => ({ connect: async () => ({ recordingId: "rec", nextSequence: 0 }), enqueue: vi.fn(), finalize: vi.fn(), teardown }) as never },
+    );
+
+    await expect(audio.start("create")).rejects.toThrow("microphone_denied");
+    audio.accept(new Uint8Array([1, 2]));
+    expect(teardown).toHaveBeenCalled();
+    expect(checkpoint.clear).toHaveBeenCalled();
+    const pointer = checkpoint.save.mock.calls[0]?.[0];
+    expect(pointer?.recordingId && await journal.restore(pointer.recordingId)).toBeNull();
+  });
+
+  it("keeps an exact completed transcript and wake-up pointer until preparation handoff", async () => {
+    const journal = new RecoveryJournal({ indexedDB: new IDBFactory(), crypto, databaseName: "handoff" });
+    await journal.open("owner@atoms.test", "g2d-one");
+    const transcript = "  exact\r\ntranscript 🌱  ";
+    const checkpoint = { save: vi.fn(async (_value: { recordingId: string; purpose: "create" | "query" }) => undefined), clear: vi.fn(async () => undefined) };
+    const bridge = { audioControl: vi.fn(async () => true) };
+    const audio = new EvenAudioSession(
+      bridge as never,
+      { ticket: async () => ({ ticket: "g2t_handoff" }) },
+      journal,
+      "https://plus.tryatoms.app/v1/g2/transcribe/stream",
+      checkpoint,
+      { transportFactory: () => ({
+        connect: async () => ({ recordingId: "rec", nextSequence: 0 }),
+        loadRecovered: vi.fn(), enqueue: vi.fn(), teardown: vi.fn(),
+        finalize: async () => ({ state: "completed", recordingId: "rec", transcript }),
+      }) as never },
+    );
+
+    await audio.start("create");
+    const pointer = checkpoint.save.mock.calls[0]?.[0];
+    if (!pointer) throw new Error("missing_checkpoint");
+    const completed = await audio.stop();
+    expect(completed.transcript).toBe(transcript);
+    expect(checkpoint.clear).not.toHaveBeenCalled();
+    expect(await journal.restore(pointer.recordingId)).toMatchObject({ state: "transcribed", transcript });
+
+    await completed.completeHandoff();
+    expect(checkpoint.clear).toHaveBeenCalledOnce();
+    expect(await journal.restore(pointer.recordingId)).toBeNull();
+  });
+
+  it("cancels an unfinished setup before late socket readiness can enable the microphone", async () => {
+    const journal = new RecoveryJournal({ indexedDB: new IDBFactory(), crypto, databaseName: "setup-cancel" });
+    await journal.open("owner@atoms.test", "g2d-one");
+    let releaseConnect!: () => void;
+    const checkpoint = { save: vi.fn(async (_value: { recordingId: string; purpose: "create" | "query" }) => undefined), clear: vi.fn(async () => undefined) };
+    const bridge = { audioControl: vi.fn(async () => true) };
+    const teardown = vi.fn();
+    const audio = new EvenAudioSession(
+      bridge as never,
+      { ticket: async () => ({ ticket: "g2t_cancel" }) },
+      journal,
+      "https://plus.tryatoms.app/v1/g2/transcribe/stream",
+      checkpoint,
+      { transportFactory: () => ({
+        connect: () => new Promise((resolve) => { releaseConnect = () => resolve({ recordingId: "rec", nextSequence: 0 }); }),
+        loadRecovered: vi.fn(), enqueue: vi.fn(), finalize: vi.fn(), teardown,
+      }) as never },
+    );
+
+    const starting = audio.start("create");
+    await vi.waitFor(() => expect(releaseConnect).toBeTypeOf("function"));
+    const pointer = checkpoint.save.mock.calls[0]?.[0];
+    if (!pointer) throw new Error("missing_checkpoint");
+    await audio.teardown("background");
+    releaseConnect();
+    await expect(starting).rejects.toThrow("recording_start_cancelled");
+    expect(bridge.audioControl).not.toHaveBeenCalledWith(true, expect.anything());
+    expect(teardown).toHaveBeenCalled();
+    expect(await journal.restore(pointer.recordingId)).toBeNull();
+  });
+
+  it("manually retries failed transcription from durable PCM with a fresh ticket", async () => {
+    const journal = new RecoveryJournal({ indexedDB: new IDBFactory(), crypto, databaseName: "manual-retry" });
+    await journal.open("owner@atoms.test", "g2d-one");
+    const ticket = vi.fn()
+      .mockResolvedValueOnce({ ticket: "g2t_first" })
+      .mockResolvedValueOnce({ ticket: "g2t_retry" });
+    const recovered: Array<Array<{ sequence: number; pcm: Uint8Array }>> = [];
+    let transportIndex = 0;
+    const audio = new EvenAudioSession(
+      { audioControl: vi.fn(async () => true) } as never,
+      { ticket },
+      journal,
+      "https://plus.tryatoms.app/v1/g2/transcribe/stream",
+      undefined,
+      { transportFactory: () => {
+        const index = transportIndex++;
+        return {
+          connect: async () => ({ recordingId: "rec", nextSequence: 0 }),
+          loadRecovered: (chunks: Array<{ sequence: number; pcm: Uint8Array }>) => { recovered.push(chunks); },
+          enqueue: async () => ({ state: "pending", sequence: 0 }),
+          finalize: async () => {
+            if (index === 0) throw new Error("socket_lost");
+            return { state: "completed", recordingId: "rec", transcript: "exact retry" };
+          },
+          teardown: vi.fn(),
+        } as never;
+      } },
+    );
+
+    await audio.start("create");
+    audio.accept(new Uint8Array([1, 2]));
+    await expect(audio.stop()).rejects.toThrow("socket_lost");
+    await expect(audio.stop()).resolves.toMatchObject({ transcript: "exact retry" });
+    expect(ticket).toHaveBeenCalledTimes(2);
+    expect(recovered).toEqual([[{ sequence: 0, pcm: new Uint8Array([1, 2]) }]]);
   });
 
   it("refuses to journal beyond the two-minute byte bound", async () => {

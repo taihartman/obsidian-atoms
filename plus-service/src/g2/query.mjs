@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { config } from "../config.mjs";
 import { contentWords } from "../store/askHelpers.mjs";
-import { subscriptionLive } from "../store/shared.mjs";
 import { createAskDomain } from "../ask/domain.mjs";
 
 const SOURCE_MAX_BYTES = 16 * 1024;
@@ -166,7 +165,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
   const inFlight = new Set();
 
   async function authorized(binding) {
-    return g2ReadAuthorized(store, binding);
+    return store.g2Authorize(binding, { requireMirror: true });
   }
 
   return {
@@ -193,7 +192,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
       const chunks = [];
       for (const hit of search.results) {
         if (hit.status !== "live") continue;
-        const atom = await store.mirrorFetch(binding.email, hit.id);
+        const atom = await store.mirrorFetchById(binding.email, hit.id);
         if (!atom || atom.id !== hit.id || atom.kind === "hub") continue;
         const atomChunks = chunksFor(atom);
         if (!atomChunks.length) continue;
@@ -218,7 +217,7 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
       }
       if (controller.signal.aborted || !await authorized(binding)) return { state: "setup_required" };
       for (const snapshot of snapshots) {
-        const current = await store.mirrorFetch(binding.email, snapshot.id);
+        const current = await store.mirrorFetchById(binding.email, snapshot.id);
         if (!current || current.id !== snapshot.id || current.title !== snapshot.title || current.path !== snapshot.path || current.contentHash !== snapshot.contentHash) {
           logger({ event: "g2_query_snapshot_changed" });
           return { state: "closest_matches", matches, ...searchContext(search) };
@@ -252,28 +251,20 @@ export function createG2QueryService({ store, generate = createG2QueryAdapter(),
   };
 }
 
-async function g2ReadAuthorized(store, binding) {
-  const [account, consent, devices] = await Promise.all([
-    store.getAccount?.(binding.email), store.g2ReadConsent(binding.email), store.g2ListDevices(binding.email),
-  ]);
-  const device = devices.find((candidate) => candidate.id === binding.familyId);
-  return Boolean(subscriptionLive(account) && consent.g2Disclosure.granted && consent.askMirror.granted &&
-    consent.revision === binding.generation && device && !device.revoked);
-}
-
 export function createG2ReadService({ store } = {}) {
   if (!store) throw new Error("store_required");
+  const authorized = (binding) => store.g2Authorize(binding, { requireMirror: true });
   return {
     async recent(binding, input = {}) {
-      if (!await g2ReadAuthorized(store, binding)) return { state: "setup_required" };
+      if (!await authorized(binding)) return { state: "setup_required" };
       const result = await createAskDomain({ store, email: binding.email }).recent(input);
-      if (!await g2ReadAuthorized(store, binding)) return { state: "setup_required" };
+      if (!await authorized(binding)) return { state: "setup_required" };
       return result;
     },
     async fetch(binding, input = {}) {
-      if (!await g2ReadAuthorized(store, binding)) return { state: "setup_required" };
+      if (!await authorized(binding)) return { state: "setup_required" };
       const result = await createAskDomain({ store, email: binding.email }).fetch(input);
-      if (!await g2ReadAuthorized(store, binding)) return { state: "setup_required" };
+      if (!await authorized(binding)) return { state: "setup_required" };
       return result;
     },
   };

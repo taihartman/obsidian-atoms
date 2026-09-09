@@ -70,6 +70,8 @@ export function createMemoryStore() {
   const usageByKey = new Map();
   /** email → Map<path, row> */
   const atomMirror = new Map();
+  /** email → Map<atom id, path>; selected query sources never scan/decrypt an account. */
+  const atomMirrorById = new Map();
   /** email → Map<id, outbox row> */
   const askOutbox = new Map();
   /** Applied G2 receipt expiry index; avoids unbounded scans of normal Ask rows. */
@@ -551,6 +553,16 @@ export function createMemoryStore() {
     return m;
   }
 
+  function mirrorIdBucket(email) {
+    const e = normEmail(email);
+    let m = atomMirrorById.get(e);
+    if (!m) {
+      m = new Map();
+      atomMirrorById.set(e, m);
+    }
+    return m;
+  }
+
   function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
@@ -582,7 +594,9 @@ export function createMemoryStore() {
         row.created = prev.created;
       }
       row.expandEnc = null;
+      if (prev?.atomId && prev.atomId !== row.atomId) mirrorIdBucket(row.email).delete(prev.atomId);
       bucket.set(row.path, row);
+      mirrorIdBucket(row.email).set(row.atomId, row.path);
       upserted += 1;
       needExpand.push({
         email: row.email,
@@ -661,6 +675,13 @@ export function createMemoryStore() {
     return null;
   }
 
+  function mirrorFetchById(email, atomId) {
+    const e = normEmail(email);
+    const path = atomMirrorById.get(e)?.get(String(atomId || ""));
+    const row = path ? atomMirror.get(e)?.get(path) : null;
+    return row ? rowToPublicAtom(row, { includeBody: true }) : null;
+  }
+
   function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
@@ -687,6 +708,7 @@ export function createMemoryStore() {
   function mirrorWipe(email) {
     const e = normEmail(email);
     atomMirror.delete(e);
+    atomMirrorById.delete(e);
     askOutbox.delete(e);
     for (const [outboxId, row] of g2ReceiptExpiries) {
       if (row.email === e) g2ReceiptExpiries.delete(outboxId);
@@ -711,7 +733,9 @@ export function createMemoryStore() {
         missing += 1;
         continue;
       }
+      const row = bucket.get(checked.path);
       bucket.delete(checked.path);
+      if (row?.atomId) atomMirrorById.get(e)?.delete(row.atomId);
       deleted += 1;
     }
     const st = mirrorStatus(e);
@@ -730,7 +754,9 @@ export function createMemoryStore() {
     if (bucket) {
       for (const path of [...bucket.keys()]) {
         if (!keep.has(path)) {
+          const row = bucket.get(path);
           bucket.delete(path);
+          if (row?.atomId) atomMirrorById.get(e)?.delete(row.atomId);
           deleted += 1;
         }
       }
@@ -1313,6 +1339,22 @@ export function createMemoryStore() {
     return publicG2Consent(g2Consents.get(normEmail(email)));
   }
 
+  function g2Authorize(binding, opts = {}) {
+    const email = normEmail(binding.email);
+    const account = getAccount(email);
+    const consent = g2ReadConsent(email);
+    const family = g2Families.get(String(binding.familyId));
+    return Boolean(subscriptionLive(account) && family && family.email === email && !family.revoked &&
+      consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.requireMirror || consent.askMirror.granted) &&
+      (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+  }
+
+  function g2OutboxEnqueue(binding, opts) {
+    if (!g2Authorize(binding, { requireWrite: true })) return { ok: false, error: "setup_required" };
+    return outboxEnqueue(binding.email, opts);
+  }
+
   function g2SynchronizeConsent(email, update) {
     const key = normEmail(email);
     const before = publicG2Consent(g2Consents.get(key));
@@ -1360,7 +1402,7 @@ export function createMemoryStore() {
 
   function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
     const row = g2Transcriptions.get(String(recordingId));
-    if (!sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner || row.state !== "transcribing") return false;
+    if (!g2Authorize(binding) || !sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner || row.state !== "transcribing") return false;
     Object.assign(row, { state: "completed", transcript: String(transcript), leaseOwner: null, leaseUntil: 0,
       retainedUntil: Date.now() + config.g2TranscriptRetentionMs });
     return true;
@@ -1506,6 +1548,7 @@ export function createMemoryStore() {
     mirrorExpandCoverage,
     mirrorListMissingExpand,
     mirrorFetch,
+    mirrorFetchById,
     mirrorSearch,
     mirrorNeighbors,
     mirrorWipe,
@@ -1548,6 +1591,8 @@ export function createMemoryStore() {
     g2ListDevices,
     g2RevokeDevice,
     g2ReadConsent,
+    g2Authorize,
+    g2OutboxEnqueue,
     g2SynchronizeConsent,
     g2SynchronizeDisclosure,
     g2TranscriptionClaim,

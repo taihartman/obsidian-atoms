@@ -121,12 +121,14 @@ export class CreateFlow {
   }
 
   async refresh(): Promise<CreateView> {
-    if (!this.record?.outboxId || this.record.state !== "queued") return this.view();
+    if (!this.record?.outboxId || (this.record.state !== "queued" && this.record.state !== "commit_unknown")) return this.view();
     try {
       const result = await this.api.status(this.record.outboxId);
       if (result.state === "saved" && result.receipt) {
         this.record.state = "saved";
         this.record.receipt = result.receipt;
+      } else if (result.state === "queued") {
+        this.record.state = "queued";
       } else if (result.state === "setup_required") {
         this.record.state = "revoked";
       } else if (result.state === "rejected") {

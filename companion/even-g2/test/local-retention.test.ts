@@ -46,7 +46,7 @@ describe("G2 local retention", () => {
     expect(await cold.load()).toBeNull();
   });
 
-  it("sweeps expired raw audio and deletes terminal audio immediately", async () => {
+  it("sweeps expired raw audio and retains only the terminal transcript until handoff", async () => {
     const indexedDB = new IDBFactory(); let now = 1_000;
     const journal = new RecoveryJournal({ indexedDB, crypto, databaseName: "audio-expiry", now: () => now, retentionMs: 100 });
     await journal.open("owner", "device"); await journal.start("expired", "2026-09-09T00:00:00Z");
@@ -54,7 +54,10 @@ describe("G2 local retention", () => {
     const cold = new RecoveryJournal({ indexedDB, crypto, databaseName: "audio-expiry", now: () => now, retentionMs: 100 });
     await cold.open("owner", "device"); expect(await cold.restore("expired")).toBeNull();
     await cold.start("terminal", "2026-09-09T00:01:00Z"); await cold.append("terminal", 0, new Uint8Array([1, 2]));
-    await cold.completeTranscription("terminal", "tx"); expect(await cold.restore("terminal")).toBeNull();
+    await cold.completeTranscription("terminal", "tx", "exact");
+    expect(await cold.restore("terminal")).toMatchObject({ state: "transcribed", transcript: "exact", chunks: [] });
+    await cold.completePreparation("terminal");
+    expect(await cold.restore("terminal")).toBeNull();
   });
 
   it("purges legacy U7 rows with no expiry instead of retaining them forever", async () => {

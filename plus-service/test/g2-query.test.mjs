@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createStore } from "../src/store.mjs";
 import { createG2QueryAdapter, createG2QueryService, createG2ReadService } from "../src/g2/query.mjs";
+import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 
 async function fixture(generate, opts = {}) {
   const store = await createStore({ mode: "memory" });
@@ -31,6 +32,20 @@ async function fixture(generate, opts = {}) {
 }
 
 describe("grounded G2 query", () => {
+  for (const mode of askStoreModes()) {
+    it(`${mode}: fetches an exact selected source by its indexed atom id`, async () => {
+      await withStore(mode, async (store) => {
+        const email = `indexed-${mode}@atoms.test`;
+        await store.mirrorUpsert(email, [{ path: "Atoms/Indexed.md", title: "Indexed", body: "private selected body" }]);
+        const listed = await store.mirrorList(email, { limit: 1 });
+        const exact = await store.mirrorFetchById(email, listed.items[0].id);
+        assert.equal(exact.id, listed.items[0].id);
+        assert.equal(exact.text, "private selected body");
+        assert.equal(await store.mirrorFetchById("other@atoms.test", listed.items[0].id), null);
+      });
+    });
+  }
+
   // G2_GROUNDED_QUERY_014 binds every answer to an authorized immutable mirror snapshot.
   it("accepts exact unambiguous UTF-8 evidence and derives byte ranges", async () => {
     let seen;
@@ -48,6 +63,20 @@ describe("grounded G2 query", () => {
     const serializedLogs = JSON.stringify(logs);
     assert.equal(serializedLogs.includes("When is the café launch"), false);
     assert.equal(serializedLogs.includes("The café launch is Friday"), false);
+  });
+
+  it("hydrates selected query sources through the indexed id lookup", async () => {
+    const fx = await fixture(async (input) => ({ ok: true, answer: {
+      state: "answer", claims: input.chunks.map((chunk) => ({
+        text: chunk.text.split("\n")[0], citations: [{ chunkId: chunk.id, quote: chunk.text.split("\n")[0] }],
+      })),
+    } }));
+    const indexed = fx.store.mirrorFetchById.bind(fx.store);
+    let indexedCalls = 0;
+    fx.store.mirrorFetchById = (...args) => { indexedCalls += 1; return indexed(...args); };
+    fx.store.mirrorFetch = () => { throw new Error("selected ids must not use account-wide lookup"); };
+    await fx.service.query(fx.binding, { question: "When is the launch?" });
+    assert.ok(indexedCalls >= 2, "initial hydration and immutable-snapshot verification use indexed lookup");
   });
 
   it("rejects unknown, altered, ambiguous, irrelevant, and normalization-trick citations", async () => {

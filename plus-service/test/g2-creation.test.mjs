@@ -169,6 +169,25 @@ describe("G2 prepare, confirm, and delivery", () => {
         assert.equal(changed.error, "idempotency_conflict");
       });
     });
+
+    it(`${mode}: atomically refuses G2 enqueue after write consent withdrawal`, async () => {
+      await withStore(mode, async (store) => {
+        const liveBinding = await seeded(store);
+        const result = await store.g2SynchronizeConsent(binding.email, {
+          baseRevision: liveBinding.generation,
+          askWrite: { granted: false, version: "" },
+        });
+        assert.equal(result.askWrite.granted, false);
+        const enqueue = await store.g2OutboxEnqueue(liveBinding, {
+          kind: "create",
+          payload: { title: "Must not queue", body: transcript, origin: "g2", proposal_fingerprint: "fp-withdrawn" },
+          client_request_id: "commit-withdrawn",
+          proposal_fingerprint: "fp-withdrawn",
+        });
+        assert.deepEqual(enqueue, { ok: false, error: "setup_required" });
+        assert.equal((await store.outboxPull(binding.email)).items.length, 0);
+      });
+    });
   }
 
   it("requires the displayed title and rejects expiry before enqueue", async () => {
@@ -189,6 +208,33 @@ describe("G2 prepare, confirm, and delivery", () => {
         preparationId: proposal.preparationId, fingerprint: proposal.fingerprint,
         confirmedTitle: proposal.title, commitKey: "commit_two",
       })).state, "expired");
+      assert.equal((await store.outboxPull(binding.email)).items.length, 0);
+    });
+  });
+
+  it("rechecks withdrawal inside the atomic enqueue boundary", async () => {
+    await withStore("memory", async (store) => {
+      const liveBinding = await seeded(store);
+      const service = createG2PreparationService({
+        store,
+        generate: async () => ({ title: "Atomic boundary", tags: [], links: [] }),
+      });
+      const proposal = await service.prepare(liveBinding, { transcript, capturedAt, transcriptionId: "trn_atomic" });
+      const atomic = store.g2OutboxEnqueue.bind(store);
+      store.g2OutboxEnqueue = async (...args) => {
+        await store.g2SynchronizeConsent(binding.email, {
+          baseRevision: liveBinding.generation,
+          askWrite: { granted: false, version: "" },
+        });
+        return atomic(...args);
+      };
+      const committed = await service.commit(liveBinding, {
+        preparationId: proposal.preparationId,
+        fingerprint: proposal.fingerprint,
+        confirmedTitle: proposal.title,
+        commitKey: "commit-atomic-withdrawal",
+      });
+      assert.deepEqual(committed, { state: "setup_required" });
       assert.equal((await store.outboxPull(binding.email)).items.length, 0);
     });
   });

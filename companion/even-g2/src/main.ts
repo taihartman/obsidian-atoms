@@ -6,6 +6,8 @@ import { QueryFlow } from "./app/queryFlow";
 import { ReadFlow } from "./app/readFlow";
 import { G2AuthClient, G2HttpClient, type G2Session, type PairingPointer } from "./auth/client";
 import { G2CredentialVault } from "./auth/credentials";
+import { singleFlight } from "./auth/singleFlight";
+import { G2_DISCLOSURE_VERSION, g2ServerSetupReady, readG2ServerSetup, type G2ServerConsent } from "./auth/setup";
 import { EvenAudioSession, ticketFromResponse } from "./platform/audio";
 import { normalizeEvenAction } from "./platform/even";
 import { AppRecoveryStore } from "./storage/appRecovery";
@@ -17,7 +19,6 @@ import { EvenGlassesRenderer } from "./ui/render";
 const BASE_URL = "https://plus.tryatoms.app";
 const BINDING_POINTER = "atoms-g2-binding";
 const AUDIO_POINTER = "atoms-g2-recording";
-const DISCLOSURE_VERSION = "g2-audio-v1";
 const status = document.querySelector<HTMLOutputElement>("#capability-status");
 
 function parsePointer(raw: string): PairingPointer | null {
@@ -62,7 +63,9 @@ async function start(): Promise<void> {
     reconnect: () => { phone({ screen: "unpaired" }); },
   });
 
-  async function pair(code: string): Promise<void> {
+  let bootSession!: (session: G2Session) => Promise<void>;
+
+  const pair = singleFlight(async (code: string): Promise<void> => {
     phone({ screen: "loading", operation: "pairing" });
     try {
       const session = await auth.pair(code);
@@ -72,27 +75,27 @@ async function start(): Promise<void> {
     } catch {
       phone({ screen: "pairing-error", reason: "invalid" });
     }
-  }
+  });
 
-  async function acceptDisclosure(): Promise<void> {
+  const acceptDisclosure = singleFlight(async (): Promise<void> => {
     try {
-      const consent = await http.post<{ revision: number; regrantRequired?: boolean; g2Disclosure: { granted: boolean } }>("/v1/g2/transcribe/disclosure", {
+      const consent = await http.post<G2ServerConsent>("/v1/g2/transcribe/disclosure", {
         baseRevision: disclosureRevision,
         freshGesture: true,
-        disclosure: { granted: true, version: DISCLOSURE_VERSION },
+        disclosure: { granted: true, version: G2_DISCLOSURE_VERSION },
       });
       disclosureRevision = consent.revision;
-      if (consent.regrantRequired || !consent.g2Disclosure.granted) {
-        phone({ screen: "disclosure" });
+      if (!g2ServerSetupReady(consent)) {
+        phone({ screen: consent.g2Disclosure.granted ? "setup-required" : "disclosure" });
         return;
       }
       const session = auth.current();
       if (!session) throw new Error("setup_required");
       await bootSession(session);
     } catch { phone({ screen: "setup-required" }); }
-  }
+  });
 
-  async function bootSession(session: G2Session): Promise<void> {
+  bootSession = singleFlight(async (session: G2Session): Promise<void> => {
     const recovery = new AppRecoveryStore();
     await recovery.open(session.accountId, session.deviceFamilyId);
     const journal = new RecoveryJournal();
@@ -127,8 +130,9 @@ async function start(): Promise<void> {
         if (!result) throw new Error("recording_not_active");
         return result;
       },
-      stopAudio: async () => { await audio?.teardown("background"); },
+      stopAudio: async (reason = "background") => { await audio?.teardown(reason); },
       closeSockets: () => { void audio?.teardown("background"); },
+      reconnect: () => { phone({ screen: "unpaired" }); },
       requestSystemExit: async () => { await bridge.shutDownPageContainer(1); },
       unsubscribe: () => removeEvents(),
       create,
@@ -156,12 +160,24 @@ async function start(): Promise<void> {
     } catch { /* A wake-up pointer is optional and contains no content. */ }
     phone({ screen: "ready" });
     await controller.start({ paired: true, setupReady: true, recoveredRecording });
-  }
+  });
 
   const pointer = parsePointer(await bridge.getLocalStorage(BINDING_POINTER));
   const restored = pointer ? await auth.restore(pointer) : null;
-  if (restored) await bootSession(restored);
-  else {
+  if (restored) {
+    try {
+      const consent = await readG2ServerSetup((path, body) => http.post<G2ServerConsent>(path, body));
+      disclosureRevision = consent.revision;
+      if (g2ServerSetupReady(consent)) await bootSession(restored);
+      else {
+        await renderer.render({ screen: "setup-required", selectedIndex: 0 });
+        phone({ screen: consent.g2Disclosure.granted ? "setup-required" : "disclosure" });
+      }
+    } catch {
+      await renderer.render({ screen: "setup-required", selectedIndex: 0 });
+      phone({ screen: "setup-required" });
+    }
+  } else {
     await renderer.render({ screen: "unpaired", selectedIndex: 0 });
     phone({ screen: pointer ? "setup-required" : "unpaired" });
   }

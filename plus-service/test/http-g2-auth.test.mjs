@@ -151,6 +151,31 @@ before(async () => {
 after(() => { if (child && !child.killed) child.kill("SIGTERM"); });
 
 describe("G2 HTTP authorization contract", () => {
+  it("G2_SETUP_STATUS_015 returns current setup gates to a restored sender-constrained session without mutation", async () => {
+    const paired = await pair(["g2:status"]);
+    const pathName = "/v1/g2/setup/status";
+    const n = await nonce();
+    const response = await fetch(`${BASE}${pathName}`, {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        authorization: `Bearer ${paired.accessToken}`,
+        dpop: dpop("POST", pathName, n, paired.accessToken),
+        "dpop-nonce": n,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.deepEqual(await response.json(), {
+      revision: 0,
+      g2Disclosure: { granted: false, version: "" },
+      askMirror: { granted: false, version: "" },
+      askWrite: { granted: false, version: "" },
+    });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+
   it("G2_SESSION_CONSENT_008 G2_SESSION_CONSENT_009 accept only a verified session", async () => {
     const session = await sessionFor(`g2-consent-${randomUUID()}@atoms.test`);
     const accepted = await fetch(`${BASE}/v1/g2/consent`, {
@@ -204,6 +229,14 @@ describe("G2 HTTP authorization contract", () => {
     assert.equal(first.status, 200, await first.clone().text());
     const replay = await fetch(`${BASE}/v1/g2/auth/refresh`, { method: "POST", headers: { origin: ORIGIN, authorization: `Bearer ${paired.refreshToken}`, dpop: proof, "dpop-nonce": n } });
     assert.equal(replay.status, 401);
+    assert.deepEqual(await replay.json(), { message: "Request denied" }, "proof replay remains non-oracular");
+    const fresh = await nonce();
+    const deadLineage = await fetch(`${BASE}/v1/g2/auth/refresh`, { method: "POST", headers: {
+      origin: ORIGIN, authorization: `Bearer ${paired.refreshToken}`,
+      dpop: dpop("POST", "/v1/g2/auth/refresh", fresh, paired.refreshToken), "dpop-nonce": fresh,
+    } });
+    assert.equal(deadLineage.status, 401);
+    assert.deepEqual(await deadLineage.json(), { error: "grant_revoked" });
   });
 
   it("G2_CONTENT_006 requires g2a_, DPoP ath, nonce, target, and route scope", async () => {
@@ -211,6 +244,12 @@ describe("G2 HTTP authorization contract", () => {
     const queryProof = dpop("POST", "/v1/g2/query", n, paired.accessToken);
     const allowed = await fetch(`${BASE}/v1/g2/query`, { method: "POST", headers: { origin: ORIGIN, authorization: `Bearer ${paired.accessToken}`, dpop: queryProof, "dpop-nonce": n } });
     assert.equal(allowed.status, 501);
+    const setupNonce = await nonce();
+    const setupDenied = await fetch(`${BASE}/v1/g2/setup/status`, { method: "POST", headers: {
+      origin: ORIGIN, authorization: `Bearer ${paired.accessToken}`,
+      dpop: dpop("POST", "/v1/g2/setup/status", setupNonce, paired.accessToken), "dpop-nonce": setupNonce,
+    } });
+    assert.equal(setupDenied.status, 401, "setup status requires g2:status");
     const n2 = await nonce();
     const denied = await fetch(`${BASE}/v1/g2/commit`, { method: "POST", headers: { origin: ORIGIN, authorization: `Bearer ${paired.accessToken}`, dpop: dpop("POST", "/v1/g2/commit", n2, paired.accessToken), "dpop-nonce": n2 } });
     assert.equal(denied.status, 401);

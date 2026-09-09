@@ -81,11 +81,12 @@ def validate() -> list[str]:
 def generate_view() -> None:
     config = load(CONFIG)
     rows = load(ROOT / config["matrix"])["rows"]
+    last_verified = max(str(row["lastVerified"]) for row in rows)
     lines = [
         "---",
         "status: canonical",
         "owner: product-engineering",
-        "last_verified: 2026-09-08",
+        f"last_verified: {last_verified}",
         "canonical_for: [generated-access-matrix-view]",
         "supersedes: []",
         "superseded_by: null",

@@ -1525,45 +1525,57 @@ export class AtomsSettingTab extends PluginSettingTab {
     this.redisplay();
   }
 
-  private async synchronizeG2Consent(freshGesture: boolean): Promise<void> {
+  private async synchronizeG2Consent(freshGesture: boolean): Promise<boolean> {
     const session = readPlusSession(this.app);
-    if (!session) return;
+    if (!session) return false;
     const storedRevision = loadLocal(this.app, LS_G2_CONSENT_REVISION);
     const baseRevision = this.g2Inventory?.consent?.revision ??
       (typeof storedRevision === "number" && Number.isInteger(storedRevision) ? storedRevision : 0);
     const base = this.plugin.settings.plusBaseUrl.trim() || DEFAULT_PLUS_BASE_URL;
+    const requestedMirror = {
+      granted: askMirrorPermitted(this.plugin.settings),
+      version: askPrivacyAckIsCurrent(this.plugin.settings) ? ASK_PRIVACY_ACK_VERSION : "",
+    };
+    const requestedWrite = {
+      granted: askWriteAckIsCurrent(this.plugin.settings),
+      version: askWriteAckIsCurrent(this.plugin.settings) ? ASK_WRITE_ACK_VERSION : "",
+    };
     const result = await g2SynchronizeConsent(
       this.g2Config(base),
       session.sessionToken,
       {
         baseRevision,
         freshGesture,
-        askMirror: {
-          granted: askMirrorPermitted(this.plugin.settings),
-          version: askPrivacyAckIsCurrent(this.plugin.settings) ? ASK_PRIVACY_ACK_VERSION : "",
-        },
-        askWrite: {
-          granted: askWriteAckIsCurrent(this.plugin.settings),
-          version: askWriteAckIsCurrent(this.plugin.settings) ? ASK_WRITE_ACK_VERSION : "",
-        },
+        askMirror: requestedMirror,
+        askWrite: requestedWrite,
       },
     );
-    if (!result.ok) return;
+    if (!result.ok) return false;
     this.app.saveLocalStorage(LS_G2_CONSENT_REVISION, result.consent.revision);
+    let localChanged = false;
     if (!result.consent.askMirror.granted) {
+      localChanged = askMirrorPermitted(this.plugin.settings) || askWriteAckIsCurrent(this.plugin.settings);
       this.plugin.settings.askEnabled = false;
       this.writeAskAck("privacy", false);
       this.writeAskAck("write", false);
     } else if (!result.consent.askWrite.granted) {
+      localChanged = askWriteAckIsCurrent(this.plugin.settings);
       this.writeAskAck("write", false);
     }
     if (result.consent.regrantRequired) {
       new Notice(G2_EN.consent.regrantRequired);
+    }
+    if (localChanged || result.consent.regrantRequired) {
       await this.plugin.saveSettings();
     }
     if (this.g2Inventory?.sessionToken === session.sessionToken) {
       this.g2Inventory = { ...this.g2Inventory, consent: result.consent };
     }
+    return result.consent.regrantRequired !== true &&
+      result.consent.askMirror.granted === requestedMirror.granted &&
+      result.consent.askMirror.version === requestedMirror.version &&
+      result.consent.askWrite.granted === requestedWrite.granted &&
+      result.consent.askWrite.version === requestedWrite.version;
   }
 
   private renderG2Controls(containerEl: HTMLElement, session: PlusSession, base: string): void {
@@ -1583,6 +1595,7 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: G2_EN.connect.rowDescription(setup),
       label: G2_EN.connect.label,
       onClick: async () => {
+        if (!await this.synchronizeG2Consent(true)) return;
         const result = await g2CreatePairingCode(this.g2Config(base), session.sessionToken);
         if (!result.ok) {
           new Notice(G2_EN.connect.failed(result.message));

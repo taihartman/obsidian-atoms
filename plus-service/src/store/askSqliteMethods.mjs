@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
+CREATE INDEX IF NOT EXISTS idx_atom_mirror_email_atom_id ON atom_mirror(email, atom_id);
 CREATE TABLE IF NOT EXISTS mcp_oauth_pending (
   pending_id TEXT PRIMARY KEY,
   payload_json TEXT NOT NULL,
@@ -283,6 +284,16 @@ export function createAskSqliteMethods(db, deps) {
     return publicG2Consent(db.prepare("SELECT * FROM g2_consent WHERE email=?").get(normEmail(email)));
   }
 
+  function g2Authorize(binding, opts = {}) {
+    const email = normEmail(binding.email);
+    const consent = g2ReadConsent(email);
+    const family = db.prepare("SELECT * FROM g2_device_families WHERE family_id=? AND email=?").get(String(binding.familyId), email);
+    return Boolean(subscriptionLive(deps.getAccount(email)) && family && !family.revoked &&
+      consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.requireMirror || consent.askMirror.granted) &&
+      (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+  }
+
   function g2SynchronizeConsent(email, update) {
     const key = normEmail(email); db.exec("BEGIN IMMEDIATE");
     try {
@@ -370,14 +381,19 @@ export function createAskSqliteMethods(db, deps) {
   }
 
   function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
-    return db.prepare(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
-      lease_until_ms=0, transcript_enc=?, retained_until_ms=? WHERE recording_id=? AND email=? AND family_id=?
-      AND generation=? AND lease_owner=? AND state='transcribing'`).run(
-      encryptG2Artifact(String(transcript), {
-        account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
-      }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
-      binding.familyId, binding.generation, owner,
-    ).changes > 0;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (!g2Authorize(binding)) { db.exec("ROLLBACK"); return false; }
+      const changed = db.prepare(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
+        lease_until_ms=0, transcript_enc=?, retained_until_ms=? WHERE recording_id=? AND email=? AND family_id=?
+        AND generation=? AND lease_owner=? AND state='transcribing'`).run(
+        encryptG2Artifact(String(transcript), {
+          account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
+        }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
+        binding.familyId, binding.generation, owner,
+      ).changes > 0;
+      db.exec("COMMIT"); return changed;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
   }
 
   function g2TranscriptionFail(binding, recordingId, owner, state) {
@@ -621,6 +637,12 @@ export function createAskSqliteMethods(db, deps) {
     return null;
   }
 
+  function mirrorFetchById(email, atomId) {
+    const row = db.prepare("SELECT * FROM atom_mirror WHERE email=? AND atom_id=? LIMIT 1")
+      .get(normEmail(email), String(atomId || ""));
+    return row ? rowToPublicAtom(row, { includeBody: true }) : null;
+  }
+
   function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const rows = db.prepare("SELECT * FROM atom_mirror WHERE email = ?").all(e);
@@ -785,6 +807,19 @@ export function createAskSqliteMethods(db, deps) {
     }
     const row = db.prepare("SELECT * FROM ask_outbox WHERE id = ?").get(idRow);
     return { ok: true, ...outboxRowFromDb(row), duplicate: false };
+  }
+
+  function g2OutboxEnqueue(binding, opts) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (!g2Authorize(binding, { requireWrite: true })) {
+        db.exec("ROLLBACK");
+        return { ok: false, error: "setup_required" };
+      }
+      const result = outboxEnqueue(binding.email, opts);
+      db.exec("COMMIT");
+      return result;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
   }
 
   function outboxReclaimStale(email) {
@@ -1279,6 +1314,7 @@ export function createAskSqliteMethods(db, deps) {
     mirrorExpandCoverage,
     mirrorListMissingExpand,
     mirrorFetch,
+    mirrorFetchById,
     mirrorSearch,
     mirrorNeighbors,
     mirrorWipe,
@@ -1287,6 +1323,7 @@ export function createAskSqliteMethods(db, deps) {
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,
+    g2OutboxEnqueue,
     outboxPull,
     outboxAck,
     outboxGet,
@@ -1316,7 +1353,7 @@ export function createAskSqliteMethods(db, deps) {
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
-    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2SynchronizeDisclosure,
+    g2RevokeDevice, g2ReadConsent, g2Authorize, g2SynchronizeConsent, g2SynchronizeDisclosure,
     g2TranscriptionClaim, g2TranscriptionComplete, g2TranscriptionFail, g2TranscriptionGet,
     g2TranscriptionTicketPut, g2TranscriptionTicketConsume, g2TranscriptionTicketsInvalidate, g2SweepExpired,
     g2TranscriptionSlotAcquire, g2TranscriptionSlotRelease,

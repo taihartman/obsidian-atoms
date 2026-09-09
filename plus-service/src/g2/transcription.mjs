@@ -4,6 +4,7 @@ export const G2_PCM_SAMPLE_RATE_HZ = 16_000;
 export const G2_MAX_RECORDING_SECONDS = 120;
 export const G2_MAX_PCM_BYTES = G2_PCM_SAMPLE_RATE_HZ * 2 * G2_MAX_RECORDING_SECONDS;
 const DEFAULT_TICKET_TTL_MS = 30_000;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 
 function opaque(prefix) {
   return `${prefix}_${randomBytes(24).toString("base64url")}`;
@@ -38,6 +39,7 @@ export function createG2TranscriptionService({
   ticketTtlMs = DEFAULT_TICKET_TTL_MS,
   repository = null,
   leaseMs = 30_000,
+  authorizationPollMs = 250,
   metrics = () => {},
 } = {}) {
   if (!provider?.transcribe) throw new Error("transcription_provider_required");
@@ -47,6 +49,36 @@ export function createG2TranscriptionService({
 
   function log(event, row, extra = {}) {
     logger({ event, state: row?.state, ...extra });
+  }
+
+  function markRevoked(row) {
+    clearInterval(row.authorizationTimer);
+    row.authorizationTimer = null;
+    row.abortController?.abort("revoked");
+    row.leaseOwner = null;
+    row.state = "revoked";
+    row.chunks = [];
+    row.bytes = 0;
+    log("recording_revoked", row);
+    for (const listener of row.closeListeners ?? []) listener("revoked");
+  }
+
+  function authorizeBinding(binding) {
+    if (!repository?.authorize) return true;
+    try {
+      const checked = repository.authorize(binding);
+      if (checked && typeof checked.then === "function") {
+        return checked.then(Boolean, () => false);
+      }
+      return Boolean(checked);
+    } catch { return false; }
+  }
+
+  function authorize(row) {
+    return then(authorizeBinding(row.binding), (allowed) => {
+      if (!allowed && row.state !== "revoked") markRevoked(row);
+      return allowed;
+    });
   }
 
   const then = (value, next) => value && typeof value.then === "function" ? value.then(next) : next(value);
@@ -85,6 +117,13 @@ export function createG2TranscriptionService({
     if (!ticket || ticket.expiresAt < now() || !sameBinding(ticket.binding, binding)) {
       return { state: "blocked", error: "ticket_invalid" };
     }
+    const allowed = authorizeBinding(ticket.binding);
+    return then(allowed, (ok) => ok
+      ? openAuthorizedTicket(ticket, binding)
+      : { state: "blocked", error: "ticket_invalid" });
+  }
+
+  function openAuthorizedTicket(ticket, binding) {
     const existing = recordings.get(ticket.recordingId);
     if (existing) {
       if (!sameBinding(existing.binding, binding)) return { state: "blocked", error: "ticket_invalid" };
@@ -120,9 +159,19 @@ export function createG2TranscriptionService({
       leaseOwner: null,
       transcript: null,
       disconnectTimer: null,
+      authorizationTimer: null,
+      authorizationPolling: false,
     };
     recordings.set(row.recordingId, row);
     sessions.set(sessionId, row);
+    if (repository?.authorize && authorizationPollMs > 0) {
+      row.authorizationTimer = setInterval(() => {
+        if (row.authorizationPolling || row.state !== "open") return;
+        row.authorizationPolling = true;
+        Promise.resolve(authorize(row)).finally(() => { row.authorizationPolling = false; });
+      }, authorizationPollMs);
+      row.authorizationTimer.unref?.();
+    }
     log("stream_opened", row);
     return { state: "open", sessionId, recordingId: row.recordingId, nextSequence: 0 };
   }
@@ -144,6 +193,10 @@ export function createG2TranscriptionService({
       return { ok: false, error: "session_closed" };
     }
     if (!row || row.state !== "open") return { ok: false, error: "session_closed" };
+    return then(authorize(row), (allowed) => allowed ? acceptPcm(row, sequence, pcm) : { ok: false, error: "session_closed" });
+  }
+
+  function acceptPcm(row, sequence, pcm) {
     const bytes = Buffer.from(pcm ?? []);
     if (bytes.byteLength % 2 !== 0) return { ok: false, error: "odd_pcm_bytes" };
     if (!Number.isSafeInteger(sequence) || sequence < 0) return { ok: false, error: "sequence_gap" };
@@ -171,6 +224,18 @@ export function createG2TranscriptionService({
     if (!row) return Promise.resolve({ state: "not_found" });
     if (row.completion) return row.completion;
     if (row.state !== "open") return Promise.resolve(publicStatus(row));
+    const allowed = authorize(row);
+    if (allowed && typeof allowed.then === "function") {
+      row.completion = allowed.then((ok) => ok ? runFinalize(row) : publicStatus(row));
+    } else {
+      row.completion = allowed ? runFinalize(row) : Promise.resolve(publicStatus(row));
+    }
+    return row.completion;
+  }
+
+  function runFinalize(row) {
+    clearInterval(row.authorizationTimer);
+    row.authorizationTimer = null;
     row.state = "transcribing";
     row.abortController = new AbortController();
     row.leaseOwner = opaque("lease");
@@ -179,8 +244,9 @@ export function createG2TranscriptionService({
     const pcm = Buffer.concat(row.chunks.map((chunk) => chunk.bytes), row.bytes);
     const audioDurationMs = Math.round(row.bytes / (G2_PCM_SAMPLE_RATE_HZ * 2) * 1000);
     const providerStartedAt = now();
-    log("provider_started", row, { bytes: row.bytes });
-    row.completion = (async () => {
+    let authorizationPoll = null;
+    let polling = false;
+    return (async () => {
       if (repository?.claim) {
         const claim = await repository.claim(row.binding, row.recordingId, owner, leaseMs);
         if (!claim?.acquired) {
@@ -191,19 +257,35 @@ export function createG2TranscriptionService({
         }
       }
       try {
+        const providerAllowed = authorize(row);
+        if (providerAllowed && typeof providerAllowed.then === "function") {
+          if (!await providerAllowed) return publicStatus(row);
+        } else if (!providerAllowed) return publicStatus(row);
+        log("provider_started", row, { bytes: row.bytes });
+        if (repository?.authorize && authorizationPollMs > 0) {
+          authorizationPoll = setInterval(() => {
+            if (polling || row.state !== "transcribing") return;
+            polling = true;
+            Promise.resolve(authorize(row)).finally(() => { polling = false; });
+          }, authorizationPollMs);
+          authorizationPoll.unref?.();
+        }
         const result = await provider.transcribe({
           recordingId: row.recordingId,
           pcm,
           sampleRateHz: G2_PCM_SAMPLE_RATE_HZ,
           signal: row.abortController.signal,
         });
-        if (row.leaseOwner !== owner || row.binding.generation !== generation || row.state === "revoked") {
+        const completionAllowed = authorize(row);
+        if ((completionAllowed && typeof completionAllowed.then === "function" ? !await completionAllowed : !completionAllowed) ||
+          row.leaseOwner !== owner || row.binding.generation !== generation || row.state === "revoked") {
           return publicStatus(row);
         }
         const transcript = String(result?.transcript ?? "");
         if (repository) {
           const won = await repository.complete(row.binding, row.recordingId, owner, transcript);
           if (!won) {
+            if (!await authorize(row)) return publicStatus(row);
             const durable = await repository.get(row.binding, row.recordingId);
             row.state = durable?.state ?? "completion_unknown";
             row.transcript = durable?.transcript ?? null;
@@ -228,10 +310,10 @@ export function createG2TranscriptionService({
           providerLatencyMs: now() - providerStartedAt });
         return publicStatus(row);
       } finally {
+        clearInterval(authorizationPoll);
         if (row.state !== "completion_unknown") await repository?.releaseSlot?.(row.binding, row.recordingId);
       }
     })();
-    return row.completion;
   }
 
   function status(binding, recordingId) {
@@ -253,6 +335,8 @@ export function createG2TranscriptionService({
     const row = recordings.get(String(recordingId));
     if (!row || !sameBinding(row.binding, binding)) return { state: "not_found" };
     row.abortController?.abort(reason);
+    clearInterval(row.authorizationTimer);
+    row.authorizationTimer = null;
     clearTimeout(row.disconnectTimer);
     row.disconnectTimer = null;
     row.leaseOwner = null;
@@ -273,6 +357,10 @@ export function createG2TranscriptionService({
   function onSessionClose(sessionId, listener) {
     const row = sessions.get(String(sessionId));
     if (!row) return () => {};
+    if (row.state === "revoked") {
+      listener("revoked");
+      return () => {};
+    }
     row.closeListeners ??= new Set();
     row.closeListeners.add(listener);
     return () => row.closeListeners.delete(listener);
@@ -294,13 +382,7 @@ export function createG2TranscriptionService({
     }
     for (const row of recordings.values()) {
       if (row.binding.email !== email || row.binding.familyId !== familyId || row.binding.generation >= generation) continue;
-      row.abortController?.abort("revoked");
-      row.leaseOwner = null;
-      row.state = "revoked";
-      row.chunks = [];
-      row.bytes = 0;
-      log("recording_revoked", row);
-      for (const listener of row.closeListeners ?? []) listener("revoked");
+      markRevoked(row);
     }
   }
 
@@ -333,18 +415,35 @@ function wavPcm16Mono(pcm, sampleRateHz = G2_PCM_SAMPLE_RATE_HZ) {
 }
 
 /** Selected completed-audio batch fallback. No provider request is made without a key. */
-export function createOpenAiBatchTranscriptionProvider({ apiKey, url, model, fetchImpl = fetch }) {
+export function createOpenAiBatchTranscriptionProvider({
+  apiKey, url, model, fetchImpl = fetch, timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
+}) {
   return {
     available: Boolean(apiKey),
     async transcribe({ pcm, sampleRateHz, signal }) {
       if (!apiKey) throw new Error("speech_provider_disabled");
+      const controller = new AbortController();
+      let timedOut = false;
+      const abort = () => controller.abort(signal?.reason);
+      if (signal?.aborted) abort();
+      else signal?.addEventListener?.("abort", abort, { once: true });
+      const deadlineMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_PROVIDER_TIMEOUT_MS;
+      const timer = setTimeout(() => { timedOut = true; controller.abort("timeout"); }, deadlineMs);
       const form = new FormData();
       form.append("model", model);
       form.append("file", new Blob([wavPcm16Mono(pcm, sampleRateHz)], { type: "audio/wav" }), "capture.wav");
-      const response = await fetchImpl(url, { method: "POST", headers: { authorization: `Bearer ${apiKey}` }, body: form, signal });
-      if (!response.ok) throw new Error(`speech_provider_${response.status}`);
-      const body = await response.json();
-      return { transcript: String(body.text ?? "") };
+      try {
+        const response = await fetchImpl(url, { method: "POST", headers: { authorization: `Bearer ${apiKey}` }, body: form, signal: controller.signal });
+        if (!response.ok) throw new Error(`speech_provider_${response.status}`);
+        const body = await response.json();
+        return { transcript: String(body.text ?? "") };
+      } catch (error) {
+        if (timedOut) throw new Error("speech_provider_timeout");
+        throw error;
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener?.("abort", abort);
+      }
     },
   };
 }

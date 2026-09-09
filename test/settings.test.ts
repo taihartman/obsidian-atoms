@@ -3038,6 +3038,81 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     })).toBe(false);
   });
 
+  it("publishes current mirror and write grants before minting a G2 pairing code", async () => {
+    const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+    const request = async (input: { url: string; body?: string }) => {
+      const path = new URL(input.url).pathname;
+      const body = input.body ? JSON.parse(input.body) as Record<string, unknown> : {};
+      calls.push({ path, body });
+      return {
+        status: 200,
+        text: "",
+        arrayBuffer: new ArrayBuffer(0),
+        headers: {},
+        json: path === "/v1/g2/consent"
+          ? {
+              revision: 8,
+              g2Disclosure: { granted: false, version: "" },
+              askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION },
+              askWrite: { granted: true, version: ASK_WRITE_ACK_VERSION },
+            }
+          : { code: "ABCD1234", expiresAt: "2026-09-09T12:00:00.000Z" },
+      };
+    };
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      request: request as never,
+      settings: { askEnabled: true, ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    press(tab, "Even G2", "Get code");
+    await flush();
+    await flush();
+
+    expect(calls.map((call) => call.path)).toEqual(["/v1/g2/consent", "/v1/g2/pair/code"]);
+    expect(calls[0]?.body).toMatchObject({
+      freshGesture: true,
+      askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION },
+      askWrite: { granted: true, version: ASK_WRITE_ACK_VERSION },
+    });
+  });
+
+  it("does not mint a G2 code when the server refuses synchronized grants", async () => {
+    const paths: string[] = [];
+    const request = async (input: { url: string }) => {
+      const path = new URL(input.url).pathname;
+      paths.push(path);
+      return {
+        status: 200,
+        text: "",
+        arrayBuffer: new ArrayBuffer(0),
+        headers: {},
+        json: {
+          revision: 9,
+          regrantRequired: true,
+          g2Disclosure: { granted: false, version: "" },
+          askMirror: { granted: false, version: "" },
+          askWrite: { granted: false, version: "" },
+        },
+      };
+    };
+    const { tab } = settingTab({
+      session: PLUS_SESSION,
+      request: request as never,
+      settings: { askEnabled: true, ...PRIVACY_GRANTED, ...WRITE_GRANTED },
+    });
+    tab.display();
+    open(tab, "Connect Claude or ChatGPT");
+
+    press(tab, "Even G2", "Get code");
+    await flush();
+    await flush();
+
+    expect(paths).toEqual(["/v1/g2/consent"]);
+  });
+
   /**
    * #500. This screen is the one place the service URL is handed to somebody
    * else rather than called: it prints the MCP URL and tells the user to paste

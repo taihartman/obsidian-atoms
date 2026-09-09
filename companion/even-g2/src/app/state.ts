@@ -8,6 +8,7 @@ export type Source = { id: string; title: string };
 
 export type AppState =
   | { screen: "checking" | "unpaired" | "setup-required" | "root"; selectedIndex: number }
+  | { screen: "starting-recording"; purpose: "create" | "query"; selectedIndex: number }
   | { screen: "recording"; purpose: "create" | "query"; selectedIndex: number; transcript?: string }
   | { screen: "loading"; operation: "pairing" | "transcribing" | "preparing" | "querying" | "recent" | "committing"; selectedIndex: number }
   | { screen: "confirmation"; title: string; selectedIndex: number; message?: string }
@@ -24,6 +25,7 @@ export type AppState =
 
 export type AppEvent =
   | { type: "select-root"; index: number }
+  | { type: "recording-started" }
   | { type: "select"; index: number }
   | { type: "prepared"; title: string; message?: string }
   | { type: "confirm-create" }
@@ -46,11 +48,12 @@ export function reduceAppState(state: AppState, event: AppEvent): AppState {
   if (event.type === "fail") return { screen: "error", reason: event.reason, primaryAction: actionFor(event.reason), selectedIndex: 0 };
   if (event.type === "select") return { ...state, selectedIndex: Math.max(0, event.index) };
   if (event.type === "select-root" && state.screen === "root") {
-    if (event.index === 0) return { screen: "recording", purpose: "create", selectedIndex: 0 };
-    if (event.index === 1) return { screen: "recording", purpose: "query", selectedIndex: 0 };
+    if (event.index === 0) return { screen: "starting-recording", purpose: "create", selectedIndex: 0 };
+    if (event.index === 1) return { screen: "starting-recording", purpose: "query", selectedIndex: 0 };
     if (event.index === 2) return { screen: "loading", operation: "recent", selectedIndex: 0 };
     return state;
   }
+  if (event.type === "recording-started" && state.screen === "starting-recording") return { screen: "recording", purpose: state.purpose, selectedIndex: 0 };
   if (event.type === "prepared" && state.screen === "recording") return { screen: "confirmation", title: event.title, selectedIndex: 0, message: event.message };
   if (event.type === "confirm-create" && state.screen === "confirmation") return { screen: "loading", operation: "committing", selectedIndex: 0 };
   if (event.type === "back") {
@@ -64,6 +67,7 @@ export function allStableStates(): AppState[] {
   const base: AppState[] = [
     { screen: "checking", selectedIndex: 0 }, { screen: "unpaired", selectedIndex: 0 },
     { screen: "setup-required", selectedIndex: 0 }, { screen: "root", selectedIndex: 0 },
+    { screen: "starting-recording", purpose: "create", selectedIndex: 0 },
     { screen: "recording", purpose: "create", selectedIndex: 0 }, { screen: "recording", purpose: "query", selectedIndex: 0 },
     { screen: "loading", operation: "transcribing", selectedIndex: 0 },
     { screen: "confirmation", title: "A walk thought", selectedIndex: 0 },

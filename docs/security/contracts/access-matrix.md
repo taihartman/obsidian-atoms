@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product-engineering
-last_verified: 2026-09-08
+last_verified: 2026-09-09
 canonical_for: [generated-access-matrix-view]
 supersedes: []
 superseded_by: null
@@ -21,6 +21,7 @@ Generated from `access-matrix.yaml`. Do not edit by hand.
 | `G2_SESSION_CONSENT_009` | `/v1/g2/consent` | update | verified Plus plugin session | verified |
 | `G2_REDEEM_004` | `/v1/g2/pair/redeem` | call | holder of unused code presenting a valid initial DPoP proof | verified |
 | `G2_REFRESH_005` | `/v1/g2/auth/refresh` | call | current g2r_ family member with matching DPoP proof | verified |
+| `G2_SETUP_STATUS_015` | `/v1/g2/setup/status` | read | current g2a_ family member with g2:status scope; matching DPoP proof; and live Plus entitlement | verified |
 | `G2_CONTENT_006` | `/v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}` | call | current scoped g2a_ family member with matching DPoP proof and live Plus entitlement | verified |
 | `G2_PREPARE_METADATA_013` | `/v1/g2/prepare` | create | current scoped g2a_ family member with matching DPoP proof; live Plus entitlement; current G2 disclosure; and current authorization generation | verified |
 | `G2_GROUNDED_QUERY_014` | `/v1/g2/{query|recent|fetch}` | read | current scoped g2a_ family member with matching DPoP proof; live Plus entitlement; current Ask mirror consent; and current authorization generation | verified |

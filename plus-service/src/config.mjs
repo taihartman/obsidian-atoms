@@ -113,6 +113,10 @@ export const config = {
     const value = Number(env("G2_METADATA_TIMEOUT_MS", "12000"));
     return Number.isInteger(value) && value >= 1000 && value <= 60_000 ? value : 12_000;
   },
+  get g2TranscriptionTimeoutMs() {
+    const value = Number(env("G2_TRANSCRIPTION_TIMEOUT_MS", "30000"));
+    return Number.isInteger(value) && value >= 1000 && value <= 120_000 ? value : 30_000;
+  },
   /** Private-Beta G2 transcription stays inert until explicitly enabled. */
   get g2TranscriptionEnabled() {
     return env("G2_TRANSCRIPTION_ENABLED", "0") === "1";

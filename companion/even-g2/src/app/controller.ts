@@ -16,15 +16,24 @@ type ReadPort = {
   openById(id: string): Promise<{ text: string; position: { offset: number; next_offset: number | null } }>;
   nextPage?(): Promise<{ text: string; position: { offset: number; next_offset: number | null } }>;
 };
+type RecordingResult = {
+  purpose: "create" | "query";
+  recordingId: string;
+  capturedAt: string;
+  transcript: string;
+  completeHandoff?(): Promise<void>;
+};
+type AudioStopReason = "cancelled" | "permission_lost" | "background" | "revoked" | "disclosure_withdrawn";
 
 type Dependencies = {
   render(state: AppState): void | Promise<void>;
-  stopAudio(): void | Promise<void>;
+  stopAudio(reason?: AudioStopReason): void | Promise<void>;
   closeSockets(): void;
   unsubscribe(): void;
   requestSystemExit?(): void | Promise<void>;
+  reconnect?(): void | Promise<void>;
   startRecording?(purpose: "create" | "query"): void | Promise<void>;
-  stopRecording?(): Promise<{ purpose: "create" | "query"; recordingId: string; capturedAt: string; transcript: string }>;
+  stopRecording?(): Promise<RecordingResult>;
   create: CreatePort;
   query: QueryPort;
   read: ReadPort;
@@ -34,6 +43,7 @@ function requestFailure(error: unknown): Extract<AppState, { screen: "error" }> 
   const message = error instanceof Error ? error.message : "";
   if (message === "setup_required") return { screen: "error", reason: "revoked", primaryAction: "reconnect", selectedIndex: 0 };
   if (message === "microphone_denied") return { screen: "error", reason: "microphone-denied", primaryAction: "retry", selectedIndex: 0 };
+  if (message === "recovery_full") return { screen: "error", reason: "recovery-full", primaryAction: "discard", selectedIndex: 0 };
   if (message === "limit_reached") return { screen: "error", reason: "limit-reached", primaryAction: "return", selectedIndex: 0 };
   return { screen: "error", reason: "offline", primaryAction: "retry", selectedIndex: 0 };
 }
@@ -42,6 +52,10 @@ export class G2AppController {
   private state: AppState = initialState();
   private systemExitRequested = false;
   private returnState: AppState | null = null;
+  private discardReturnState: Extract<AppState, { screen: "recording" }> | null = null;
+  private primaryOperation: (() => Promise<void>) | null = null;
+  private recordingStartGeneration = 0;
+  private finishingRecording: Promise<void> | null = null;
 
   constructor(private readonly dependencies: Dependencies) {}
 
@@ -51,6 +65,11 @@ export class G2AppController {
   private show(state: AppState): void {
     this.state = state;
     void this.dependencies.render(state);
+  }
+
+  private showError(state: Extract<AppState, { screen: "error" }>, operation?: () => Promise<void>): void {
+    this.primaryOperation = operation ?? null;
+    this.show(state);
   }
 
   async start(status: { paired: boolean; setupReady: boolean; recoveredRecording?: boolean }): Promise<void> {
@@ -68,7 +87,10 @@ export class G2AppController {
     } else this.show({ screen: "root", selectedIndex: 0 });
   }
 
-  showRoot(): void { this.show({ screen: "root", selectedIndex: 0 }); }
+  showRoot(): void {
+    this.primaryOperation = null;
+    this.show({ screen: "root", selectedIndex: 0 });
+  }
 
   async handle(action: EvenAction): Promise<void> {
     if (this.state.screen === "root" && action.kind === "double-click") {
@@ -96,15 +118,14 @@ export class G2AppController {
     if (action.kind !== "click" && action.kind !== "double-click") return;
     if (this.state.screen === "root") {
       const index = action.selectedIndex ?? this.state.selectedIndex;
-      const next = reduceAppState(this.state, { type: "select-root", index });
-      this.show(next);
-      if (next.screen === "recording") {
-        try { await this.dependencies.startRecording?.(next.purpose); }
-        catch (error) { this.show(requestFailure(error)); }
+      if (index === 0 || index === 1) await this.beginRecording(index === 0 ? "create" : "query");
+      else if (index === 2) {
+        this.show({ screen: "loading", operation: "recent", selectedIndex: 0 });
+        await this.loadRecent();
       }
-      else if (next.screen === "loading" && next.operation === "recent") await this.loadRecent();
       return;
     }
+    if (this.state.screen === "starting-recording" || this.state.screen === "loading") return;
     if (this.state.screen === "recording") {
       await this.finishRecording();
       return;
@@ -139,54 +160,79 @@ export class G2AppController {
     }
     if (this.state.screen === "recovery") {
       if ((action.selectedIndex ?? this.state.selectedIndex) === 0) await this.finishRecording();
-      else { await this.dependencies.stopAudio(); this.showRoot(); }
+      else { await this.dependencies.stopAudio("cancelled"); this.showRoot(); }
       return;
     }
     if (this.state.screen === "discard-confirmation") {
       if ((action.selectedIndex ?? this.state.selectedIndex) === 0) {
-        await this.dependencies.stopAudio();
+        await this.dependencies.stopAudio("cancelled");
         await this.dependencies.create.cancel?.();
         this.showRoot();
-      } else this.show({ screen: "recording", purpose: "create", selectedIndex: 0 });
+      } else if (this.discardReturnState) this.show(this.discardReturnState);
+      else this.showRoot();
       return;
     }
-    if (this.state.screen === "error" || this.state.screen === "saved" || this.state.screen === "empty") this.showRoot();
+    if (this.state.screen === "error") {
+      const operation = this.primaryOperation;
+      if (operation) await operation();
+      else if (this.state.primaryAction === "reconnect") await this.reconnect();
+      else if (this.state.primaryAction === "discard") {
+        await this.dependencies.stopAudio("cancelled");
+        await this.dependencies.create.cancel?.();
+        this.showRoot();
+      } else this.showRoot();
+      return;
+    }
+    if (this.state.screen === "saved" || this.state.screen === "empty") this.showRoot();
   }
 
-  async submitSpeech(transcript: string): Promise<void> {
+  async submitSpeech(transcript: string): Promise<boolean> {
     this.show({ screen: "loading", operation: "querying", selectedIndex: 0 });
     try {
       const response = await this.dependencies.query.ask(transcript);
       if (response.state === "answered") this.show({ screen: "answer", answer: response.answer ?? "", sources: response.sources ?? [], selectedIndex: 0 });
       else if (response.state === "closest_matches") this.show(response.matches?.length ? { screen: "closest-matches", matches: response.matches, selectedIndex: 0 } : { screen: "empty", kind: "query", selectedIndex: 0 });
-      else this.show({ screen: "error", reason: response.state === "limit_reached" ? "limit-reached" : response.state === "setup_required" ? "revoked" : "unavailable", primaryAction: response.state === "setup_required" ? "reconnect" : "retry", selectedIndex: 0 });
-    } catch (error) { this.show(requestFailure(error)); }
+      else {
+        const failure: Extract<AppState, { screen: "error" }> = { screen: "error", reason: response.state === "limit_reached" ? "limit-reached" : response.state === "setup_required" ? "revoked" : "unavailable", primaryAction: response.state === "setup_required" ? "reconnect" : response.state === "limit_reached" ? "return" : "retry", selectedIndex: 0 };
+        this.showError(failure, failure.primaryAction === "retry" ? () => this.retrySpeech(transcript) : failure.primaryAction === "reconnect" ? () => this.reconnect() : undefined);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      const failure = requestFailure(error);
+      this.showError(failure, failure.primaryAction === "reconnect" ? () => this.reconnect() : failure.primaryAction === "retry" ? () => this.retrySpeech(transcript) : undefined);
+      return false;
+    }
   }
 
   async systemEvent(kind: "foreground-exit" | "system-exit" | "abnormal-exit"): Promise<void> {
     if (kind === "foreground-exit") return;
+    this.recordingStartGeneration += 1;
     await this.dependencies.stopAudio();
     this.dependencies.closeSockets();
     this.dependencies.unsubscribe();
   }
 
   private async finishRecording(): Promise<void> {
+    if (this.finishingRecording) return this.finishingRecording;
+    const operation = this.finishRecordingOnce();
+    this.finishingRecording = operation;
+    try { await operation; }
+    finally { if (this.finishingRecording === operation) this.finishingRecording = null; }
+  }
+
+  private async finishRecordingOnce(): Promise<void> {
     if (!this.dependencies.stopRecording) return;
     this.show({ screen: "loading", operation: "transcribing", selectedIndex: 0 });
     try {
       const result = await this.dependencies.stopRecording();
-      if (result.purpose === "query") await this.submitSpeech(result.transcript);
-      else if (this.dependencies.create.prepare) {
-        this.show({ screen: "loading", operation: "preparing", selectedIndex: 0 });
-        try { this.applyCreateView(await this.dependencies.create.prepare(result.recordingId, result.capturedAt)); }
-        catch (error) {
-          const failure = requestFailure(error);
-          this.show(failure.reason === "offline" ? { screen: "error", reason: "preparation-failed", primaryAction: "retry", selectedIndex: 0 } : failure);
-        }
-      }
+      if (result.purpose === "query") {
+        if (await this.submitSpeech(result.transcript)) await result.completeHandoff?.();
+      } else await this.prepareRecording(result);
     } catch (error) {
       const failure = requestFailure(error);
-      this.show(failure.reason === "offline" ? { screen: "error", reason: "transcription-failed", primaryAction: "retry", selectedIndex: 0 } : failure);
+      const state = failure.reason === "offline" ? { screen: "error" as const, reason: "transcription-failed" as const, primaryAction: "retry" as const, selectedIndex: 0 } : failure;
+      this.showError(state, state.primaryAction === "reconnect" ? () => this.reconnect() : state.primaryAction === "retry" ? () => this.finishRecording() : undefined);
     }
   }
 
@@ -194,7 +240,10 @@ export class G2AppController {
     try {
       const response = await this.dependencies.read.loadRecent();
       this.show(response.items.length ? { screen: "recent", ...response } : { screen: "empty", kind: "recent", selectedIndex: 0 });
-    } catch (error) { this.show(requestFailure(error)); }
+    } catch (error) {
+      const failure = requestFailure(error);
+      this.showError(failure, failure.primaryAction === "reconnect" ? () => this.reconnect() : failure.primaryAction === "retry" ? () => this.loadRecent() : undefined);
+    }
   }
 
   private async openBody(id: string, title: string, returnTo: "answer" | "recent"): Promise<void> {
@@ -207,11 +256,27 @@ export class G2AppController {
       }
       this.returnState = this.snapshot();
       this.show({ screen: "body", title, pages: paginateUtf8Text(text), pageIndex: 0, selectedIndex: 0, returnTo });
-    } catch { this.show({ screen: "error", reason: "stale", primaryAction: "return", selectedIndex: 0 }); }
+    } catch {
+      const previous = this.snapshot();
+      this.returnState = previous;
+      this.showError({ screen: "error", reason: "stale", primaryAction: "return", selectedIndex: 0 }, async () => {
+        const target = this.returnState;
+        this.returnState = null;
+        if (target) this.show(target);
+        else this.showRoot();
+      });
+    }
   }
 
   private async back(): Promise<void> {
+    if (this.state.screen === "starting-recording") {
+      this.recordingStartGeneration += 1;
+      await this.dependencies.stopAudio("cancelled");
+      this.showRoot();
+      return;
+    }
     if (this.state.screen === "recording") {
+      this.discardReturnState = this.state;
       this.show({ screen: "discard-confirmation", selectedIndex: 0 });
       return;
     }
@@ -229,10 +294,59 @@ export class G2AppController {
     if (view.state === "prepared") this.show({ screen: "confirmation", title: view.title ?? "", message: view.message, selectedIndex: 0 });
     else if (view.state === "queued") this.show({ screen: "queued", selectedIndex: 0, acceptedAt: view.acceptedAt, stillQueued: view.stillQueued });
     else if (view.state === "saved") this.show({ screen: "saved", title: view.receipt?.title, selectedIndex: 0 });
-    else if (view.state === "title_collision") this.show({ screen: "error", reason: "title-collision", primaryAction: "retry", selectedIndex: 0 });
-    else if (view.state === "proposal_expired") this.show({ screen: "error", reason: "proposal-expired", primaryAction: "retry", selectedIndex: 0 });
-    else if (view.state === "commit_unknown") this.show({ screen: "error", reason: "commit-unknown", primaryAction: "wait", selectedIndex: 0 });
-    else if (view.state === "revoked") this.show({ screen: "error", reason: "revoked", primaryAction: "reconnect", selectedIndex: 0 });
-    else this.show({ screen: "error", reason: "preparation-failed", primaryAction: "retry", selectedIndex: 0 });
+    else if (view.state === "title_collision") this.showError({ screen: "error", reason: "title-collision", primaryAction: "retry", selectedIndex: 0 }, () => this.startFreshCreate());
+    else if (view.state === "proposal_expired") this.showError({ screen: "error", reason: "proposal-expired", primaryAction: "retry", selectedIndex: 0 }, () => this.startFreshCreate());
+    else if (view.state === "commit_unknown") this.showError({ screen: "error", reason: "commit-unknown", primaryAction: "wait", selectedIndex: 0 }, () => this.refreshCreate());
+    else if (view.state === "revoked") this.showError({ screen: "error", reason: "revoked", primaryAction: "reconnect", selectedIndex: 0 }, () => this.reconnect());
+    else this.showError(
+      { screen: "error", reason: "preparation-failed", primaryAction: "retry", selectedIndex: 0 },
+      () => this.startFreshCreate(),
+    );
+  }
+
+  private async beginRecording(purpose: "create" | "query"): Promise<void> {
+    const generation = ++this.recordingStartGeneration;
+    this.show({ screen: "starting-recording", purpose, selectedIndex: 0 });
+    try {
+      await this.dependencies.startRecording?.(purpose);
+      if (generation === this.recordingStartGeneration && this.state.screen === "starting-recording") {
+        this.show(reduceAppState(this.state, { type: "recording-started" }));
+      }
+    } catch (error) {
+      if (generation !== this.recordingStartGeneration) return;
+      const failure = requestFailure(error);
+      this.showError(failure, failure.primaryAction === "reconnect" ? () => this.reconnect() : failure.primaryAction === "retry" ? () => this.beginRecording(purpose) : undefined);
+    }
+  }
+
+  private async prepareRecording(result: RecordingResult): Promise<void> {
+    if (!this.dependencies.create.prepare) return;
+    this.show({ screen: "loading", operation: "preparing", selectedIndex: 0 });
+    try {
+      const view = await this.dependencies.create.prepare(result.recordingId, result.capturedAt);
+      await result.completeHandoff?.().catch(() => undefined);
+      this.applyCreateView(view);
+    } catch (error) {
+      const failure = requestFailure(error);
+      const state = failure.reason === "offline" ? { screen: "error" as const, reason: "preparation-failed" as const, primaryAction: "retry" as const, selectedIndex: 0 } : failure;
+      this.showError(state, state.primaryAction === "reconnect" ? () => this.reconnect() : state.primaryAction === "retry" ? () => this.prepareRecording(result) : undefined);
+    }
+  }
+
+  private async retrySpeech(transcript: string): Promise<void> { await this.submitSpeech(transcript); }
+
+  private async refreshCreate(): Promise<void> {
+    const result = await this.dependencies.create.refresh?.();
+    if (result) this.applyCreateView(result);
+  }
+
+  private async reconnect(): Promise<void> {
+    if (this.dependencies.reconnect) await this.dependencies.reconnect();
+    this.show({ screen: "setup-required", selectedIndex: 0 });
+  }
+
+  private async startFreshCreate(): Promise<void> {
+    await this.dependencies.create.cancel?.();
+    await this.beginRecording("create");
   }
 }

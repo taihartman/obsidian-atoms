@@ -9,7 +9,7 @@ import { g2ResultStatusClass } from "./telemetry.mjs";
 
 const CONTENT_SCOPES = Object.freeze({
   transcribe: "g2:transcribe", prepare: "g2:prepare", commit: "g2:commit",
-  status: "g2:status", query: "g2:query", recent: "g2:recent", fetch: "g2:fetch",
+  status: "g2:status", setup: "g2:status", query: "g2:query", recent: "g2:recent", fetch: "g2:fetch",
 });
 const nonceSecret = process.env.G2_DPOP_NONCE_SECRET || randomBytes(32).toString("hex");
 const WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -122,7 +122,9 @@ export async function handleG2WebSocketUpgrade({ req, socket, head, transcriptio
   socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nCache-Control: no-store\r\n\r\n`);
   let pending = Buffer.from(head || []);
   let closed = false;
+  let acceptingAudio = false;
   let idle;
+  let unsubscribe = () => {};
   const sendJson = (value) => socket.write(frame(0x1, Buffer.from(JSON.stringify(value))));
   const finish = (code, reason, cancel = true) => {
     if (closed) return;
@@ -137,11 +139,12 @@ export async function handleG2WebSocketUpgrade({ req, socket, head, transcriptio
     idle = setTimeout(() => finish(1008, "timeout"), idleTimeoutMs);
     idle.unref?.();
   };
-  const unsubscribe = transcription.onSessionClose(opened.sessionId, (reason) => finish(1008, reason, false));
+  unsubscribe = transcription.onSessionClose(opened.sessionId, (reason) => finish(1008, reason, false));
   sendJson({ type: "ready", recordingId: opened.recordingId, nextSequence: opened.nextSequence });
   armIdle();
 
   const consume = () => {
+    if (acceptingAudio) return;
     while (!closed && pending.length >= 2) {
       const first = pending[0]; const second = pending[1];
       const fin = (first & 0x80) !== 0; const opcode = first & 0x0f; const masked = (second & 0x80) !== 0;
@@ -171,6 +174,18 @@ export async function handleG2WebSocketUpgrade({ req, socket, head, transcriptio
         if (payload.length < 6 || (payload.length - 4) % 2 !== 0) { finish(1008, "malformed_audio"); return; }
         const sequence = payload.readUInt32BE(0);
         const result = transcription.push(opened.sessionId, { sequence, pcm: payload.subarray(4) });
+        if (result && typeof result.then === "function") {
+          acceptingAudio = true;
+          void result.then((settled) => {
+            if (closed) return;
+            if (settled.error) { finish(settled.error === "recording_limit" ? 1009 : 1008, settled.error); return; }
+            sendJson({ type: "ack", sequence, nextSequence: settled.nextSequence, duplicate: Boolean(settled.duplicate) });
+          }).catch(() => finish(1011, "authorization_failed")).finally(() => {
+            acceptingAudio = false;
+            consume();
+          });
+          return;
+        }
         if (result.error) { finish(result.error === "recording_limit" ? 1009 : 1008, result.error); return; }
         sendJson({ type: "ack", sequence, nextSequence: result.nextSequence, duplicate: Boolean(result.duplicate) });
         continue;
@@ -274,7 +289,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     const checked = await validateG2Dpop({ proof, method: req.method, targetUrl: target(req, path), nonce, nonceSecret, token, store });
     if (!checked) { json(res, 401, { message: "Request denied" }, extra); return true; }
     const out = await store.g2Refresh(token, checked.jkt);
-    json(res, out ? 200 : 401, out || { message: "Request denied" }, extra); return true;
+    json(res, out ? 200 : 401, out || { error: "grant_revoked" }, extra); return true;
   }
   const route = path.split("/")[3]; const scope = CONTENT_SCOPES[route];
   if (scope) {
@@ -292,6 +307,9 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       origin,
       generation: consent.revision,
     };
+    if (route === "setup" && req.method === "POST" && path === "/v1/g2/setup/status") {
+      json(res, 200, consent, extra); return true;
+    }
     if (route === "transcribe") {
       if (req.method !== "POST" || !transcription) {
         json(res, 404, { message: "Not found" }, extra); return true;
@@ -337,7 +355,7 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
         let pcm;
         try { pcm = Buffer.from(String(body.pcm || ""), "base64"); }
         catch { json(res, 400, { message: "Invalid audio" }, extra); return true; }
-        const result = transcription.push(body.sessionId, { sequence: body.sequence, pcm }, {
+        const result = await transcription.push(body.sessionId, { sequence: body.sequence, pcm }, {
           binding,
           recordingId: body.recordingId,
         });

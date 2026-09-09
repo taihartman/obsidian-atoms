@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
+CREATE INDEX IF NOT EXISTS idx_atom_mirror_email_atom_id ON atom_mirror(email, atom_id);
 CREATE TABLE IF NOT EXISTS mcp_oauth_pending (
   pending_id TEXT PRIMARY KEY,
   payload_json TEXT NOT NULL,
@@ -293,6 +294,27 @@ export function createAskPostgresMethods(pool, deps) {
     return publicG2Consent(rows[0]);
   }
 
+  async function g2AuthorizeWith(queryable, binding, opts = {}, lock = false) {
+    const email = normEmail(binding.email);
+    const lockClause = lock ? " FOR UPDATE OF a, f, c" : "";
+    const row = (await queryable.query(`SELECT a.status, a.period_end, f.revoked,
+        c.revision, c.g2_disclosure_granted, c.g2_disclosure_version,
+        c.ask_mirror_granted, c.ask_mirror_version, c.ask_write_granted, c.ask_write_version
+      FROM accounts a
+      JOIN g2_device_families f ON f.email=a.email AND f.family_id=$2
+      JOIN g2_consent c ON c.email=a.email
+      WHERE a.email=$1${lockClause}`, [email, String(binding.familyId)])).rows[0];
+    const consent = publicG2Consent(row);
+    return Boolean(subscriptionLive(row ? { ...row, periodEnd: row.period_end } : null) && row && !row.revoked &&
+      consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.requireMirror || consent.askMirror.granted) &&
+      (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+  }
+
+  function g2Authorize(binding, opts = {}) {
+    return g2AuthorizeWith(pool, binding, opts);
+  }
+
   async function g2SynchronizeConsent(email, update) {
     const key = normEmail(email); const client = await pool.connect();
     try {
@@ -385,15 +407,20 @@ export function createAskPostgresMethods(pool, deps) {
   }
 
   async function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
-    const result = await pool.query(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
-      lease_until_ms=0, transcript_enc=$1, retained_until_ms=$2 WHERE recording_id=$3 AND email=$4 AND family_id=$5
-      AND generation=$6 AND lease_owner=$7 AND state='transcribing'`, [
-      encryptG2Artifact(String(transcript), {
-        account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
-      }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
-      binding.familyId, binding.generation, owner,
-    ]);
-    return result.rowCount > 0;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, {}, true)) { await client.query("ROLLBACK"); return false; }
+      const result = await client.query(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
+        lease_until_ms=0, transcript_enc=$1, retained_until_ms=$2 WHERE recording_id=$3 AND email=$4 AND family_id=$5
+        AND generation=$6 AND lease_owner=$7 AND state='transcribing'`, [
+        encryptG2Artifact(String(transcript), {
+          account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
+        }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
+        binding.familyId, binding.generation, owner,
+      ]);
+      await client.query("COMMIT"); return result.rowCount > 0;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
 
   async function g2TranscriptionFail(binding, recordingId, owner, state) {
@@ -439,15 +466,21 @@ export function createAskPostgresMethods(pool, deps) {
   }
 
   async function g2TranscriptionTicketConsume(ticketHash, binding, now = Date.now()) {
-    const { rows } = await pool.query(`DELETE FROM g2_transcription_tickets
-      WHERE ticket_hash=$1 RETURNING *`, [String(ticketHash)]);
-    const row = rows[0];
-    if (!row || Number(row.expires_at) < now || (binding.email && row.email !== normEmail(binding.email)) ||
-      (binding.familyId && row.family_id !== String(binding.familyId)) || (binding.jkt && row.key_thumbprint !== String(binding.jkt)) ||
-      (binding.origin && row.origin !== String(binding.origin)) ||
-      (binding.generation !== undefined && Number(row.generation) !== Number(binding.generation))) return null;
-    return { recordingId: row.recording_id, purpose: row.purpose, expiresAt: Number(row.expires_at),
-      binding: { email: row.email, familyId: row.family_id, jkt: row.key_thumbprint, origin: row.origin, generation: Number(row.generation) } };
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_transcription_tickets WHERE ticket_hash=$1", [String(ticketHash)]);
+      const row = rows[0];
+      const valid = row && Number(row.expires_at) >= now && (!binding.email || row.email === normEmail(binding.email)) &&
+        (!binding.familyId || row.family_id === String(binding.familyId)) && (!binding.jkt || row.key_thumbprint === String(binding.jkt)) &&
+        (!binding.origin || row.origin === String(binding.origin)) &&
+        (binding.generation === undefined || Number(row.generation) === Number(binding.generation));
+      const deleted = await client.query("DELETE FROM g2_transcription_tickets WHERE ticket_hash=$1", [String(ticketHash)]);
+      const consumed = valid && deleted.rowCount > 0;
+      await client.query("COMMIT");
+      return valid && consumed ? { recordingId: row.recording_id, purpose: row.purpose, expiresAt: Number(row.expires_at),
+        binding: { email: row.email, familyId: row.family_id, jkt: row.key_thumbprint, origin: row.origin, generation: Number(row.generation) } } : null;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
 
   async function g2TranscriptionTicketsInvalidate(email, familyId, generation) {
@@ -638,6 +671,14 @@ export function createAskPostgresMethods(pool, deps) {
     return null;
   }
 
+  async function mirrorFetchById(email, atomId) {
+    const { rows } = await pool.query(
+      "SELECT * FROM atom_mirror WHERE email=$1 AND atom_id=$2 LIMIT 1",
+      [normEmail(email), String(atomId || "")],
+    );
+    return rows[0] ? rowToPublicAtom(rows[0], { includeBody: true }) : null;
+  }
+
   async function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const { rows } = await pool.query(
@@ -725,14 +766,18 @@ export function createAskPostgresMethods(pool, deps) {
     return { deleted, ...st };
   }
 
-  async function outboxOpenCount(email) {
+  async function outboxOpenCountWith(queryable, email) {
     const e = normEmail(email);
-    const r = await pool.query(
+    const r = await queryable.query(
       `SELECT COUNT(*)::int AS n FROM ask_outbox
        WHERE email = $1 AND status IN ('pending','claimed')`,
       [e],
     );
     return r.rows[0]?.n ?? 0;
+  }
+
+  function outboxOpenCount(email) {
+    return outboxOpenCountWith(pool, email);
   }
 
   function outboxRowFromDb(r) {
@@ -757,7 +802,7 @@ export function createAskPostgresMethods(pool, deps) {
     });
   }
 
-  async function outboxEnqueue(email, opts) {
+  async function outboxEnqueueWith(queryable, email, opts) {
     const e = normEmail(email);
     const kind =
       opts.kind === "continue"
@@ -769,7 +814,7 @@ export function createAskPostgresMethods(pool, deps) {
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";
     if (crid) {
-      const existing = await pool.query(
+      const existing = await queryable.query(
         `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
         [e, crid],
       );
@@ -784,13 +829,13 @@ export function createAskPostgresMethods(pool, deps) {
         };
       }
     }
-    if ((await outboxOpenCount(e)) >= OUTBOX_MAX_OPEN) {
+    if ((await outboxOpenCountWith(queryable, e)) >= OUTBOX_MAX_OPEN) {
       return { ok: false, error: "outbox_full" };
     }
     const idRow = id("obx");
     const now = new Date().toISOString();
     const payload_enc = encryptOutboxPayload(opts.payload);
-    const inserted = await pool.query(
+    const inserted = await queryable.query(
       `INSERT INTO ask_outbox
        (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at, receipt_json)
        VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL, NULL)
@@ -808,7 +853,7 @@ export function createAskPostgresMethods(pool, deps) {
       };
     }
     if (crid) {
-      const existing = await pool.query(
+      const existing = await queryable.query(
         `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
         [e, crid],
       );
@@ -827,6 +872,27 @@ export function createAskPostgresMethods(pool, deps) {
       };
     }
     return { ok: false, error: "enqueue_conflict" };
+  }
+
+  function outboxEnqueue(email, opts) {
+    return outboxEnqueueWith(pool, email, opts);
+  }
+
+  async function g2OutboxEnqueue(binding, opts) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, { requireWrite: true }, true)) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: "setup_required" };
+      }
+      const result = await outboxEnqueueWith(client, binding.email, opts);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
   }
 
   async function outboxReclaimStale(email) {
@@ -1359,6 +1425,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorExpandCoverage,
     mirrorListMissingExpand,
     mirrorFetch,
+    mirrorFetchById,
     mirrorSearch,
     mirrorNeighbors,
     mirrorWipe,
@@ -1367,6 +1434,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,
+    g2OutboxEnqueue,
     outboxPull,
     outboxAck,
     outboxGet,
@@ -1396,7 +1464,7 @@ export function createAskPostgresMethods(pool, deps) {
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
     g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
-    g2RevokeDevice, g2ReadConsent, g2SynchronizeConsent, g2SynchronizeDisclosure,
+    g2RevokeDevice, g2ReadConsent, g2Authorize, g2SynchronizeConsent, g2SynchronizeDisclosure,
     g2TranscriptionClaim, g2TranscriptionComplete, g2TranscriptionFail, g2TranscriptionGet,
     g2TranscriptionTicketPut, g2TranscriptionTicketConsume, g2TranscriptionTicketsInvalidate, g2SweepExpired,
     g2TranscriptionSlotAcquire, g2TranscriptionSlotRelease,

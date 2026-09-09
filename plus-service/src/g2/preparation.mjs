@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { id, subscriptionLive } from "../store/shared.mjs";
+import { id } from "../store/shared.mjs";
 import { OUTBOX_MAX_BODY, OUTBOX_TITLE_MAX, validateOutboxPayload } from "../store/askHelpers.mjs";
 
 export const G2_PREPARATION_TTL_MS = 15 * 60 * 1000;
@@ -46,13 +46,7 @@ export function createG2PreparationService({ store, now = () => Date.now(), gene
   const inFlight = new Set();
 
   async function gates(binding, requireWrite = false) {
-    const account = await store.getAccount?.(binding.email);
-    const consent = await store.g2ReadConsent(binding.email);
-    const devices = await store.g2ListDevices(binding.email);
-    const device = devices.find((candidate) => candidate.id === binding.familyId);
-    return Boolean(subscriptionLive(account) && consent.g2Disclosure.granted &&
-      consent.revision === binding.generation && device && !device.revoked &&
-      (!requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+    return store.g2Authorize(binding, requireWrite ? { requireWrite: true } : {});
   }
 
   function abortMatching({ email, familyId, generation = Number.MAX_SAFE_INTEGER }) {
@@ -167,7 +161,8 @@ export function createG2PreparationService({ store, now = () => Date.now(), gene
       };
       const validated = validateOutboxPayload("create", payload);
       if (!validated.ok) return { state: "invalid_proposal" };
-      const result = await store.outboxEnqueue(binding.email, {
+      if (typeof store.g2OutboxEnqueue !== "function") return { state: "setup_required" };
+      const result = await store.g2OutboxEnqueue(binding, {
         kind: "create", payload: validated.payload, client_request_id: request.commitKey,
         proposal_fingerprint: proposal.fingerprint,
       });

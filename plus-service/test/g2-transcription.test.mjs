@@ -2,9 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createOpenAiBatchTranscriptionProvider,
   createG2TranscriptionService,
   G2_MAX_PCM_BYTES,
 } from "../src/g2/transcription.mjs";
+import { createStore } from "../src/store.mjs";
 
 const binding = Object.freeze({
   email: "owner@atoms.test",
@@ -29,6 +31,101 @@ function controlledProvider() {
 }
 
 describe("G2 bounded transcription", () => {
+  it("rechecks durable authorization across workers before PCM and provider egress", async () => {
+    const store = await createStore({ mode: "memory" });
+    store.ensureAccount(binding.email);
+    await store.grantPeriod(binding.email, { remaining: 50, status: "active", plan: "monthly" });
+    const pair = await store.g2PairMint(binding.email, { scopes: ["g2:transcribe"] });
+    const redeemed = await store.g2PairRedeem(pair.code, { jkt: binding.jkt, name: "Owner G2" });
+    const consent = await store.g2SynchronizeDisclosure(binding.email, {
+      baseRevision: 0,
+      disclosure: { granted: true, version: "g2-audio-v1" },
+      freshGesture: true,
+    });
+    const live = { ...binding, familyId: redeemed.device.id, generation: consent.revision };
+    const repository = {
+      authorize: (candidate) => store.g2Authorize(candidate),
+      ticketPut: (...args) => store.g2TranscriptionTicketPut(...args),
+      ticketConsume: (...args) => store.g2TranscriptionTicketConsume(...args),
+      claim: (candidate, recordingId, owner, leaseMs) =>
+        store.g2TranscriptionClaim(candidate, recordingId, owner, Date.now(), leaseMs),
+      complete: (...args) => store.g2TranscriptionComplete(...args),
+      fail: (...args) => store.g2TranscriptionFail(...args),
+      get: (...args) => store.g2TranscriptionGet(...args),
+    };
+    const provider = controlledProvider();
+    const workerA = createG2TranscriptionService({ provider, repository, authorizationPollMs: 5 });
+    const opened = await workerA.open((await workerA.mintTicket(live, { recordingId: "rec-cross-worker", purpose: "batch" })).value, live);
+    assert.equal((await workerA.push(opened.sessionId, { sequence: 0, pcm: Buffer.from([1, 2]) })).ok, true);
+    let closedAs;
+    workerA.onSessionClose(opened.sessionId, (reason) => { closedAs = reason; });
+
+    await store.g2RevokeDevice(live.email, live.familyId); // worker B
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(closedAs, "revoked", "an idle socket closes without waiting for another PCM frame");
+    assert.equal((await workerA.push(opened.sessionId, { sequence: 1, pcm: Buffer.from([3, 4]) })).error, "session_closed");
+    assert.equal((await workerA.finalize(opened.sessionId)).state, "revoked");
+    assert.equal(provider.calls.length, 0, "revoked capture never reaches the provider");
+  });
+
+  it("aborts in-flight provider work after cross-worker disclosure withdrawal", async () => {
+    const store = await createStore({ mode: "memory" });
+    store.ensureAccount(binding.email);
+    await store.grantPeriod(binding.email, { remaining: 50, status: "active", plan: "monthly" });
+    const pair = await store.g2PairMint(binding.email, { scopes: ["g2:transcribe"] });
+    const redeemed = await store.g2PairRedeem(pair.code, { jkt: binding.jkt, name: "Owner G2" });
+    const consent = await store.g2SynchronizeDisclosure(binding.email, {
+      baseRevision: 0, disclosure: { granted: true, version: "g2-audio-v1" }, freshGesture: true,
+    });
+    const live = { ...binding, familyId: redeemed.device.id, generation: consent.revision };
+    const repository = {
+      authorize: (candidate) => store.g2Authorize(candidate),
+      ticketPut: (...args) => store.g2TranscriptionTicketPut(...args),
+      ticketConsume: (...args) => store.g2TranscriptionTicketConsume(...args),
+      claim: (candidate, recordingId, owner, leaseMs) => store.g2TranscriptionClaim(candidate, recordingId, owner, Date.now(), leaseMs),
+      complete: (...args) => store.g2TranscriptionComplete(...args), fail: (...args) => store.g2TranscriptionFail(...args),
+      get: (...args) => store.g2TranscriptionGet(...args),
+    };
+    const provider = controlledProvider();
+    const workerA = createG2TranscriptionService({ provider, repository, authorizationPollMs: 5 });
+    const opened = await workerA.open((await workerA.mintTicket(live, { recordingId: "rec-withdraw", purpose: "batch" })).value, live);
+    await workerA.push(opened.sessionId, { sequence: 0, pcm: Buffer.from([1, 2]) });
+    const pending = workerA.finalize(opened.sessionId);
+    await new Promise((resolve) => setImmediate(resolve));
+    await store.g2SynchronizeDisclosure(live.email, {
+      baseRevision: live.generation, disclosure: { granted: false, version: "" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(provider.calls[0].signal.aborted, true);
+    provider.calls[0].reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    assert.equal((await pending).state, "revoked");
+  });
+
+  it("bounds OpenAI transcription with a caller-composed deadline", async () => {
+    const caller = new AbortController();
+    let observed;
+    const provider = createOpenAiBatchTranscriptionProvider({
+      apiKey: "sk-test", url: "https://speech.invalid", model: "speech-test", timeoutMs: 5,
+      fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
+        observed = init.signal;
+        init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
+      }),
+    });
+    await assert.rejects(provider.transcribe({ pcm: Buffer.from([1, 2]), sampleRateHz: 16_000, signal: caller.signal }), /speech_provider_timeout/);
+    assert.equal(observed.aborted, true);
+    assert.equal(caller.signal.aborted, false, "provider deadline does not mutate caller signal");
+
+    const cancelled = new AbortController();
+    const callerBound = createOpenAiBatchTranscriptionProvider({
+      apiKey: "sk-test", url: "https://speech.invalid", model: "speech-test", timeoutMs: 1_000,
+      fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(Object.assign(new Error("caller_cancelled"), { name: "AbortError" })), { once: true });
+      }),
+    });
+    const pending = callerBound.transcribe({ pcm: Buffer.from([1, 2]), sampleRateHz: 16_000, signal: cancelled.signal });
+    cancelled.abort("revoked");
+    await assert.rejects(pending, /caller_cancelled/);
+  });
   it("a worker restart takes an expired lease while a late former owner cannot replace the terminal result", async () => {
     let time = 1_000;
     const rows = new Map();

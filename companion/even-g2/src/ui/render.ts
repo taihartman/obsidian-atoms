@@ -29,6 +29,7 @@ export function renderGlasses(state: AppState): GlassesView {
     case "unpaired": return page(G2_COPY.unpaired, [G2_COPY.connect]);
     case "setup-required": return page(G2_COPY.setupRequired, [G2_COPY.reconnect]);
     case "root": return page(G2_COPY.appName, ROOT_ITEMS, state.selectedIndex);
+    case "starting-recording": return page(G2_COPY.checking);
     case "recording": return page(state.purpose === "create" ? G2_COPY.recording : G2_COPY.askRecording);
     case "loading": {
       const labels = { pairing: G2_COPY.pairing, transcribing: G2_COPY.preparing, preparing: G2_COPY.preparing, querying: G2_COPY.preparing, recent: G2_COPY.recentLoading, committing: G2_COPY.queued };
@@ -70,10 +71,17 @@ function containers(view: GlassesView) {
 
 export class EvenGlassesRenderer {
   private started = false;
+  private renderTail: Promise<void> = Promise.resolve();
   constructor(private readonly bridge: Pick<EvenAppBridge, "createStartUpPageContainer" | "rebuildPageContainer">) {}
 
-  async render(state: AppState): Promise<void> {
+  render(state: AppState): Promise<void> {
     const content = containers(renderGlasses(state));
+    const rendered = this.renderTail.then(() => this.renderContent(content));
+    this.renderTail = rendered.catch(() => undefined);
+    return rendered;
+  }
+
+  private async renderContent(content: ReturnType<typeof containers>): Promise<void> {
     if (!this.started) {
       const result = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(content));
       if (result !== StartUpPageCreateResult.success) throw new Error("startup_page_unavailable");

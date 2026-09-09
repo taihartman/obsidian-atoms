@@ -104,6 +104,19 @@ rows:
     owner: product-engineering
     lastVerified: 2026-09-08
     notes: Exact packaged-app Origin applies.
+  - id: G2_SETUP_STATUS_015
+    path: /v1/g2/setup/status
+    operation: read
+    allowedActors: [current g2a_ family member with g2:status scope, matching DPoP proof, and live Plus entitlement]
+    deniedActors: [wrong scope, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Account-scoped setup decisions and their revision only; returns no account identity, token, atom, or mirror content.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-tenant consent disclosure, proof replay, token theft, stale setup acceptance, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Additive recovery endpoint. Older clients do not call it; newer clients against an older server fail closed as Setup required.
   - id: G2_CONTENT_006
     path: /v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}
     operation: call

@@ -60,6 +60,21 @@ describe("G2 create flow", () => {
     expect(h.saved()).toMatchObject({ state: "commit_unknown", outboxId: "obx_one", commitKey: "commit_unknown" });
   });
 
+  it("lets Wait reconcile a persisted unknown commit back to queued or saved", async () => {
+    const h = harness();
+    h.api.status = async () => ({ state: "not_found" });
+    const flow = new CreateFlow(h.api, h.recovery, () => "commit_wait");
+    await flow.prepare("rec_wait", "2026-09-08T17:14:03-04:00");
+    await flow.confirm();
+    await flow.refresh();
+    expect(h.saved()).toMatchObject({ state: "commit_unknown", outboxId: "obx_one" });
+
+    h.api.status = async () => ({ state: "queued" });
+    expect(await flow.refresh()).toMatchObject({ state: "queued" });
+    h.api.status = async () => ({ state: "saved", receipt: { path: "Atoms/A thought from the walk.md", title: "A thought from the walk" } });
+    expect(await flow.refresh()).toMatchObject({ state: "saved", receipt: { title: "A thought from the walk" } });
+  });
+
   it("renders title collision and revoked access as truthful terminal states", async () => {
     for (const [serverState, message] of [
       ["title_collision", "That title already exists"],

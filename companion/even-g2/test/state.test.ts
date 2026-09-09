@@ -7,7 +7,9 @@ describe("G2 app state", () => {
   it("keeps the approved root order and requires confirmation before create", () => {
     expect(ROOT_ACTIONS).toEqual(["New atom", "Ask atoms", "Recent atoms"]);
     const ready = { ...initialState(), screen: "root" as const };
-    const recording = reduceAppState(ready, { type: "select-root", index: 0 });
+    const starting = reduceAppState(ready, { type: "select-root", index: 0 });
+    expect(starting.screen).toBe("starting-recording");
+    const recording = reduceAppState(starting, { type: "recording-started" });
     expect(recording.screen).toBe("recording");
     const prepared = reduceAppState(recording, { type: "prepared", title: "A walk thought" });
     expect(prepared).toMatchObject({ screen: "confirmation", title: "A walk thought", selectedIndex: 0 });

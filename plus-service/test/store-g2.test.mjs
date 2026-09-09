@@ -8,10 +8,19 @@ describe("G2 device store contract", () => {
   for (const mode of modes) {
     it(`${mode}: G2_STREAM_AUDIO_011 leases and terminal results have one durable owner`, async () => {
       await withStore(mode, async (store) => {
+        const email = `lease-${mode}@atoms.test`;
+        store.ensureAccount(email);
+        await store.grantPeriod(email, { status: "active" });
+        const pair = await store.g2PairMint(email, { scopes: ["g2:transcribe"] });
+        const redeemed = await store.g2PairRedeem(pair.code, { jkt: "lease-jkt", name: "Lease G2" });
+        const consent = await store.g2SynchronizeDisclosure(email, {
+          baseRevision: 0, freshGesture: true,
+          disclosure: { granted: true, version: "g2-voice-v1" },
+        });
         const binding = {
-          email: `lease-${mode}@atoms.test`,
-          familyId: "g2d-lease",
-          generation: 3,
+          email,
+          familyId: redeemed.device.id,
+          generation: consent.revision,
         };
         const first = await store.g2TranscriptionClaim(binding, "rec-lease", "worker-a", 1_000, 30_000);
         assert.equal(first.acquired, true);
@@ -24,6 +33,13 @@ describe("G2 device store contract", () => {
         const terminal = await store.g2TranscriptionGet(binding, "rec-lease");
         assert.equal(terminal.state, "completed");
         assert.equal(terminal.transcript, "winner");
+
+        assert.equal((await store.g2TranscriptionClaim(binding, "rec-withdrawn", "worker-c", 33_000, 30_000)).acquired, true);
+        await store.g2SynchronizeDisclosure(email, {
+          baseRevision: binding.generation,
+          disclosure: { granted: false, version: "" },
+        });
+        assert.equal(await store.g2TranscriptionComplete(binding, "rec-withdrawn", "worker-c", "must not persist"), false);
       });
     });
 

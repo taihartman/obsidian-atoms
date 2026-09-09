@@ -58,4 +58,162 @@ describe("G2 lifecycle controller", () => {
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(stopRecording).toHaveBeenCalledOnce();
   });
+
+  it("retains failed preparation context so Try again retries preparation, not transcription", async () => {
+    const prepare = vi.fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ state: "prepared", title: "Exact retry" });
+    const completeHandoff = vi.fn(async () => undefined);
+    const stopRecording = vi.fn(async () => ({
+      purpose: "create" as const,
+      recordingId: "rec-retry",
+      capturedAt: "2026-09-08T20:00:00Z",
+      transcript: "exact transcript",
+      completeHandoff,
+    }));
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(), stopRecording,
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }), prepare },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+
+    app.showRoot();
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    await app.handle({ kind: "click", envelope: "text" });
+    expect(app.snapshot()).toMatchObject({ screen: "error", reason: "preparation-failed", primaryAction: "retry" });
+    expect(completeHandoff).not.toHaveBeenCalled();
+
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(stopRecording).toHaveBeenCalledOnce();
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(completeHandoff).toHaveBeenCalledOnce();
+    expect(app.snapshot()).toMatchObject({ screen: "confirmation", title: "Exact retry" });
+  });
+
+  it("runs Wait and Return actions against their retained operation context", async () => {
+    const refresh = vi.fn(async () => ({ state: "queued" as const, stillQueued: true }));
+    const openById = vi.fn().mockRejectedValue(new Error("stale"));
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(),
+      create: {
+        restore: async () => ({ state: "prepared", title: "Title" }),
+        confirm: async () => ({ state: "commit_unknown" }),
+        refresh,
+      },
+      query: { ask: async () => ({ state: "closest_matches", matches: [{ id: "atm-one", title: "One" }] }), openSource: () => "atm-one" },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById },
+    });
+
+    await app.start({ paired: true, setupReady: true });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "error", reason: "commit-unknown", primaryAction: "wait" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(app.snapshot()).toMatchObject({ screen: "queued", stillQueued: true });
+
+    // A stale body should return to the source screen, not discard the context and jump to root.
+    await app.submitSpeech("question");
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "error", reason: "stale", primaryAction: "return" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot().screen).toBe("closest-matches");
+  });
+
+  it("does not let a repeated New atom gesture stop a recording whose start is unfinished", async () => {
+    let releaseStart!: () => void;
+    const startRecording = vi.fn(() => new Promise<void>((resolve) => { releaseStart = resolve; }));
+    const stopRecording = vi.fn(async () => ({ purpose: "create" as const, recordingId: "rec", capturedAt: "now", transcript: "text" }));
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(), startRecording, stopRecording,
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }) },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+    app.showRoot();
+
+    const first = app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "starting-recording", purpose: "create" });
+    await app.handle({ kind: "click", envelope: "text" });
+    expect(stopRecording).not.toHaveBeenCalled();
+    releaseStart();
+    await first;
+    expect(app.snapshot()).toMatchObject({ screen: "recording", purpose: "create" });
+  });
+
+  it("cancels audio when Back leaves a recording whose start is unfinished", async () => {
+    let releaseStart!: () => void;
+    const startRecording = vi.fn(() => new Promise<void>((resolve) => { releaseStart = resolve; }));
+    const stopAudio = vi.fn(async () => undefined);
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio, closeSockets: vi.fn(), unsubscribe: vi.fn(), startRecording,
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }) },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+    app.showRoot();
+
+    const start = app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "starting-recording", purpose: "create" });
+
+    await app.handle({ kind: "scroll-up", envelope: "text" });
+    expect(app.snapshot()).toMatchObject({ screen: "root", selectedIndex: 0 });
+
+    releaseStart();
+    await start;
+
+    expect(stopAudio).toHaveBeenCalledOnce();
+    expect(stopAudio).toHaveBeenCalledWith("cancelled");
+    expect(app.snapshot()).toMatchObject({ screen: "root", selectedIndex: 0 });
+  });
+
+  it("performs visible Reconnect and Discard actions instead of returning silently", async () => {
+    const reconnect = vi.fn(async () => undefined);
+    const stopAudio = vi.fn(async () => undefined);
+    const cancel = vi.fn(async () => undefined);
+    const startRecording = vi.fn()
+      .mockRejectedValueOnce(new Error("setup_required"))
+      .mockRejectedValueOnce(new Error("recovery_full"));
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio, closeSockets: vi.fn(), unsubscribe: vi.fn(), reconnect, startRecording,
+      create: { restore: async () => ({ state: "idle" }), confirm: async () => ({ state: "idle" }), cancel },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+
+    app.showRoot();
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "error", primaryAction: "reconnect" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(reconnect).toHaveBeenCalledOnce();
+    expect(app.snapshot().screen).toBe("setup-required");
+
+    app.showRoot();
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "error", reason: "recovery-full", primaryAction: "discard" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(stopAudio).toHaveBeenCalledWith("cancelled");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(app.snapshot().screen).toBe("root");
+  });
+
+  it("starts a fresh capture when a rejected create response offers Retry", async () => {
+    const startRecording = vi.fn(async () => undefined);
+    const cancel = vi.fn(async () => undefined);
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(), startRecording,
+      create: { restore: async () => ({ state: "prepared", title: "Draft" }), confirm: async () => ({ state: "rejected" }), cancel },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+
+    await app.start({ paired: true, setupReady: true });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "error", reason: "preparation-failed", primaryAction: "retry" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(startRecording).toHaveBeenCalledWith("create");
+    expect(app.snapshot()).toMatchObject({ screen: "recording", purpose: "create" });
+  });
 });

@@ -68,9 +68,11 @@ const g2Transcription = createG2TranscriptionService({
     apiKey: config.g2Enabled && config.g2TranscriptionEnabled ? config.g2OpenAiApiKey : "",
     url: config.openAiTranscriptionUrl,
     model: config.openAiTranscriptionModel,
+    timeoutMs: config.g2TranscriptionTimeoutMs,
   }),
   maxConcurrentPerAccount: config.g2MaxConcurrentPerAccount,
   repository: {
+    authorize: (binding) => store.g2Authorize(binding),
     ticketPut: (ticketHash, binding, ticket) =>
       store.g2TranscriptionTicketPut(ticketHash, binding, ticket),
     ticketConsume: (ticketHash, binding, now) =>
