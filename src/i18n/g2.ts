@@ -3,7 +3,7 @@ export const G2_EN = {
   connect: {
     name: "Even G2",
     signedOut: "Sign in to Atoms Plus to connect Even G2.",
-    unavailable: "A current Atoms Plus subscription is required to connect Even G2.",
+    unavailable: "Atoms Plus required.",
     description: "Create a short-lived code, then enter it in the Atoms app on your glasses.",
     rowDescription: (ready: boolean) => `${ready ? "Ready" : "Setup required"}. Create a short-lived code, then enter it in the Atoms app on your glasses.`,
     label: "Get code",

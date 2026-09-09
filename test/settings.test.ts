@@ -2965,7 +2965,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     inactive.tab.display();
     open(inactive.tab, "Connect Claude or ChatGPT");
     expect(rowNames(inactive.tab)).toContain("Even G2");
-    expect(inactive.tab.containerEl.textContent).toContain("current Atoms Plus subscription");
+    expect(row(inactive.tab, "Even G2").textContent).toContain("Atoms Plus required.");
 
     const request = async (p: { url: string }) => ({
       status: 200,
