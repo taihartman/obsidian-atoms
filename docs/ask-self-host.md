@@ -207,7 +207,7 @@ Paste the copied MCP URL. Complete OAuth (email + magic link, or the pairing cod
 
 Claude Team / Enterprise: an Owner adds it first under Organization settings → Connectors → Add → Custom → Web.
 
-**ChatGPT web:** Settings → **Plugins** (called **Apps** on some accounts) → turn on Developer mode, then return to Plugins and choose **Create app**. Name it **Atoms Plus**, paste the public MCP URL as the server URL, keep OAuth, create it, then choose **Sign in with Atoms Plus**. Pro can use read/fetch this way. Full write MCP is on Business / Enterprise / Edu.
+**ChatGPT web:** In the current Plugins UI, go to **Settings → Security → Developer mode** and turn it on. On accounts that use Apps, go to **Settings → Apps → Advanced Settings** and turn on **Developer mode**. Then return to **Plugins / Apps → Create app**. Name it **Atoms Plus**, paste the public MCP URL as the server URL, keep OAuth, create it, then choose **Sign in with Atoms Plus**. Pro can use read/fetch this way. Full write MCP is on Business / Enterprise / Edu.
 
 A successful ChatGPT sign-in returns to `chatgpt.com`. If it lands on `127.0.0.1` or localhost instead, close that tab and restart from ChatGPT web. Loopback callbacks are for local clients, not a ChatGPT custom app, and localhost is never the MCP server URL.
 

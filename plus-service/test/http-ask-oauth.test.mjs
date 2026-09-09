@@ -346,6 +346,93 @@ describe("OAuth Ask AS", () => {
     }
   });
 
+  it("spoofed ChatGPT client_id with loopback callback stays generic", async () => {
+    const { challenge } = pkce();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set(
+      "client_id",
+      "https://chatgpt.com/oauth/spoof/client.json",
+    );
+    authUrl.searchParams.set(
+      "redirect_uri",
+      "http://127.0.0.1:62398/callback",
+    );
+    authUrl.searchParams.set("state", "st_spoof");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+
+    const page = await fetch(authUrl);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /Connect Atoms Plus to your AI app/i);
+    assert.doesNotMatch(html, /ChatGPT/);
+  });
+
+  it("Claude callback drives client-aware sign-in and error redisplay", async () => {
+    const { challenge } = pkce();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", "opaque-claude-client");
+    authUrl.searchParams.set("redirect_uri", CLAUDE_CALLBACK);
+    authUrl.searchParams.set("state", "st_claude_copy");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+
+    const page = await fetch(authUrl);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /Connect Atoms Plus to Claude/i);
+    const pending = html.match(/name="pending_id" value="([^"]+)"/);
+    assert.ok(pending);
+
+    const redisplay = await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        pending_id: pending[1],
+        mode: "email",
+        email: "not-an-email",
+      }).toString(),
+    });
+    assert.equal(redisplay.status, 400);
+    const redisplayHtml = await redisplay.text();
+    assert.match(redisplayHtml, /Connect Atoms Plus to Claude/i);
+    assert.match(redisplayHtml, /Valid Atoms Plus email required/i);
+  });
+
+  it("ChatGPT magic-link confirmation uses the trusted client name", async () => {
+    const { challenge } = pkce();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", "opaque-chatgpt-client");
+    authUrl.searchParams.set("redirect_uri", CHATGPT_LEGACY_CALLBACK);
+    authUrl.searchParams.set("state", "st_chatgpt_magic");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+
+    const page = await fetch(authUrl);
+    const html = await page.text();
+    const pending = html.match(/name="pending_id" value="([^"]+)"/);
+    assert.ok(pending);
+    const sent = await fetch(`${BASE}/oauth/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        pending_id: pending[1],
+        mode: "email",
+        email: "chatgpt-copy@atoms.test",
+      }).toString(),
+    });
+    assert.equal(sent.status, 200);
+    const sentHtml = await sent.text();
+    assert.match(sentHtml, /Atoms Plus permissions for ChatGPT/i);
+    assert.doesNotMatch(sentHtml, /your AI app/i);
+  });
+
   it("consent deny redirect includes iss (RFC 9207)", async () => {
     const { challenge } = pkce();
     const state = "st_deny_iss";

@@ -4,6 +4,7 @@ import {
   CLAUDE_CALLBACK,
   CHATGPT_LEGACY_CALLBACK,
   isAllowedRedirectUri,
+  oauthClientDisplayName,
   oauthClientLabel,
 } from "../src/oauth/constants.mjs";
 
@@ -64,9 +65,9 @@ describe("isAllowedRedirectUri", () => {
 });
 
 describe("oauthClientLabel", () => {
-  it("labels ChatGPT and Claude", () => {
+  it("labels ChatGPT and Claude only from trusted hosted callbacks", () => {
     assert.equal(
-      oauthClientLabel("https://chatgpt.com/oauth/x/client.json"),
+      oauthClientLabel("opaque-dcr-client", CHATGPT_LEGACY_CALLBACK),
       "ChatGPT",
     );
     assert.equal(
@@ -74,7 +75,39 @@ describe("oauthClientLabel", () => {
       "ChatGPT",
     );
     assert.equal(
-      oauthClientLabel("https://claude.ai/api/mcp/auth_callback"),
+      oauthClientLabel("opaque-dcr-client", CLAUDE_CALLBACK),
+      "Claude",
+    );
+  });
+
+  it("does not trust spoofed client IDs or loopback callbacks", () => {
+    assert.equal(
+      oauthClientLabel(
+        "https://chatgpt.com/oauth/spoof/client.json",
+        "http://127.0.0.1:62398/callback",
+      ),
+      "AI app",
+    );
+    assert.equal(
+      oauthClientLabel(
+        "https://claude.ai/api/mcp/auth_callback",
+        "http://localhost:62398/callback",
+      ),
+      "AI app",
+    );
+    assert.equal(oauthClientLabel("opaque-dcr-client", ""), "AI app");
+  });
+
+  it("uses one safe display name for untrusted clients", () => {
+    assert.equal(
+      oauthClientDisplayName(
+        "https://chatgpt.com/oauth/spoof/client.json",
+        "http://127.0.0.1:62398/callback",
+      ),
+      "your AI app",
+    );
+    assert.equal(
+      oauthClientDisplayName("opaque-dcr-client", CLAUDE_CALLBACK),
       "Claude",
     );
   });

@@ -7,6 +7,7 @@ import { checkRateLimit, clientIp } from "../ratelimit.mjs";
 import {
   isAllowedRedirectUri,
   issuerUrl,
+  oauthClientDisplayName,
   oauthClientLabel,
   mcpResourceUrl,
   parseRequestedScopes,
@@ -237,8 +238,6 @@ export async function handleOauthRoutes({
       scope: scopes.join(" "),
       scopes,
     });
-    const clientLabel = oauthClientLabel(clientId, redirectUri);
-
     const bsId = getBrowserSessionId(req);
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
     if (bs?.email) {
@@ -248,13 +247,23 @@ export async function handleOauthRoutes({
         writeHtml(
           res,
           200,
-          authorizeChooserForm(pendingId, bs.email, "", clientLabel),
+          authorizeChooserForm(
+            pendingId,
+            bs.email,
+            "",
+            clientId,
+            redirectUri,
+          ),
         );
         return true;
       }
     }
 
-    writeHtml(res, 200, authorizeEmailForm(pendingId, "", clientLabel));
+    writeHtml(
+      res,
+      200,
+      authorizeEmailForm(pendingId, "", clientId, redirectUri),
+    );
     return true;
   }
 
@@ -273,11 +282,6 @@ export async function handleOauthRoutes({
       );
       return true;
     }
-    const clientLabel = oauthClientLabel(
-      pending.clientId || "",
-      pending.redirectUri || "",
-    );
-
     async function showForm(err) {
       const bsId = getBrowserSessionId(req);
       const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
@@ -287,12 +291,27 @@ export async function handleOauthRoutes({
           writeHtml(
             res,
             400,
-            authorizeChooserForm(pendingId, bs.email, err, clientLabel),
+            authorizeChooserForm(
+              pendingId,
+              bs.email,
+              err,
+              pending.clientId || "",
+              pending.redirectUri || "",
+            ),
           );
           return;
         }
       }
-      writeHtml(res, 400, authorizeEmailForm(pendingId, err, clientLabel));
+      writeHtml(
+        res,
+        400,
+        authorizeEmailForm(
+          pendingId,
+          err,
+          pending.clientId || "",
+          pending.redirectUri || "",
+        ),
+      );
     }
 
     // Continue as existing browser session
@@ -306,7 +325,8 @@ export async function handleOauthRoutes({
           authorizeEmailForm(
             pendingId,
             "Session expired — sign in again",
-            clientLabel,
+            pending.clientId || "",
+            pending.redirectUri || "",
           ),
         );
         return true;
@@ -330,7 +350,8 @@ export async function handleOauthRoutes({
         consentForm(
           pendingId,
           a.email,
-          clientLabel,
+          pending.clientId || "",
+          pending.redirectUri || "",
         ),
       );
       return true;
@@ -371,7 +392,8 @@ export async function handleOauthRoutes({
       const html = consentForm(
         pendingId,
         a.email,
-        clientLabel,
+        pending.clientId || "",
+        pending.redirectUri || "",
       );
       writeHtml(res, 200, html, {
         "set-cookie": [
@@ -410,7 +432,7 @@ export async function handleOauthRoutes({
       200,
       simpleMessage(
         "Check your email",
-        `Open the sign-in link in this same browser, then approve the Atoms Plus permissions for ${clientLabel === "AI app" ? "your AI app" : clientLabel}.`,
+        `Open the sign-in link in this same browser, then approve the Atoms Plus permissions for ${oauthClientDisplayName(pending.clientId || "", pending.redirectUri || "")}.`,
       ),
     );
     return true;
@@ -428,15 +450,20 @@ export async function handleOauthRoutes({
       );
       return true;
     }
-    const clientLabel = oauthClientLabel(
-      pending.clientId || "",
-      pending.redirectUri || "",
-    );
     const bsId = getBrowserSessionId(req);
     const bs = bsId ? await store.mcpGetBrowserSession(bsId) : null;
     const email = pending.email || bs?.email;
     if (!email) {
-      writeHtml(res, 200, authorizeEmailForm(pendingId, "", clientLabel));
+      writeHtml(
+        res,
+        200,
+        authorizeEmailForm(
+          pendingId,
+          "",
+          pending.clientId || "",
+          pending.redirectUri || "",
+        ),
+      );
       return true;
     }
     const a = await store.getAccount(email);
@@ -457,7 +484,8 @@ export async function handleOauthRoutes({
       consentForm(
         pendingId,
         email,
-        clientLabel,
+        pending.clientId || "",
+        pending.redirectUri || "",
       ),
     );
     return true;

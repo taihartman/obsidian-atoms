@@ -1,4 +1,5 @@
 import { escHtml, renderPage } from "../html/shell.mjs";
+import { oauthClientDisplayName } from "./constants.mjs";
 
 function htmlPage(title, bodyInner) {
   return renderPage({
@@ -8,13 +9,13 @@ function htmlPage(title, bodyInner) {
   });
 }
 
-function clientName(clientLabel) {
-  const label = String(clientLabel || "").trim();
-  return label && label !== "AI app" ? label : "your AI app";
-}
-
-export function authorizeEmailForm(pendingId, error = "", clientLabel = "") {
-  const client = escHtml(clientName(clientLabel));
+export function authorizeEmailForm(
+  pendingId,
+  error = "",
+  clientId = "",
+  redirectUri = "",
+) {
+  const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
   return htmlPage(
     "Atoms Plus — Sign in",
     `<h1>Connect Atoms Plus to ${client}</h1>
@@ -48,9 +49,10 @@ export function authorizeChooserForm(
   pendingId,
   sessionEmail,
   error = "",
-  clientLabel = "",
+  clientId = "",
+  redirectUri = "",
 ) {
-  const client = escHtml(clientName(clientLabel));
+  const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
   return htmlPage(
     "Atoms Plus — Choose account",
     `<h1>Choose your Atoms Plus account</h1>
@@ -82,8 +84,13 @@ ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
   );
 }
 
-export function consentForm(pendingId, email, clientLabel) {
-  const client = escHtml(clientName(clientLabel));
+export function consentForm(
+  pendingId,
+  email,
+  clientId = "",
+  redirectUri = "",
+) {
+  const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
   return htmlPage(
     "Atoms Plus — Allow access",
     `<h1>Connect Atoms Plus to ${client}?</h1>

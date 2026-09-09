@@ -95,25 +95,40 @@ export function isAllowedRedirectUri(uri) {
 }
 
 /**
- * Label for OAuth consent from client_id / redirect host.
+ * Trusted label for OAuth consent. Client IDs are attacker-controlled, so only
+ * an already-allowlisted hosted redirect URI may identify the AI provider.
+ * @param {string} _clientId
+ * @param {string} [redirectUri]
+ */
+export function oauthClientLabel(_clientId, redirectUri = "") {
+  const redir = String(redirectUri || "");
+  if (redir === CLAUDE_CALLBACK) return "Claude";
+  if (redir === CHATGPT_LEGACY_CALLBACK) return "ChatGPT";
+  if (!isAllowedRedirectUri(redir)) return "AI app";
+  try {
+    const u = new URL(redir);
+    if (
+      u.protocol === "https:" &&
+      u.hostname === "chatgpt.com" &&
+      u.pathname.startsWith("/connector/oauth/")
+    ) {
+      return "ChatGPT";
+    }
+  } catch {
+    // Malformed redirects are untrusted and stay generic.
+  }
+  return "AI app";
+}
+
+/**
+ * User-facing OAuth client name. Keep every page and message on this helper so
+ * unknown, opaque, and loopback clients cannot display a provider identity.
  * @param {string} clientId
  * @param {string} [redirectUri]
  */
-export function oauthClientLabel(clientId, redirectUri = "") {
-  const id = String(clientId || "");
-  const redir = String(redirectUri || "");
-  if (
-    id.includes("chatgpt.com") ||
-    redir.includes("chatgpt.com") ||
-    id.toLowerCase().includes("openai")
-  ) {
-    return "ChatGPT";
-  }
-  if (id.includes("claude.ai") || redir.includes("claude.ai")) {
-    return "Claude";
-  }
-  if (id.startsWith("http")) return "AI app";
-  return id || "AI app";
+export function oauthClientDisplayName(clientId, redirectUri = "") {
+  const label = oauthClientLabel(clientId, redirectUri);
+  return label === "ChatGPT" || label === "Claude" ? label : "your AI app";
 }
 
 /**
