@@ -81,7 +81,7 @@ Informational targets: unpaired, setup required, recording, transcribing, prepar
 - Security contract: matrix validation passed; generated view includes `G2_SETUP_STATUS_015` and matches its YAML source.
 - Settings live drive: version 0.8.20, loaded-plugin and installed-bundle checks passed, with zero `window.error`, `unhandledrejection`, `console.error`, or fetch attempts.
 - Craft: `/tmp/even-g2-qa/04-inactive-copy-fix-3.png` has readable hierarchy, adequate row/control size, clear spacing, and no clipping or stacked-chrome collision in the decisive G2 row.
-- Live Postgres opt-in tests were not run because `TEST_DATABASE_URL` is unavailable locally; CI owns that configured lane.
+- CI ran the live Postgres lane with `TEST_DATABASE_URL`: 794 tests passed, including encrypted G2 transcript tamper detection. Local Postgres remains unavailable.
 
 ## Findings
 
@@ -124,7 +124,7 @@ Focused post-fix proof: lifecycle 9/9 passed; the temporary integration repro re
 - End-to-end pairing with a real subscribed Plus account.
 - Provider-backed voice transcription or metadata generation with private credentials.
 - Mirror-confirmed vault receipt loop on a paired throwaway vault.
-- Production deployment, key rotation, spend caps, telemetry dashboards, rollback, and live Postgres without `TEST_DATABASE_URL`.
+- Production deployment, key rotation, spend caps, telemetry dashboards, and rollback.
 
 ## Learnings
 
