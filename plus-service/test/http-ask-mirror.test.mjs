@@ -2,6 +2,11 @@
  * HTTP Ask mirror against spawned plus-service.
  */
 import { describe, it, before, after } from "node:test";
+/*
+ * Matrix coverage:
+ * PAIR_PUBLIC_MINT_001
+ * REVIEW_MIRROR_SEED_001
+ */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -376,5 +381,39 @@ describe("HTTP ask mirror", () => {
       body: "{}",
     });
     assert.equal(bad.status, 401);
+  });
+
+  it("reserved reviewer sessions cannot remint credentials or mutate fixtures", async () => {
+    const sess = await sessionFor("http-guard@review.tryatoms.app");
+    const headers = {
+      authorization: `Bearer ${sess}`,
+      "content-type": "application/json",
+    };
+
+    const pair = await fetch(`${BASE}/v1/ask/mcp/pair`, {
+      method: "POST",
+      headers,
+      body: "{}",
+    });
+    assert.equal(pair.status, 403, await pair.clone().text());
+
+    const upsert = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        atoms: [
+          {
+            path: "Atoms/Public overwrite.md",
+            title: "Public overwrite",
+            body: "must not land",
+          },
+        ],
+      }),
+    });
+    assert.equal(upsert.status, 403, await upsert.clone().text());
+
+    const status = await fetch(`${BASE}/v1/ask/mirror/status`, { headers });
+    assert.equal(status.status, 200, await status.clone().text());
+    assert.equal((await status.json()).count, 0);
   });
 });

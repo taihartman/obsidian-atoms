@@ -27,25 +27,78 @@ export function verifyPkce(codeVerifier, challenge, method = "S256") {
 
 /** Pair code TTL (KTD2). */
 export const PAIR_CODE_TTL_MS = 10 * 60 * 1000;
+/** Operator pair-code ceiling. Public callers still use PAIR_CODE_TTL_MS. */
+export const MAX_PAIR_CODE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+/** 26 Crockford symbols encode 130 bits for the reviewer credential. */
+export const REVIEWER_PAIR_CODE_LENGTH = 26;
+
+/**
+ * Resolve a pair-code lifetime. The optional override is for trusted operator
+ * entrypoints; HTTP callers do not pass it.
+ * @param {{ ttlMs?: number }} [opts]
+ */
+export function resolvePairCodeTtlMs(opts = {}) {
+  if (opts.ttlMs === undefined) return PAIR_CODE_TTL_MS;
+  if (
+    typeof opts.ttlMs !== "number" ||
+    !Number.isFinite(opts.ttlMs) ||
+    opts.ttlMs <= 0 ||
+    opts.ttlMs > MAX_PAIR_CODE_TTL_MS
+  ) {
+    throw new RangeError(
+      `ttlMs must be a finite positive number no greater than ${MAX_PAIR_CODE_TTL_MS}`,
+    );
+  }
+  return opts.ttlMs;
+}
 
 /** Crockford Base32 without I L O U (KTD1). */
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /**
- * 8-char Crockford pair code (plaintext once). Display as XXXX-XXXX via formatPairCodeDisplay.
+ * Generate a Crockford pair code. Public callers use the 8-symbol default;
+ * the reserved reviewer path supplies its longer credential length.
  */
-export function generatePairCode() {
+export function generatePairCode(length = 8) {
   let s = "";
-  for (let i = 0; i < 8; i++) s += CROCKFORD[randomInt(CROCKFORD.length)];
+  for (let i = 0; i < length; i++) s += CROCKFORD[randomInt(CROCKFORD.length)];
   return s;
+}
+
+/**
+ * Resolve the intentionally narrow mint modes. Ordinary callers cannot widen
+ * their TTL or make a reusable credential; the operator reviewer entrypoint
+ * must opt in explicitly and use a reserved reviewer identity.
+ * @param {string} email
+ * @param {{ reviewerCredential?: boolean, ttlMs?: number }} [opts]
+ */
+export function resolvePairCodeMintOptions(email, opts = {}) {
+  if (opts.reviewerCredential !== true) {
+    if (Object.prototype.hasOwnProperty.call(opts, "ttlMs")) {
+      throw new Error("Custom ttlMs requires reviewer credential mode");
+    }
+    return {
+      ttlMs: PAIR_CODE_TTL_MS,
+      reusable: false,
+      codeLength: 8,
+    };
+  }
+  if (!isReviewerIdentity(email)) {
+    throw new Error("Reusable credentials require an @review.tryatoms.app identity");
+  }
+  return {
+    ttlMs: resolvePairCodeTtlMs(opts),
+    reusable: true,
+    codeLength: REVIEWER_PAIR_CODE_LENGTH,
+  };
 }
 
 export function formatPairCodeDisplay(code) {
   const c = String(code || "")
     .replace(/-/g, "")
     .toUpperCase();
-  if (c.length !== 8) return c;
-  return `${c.slice(0, 4)}-${c.slice(4)}`;
+  if (c.length < 8 || !/^[0-9A-HJKMNP-TV-Z]+$/.test(c)) return c;
+  return c.match(/.{1,4}/g)?.join("-") || c;
 }
 
 /** Normalize user paste: strip spaces/hyphens, uppercase. */
@@ -73,6 +126,11 @@ export function normEmail(email) {
   return String(email || "")
     .trim()
     .toLowerCase();
+}
+
+/** Reserved identities provisioned only by the OpenAI reviewer operator path. */
+export function isReviewerIdentity(email) {
+  return /^[a-z0-9][a-z0-9._+-]*@review\.tryatoms\.app$/.test(normEmail(email));
 }
 
 /** Default atom folder (flat captures). */

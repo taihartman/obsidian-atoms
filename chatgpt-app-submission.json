@@ -1,0 +1,212 @@
+{
+	"$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+	"schema_version": 1,
+	"app_info": {
+		"display_name": "Atoms Plus",
+		"subtitle": "Search your Obsidian atoms",
+		"description": "Search, retrieve, and continue ideas from the private Atoms mirror you enable in Obsidian. Atoms Plus works only with your flat Atoms folder and linked hubs, not daily notes or the rest of your vault, and can queue new atoms for Obsidian to apply.",
+		"category": "PRODUCTIVITY"
+	},
+	"tools": {
+		"mirror_status": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"list_tags": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"search_atoms": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"fetch_atom": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"neighbors": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"create_atom": {
+			"annotations": {
+				"readOnlyHint": false,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool queues new pending work in the authenticated user's Atoms outbox, so it performs a write.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "The operation is additive and remains a reversible pending item until Obsidian applies it; it does not overwrite an existing note body."
+			}
+		},
+		"continue_atom": {
+			"annotations": {
+				"readOnlyHint": false,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool queues new pending work in the authenticated user's Atoms outbox, so it performs a write.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "The operation is additive and remains a reversible pending item until Obsidian applies it; it does not overwrite an existing note body."
+			}
+		},
+		"set_loop": {
+			"annotations": {
+				"readOnlyHint": false,
+				"openWorldHint": false,
+				"destructiveHint": true
+			},
+			"justifications": {
+				"read_only_justification": "This tool queues a loop-state update in the authenticated user's Atoms outbox, so it performs a write.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "The queued operation can replace an existing loop state when Obsidian applies it, so it is accurately marked destructive."
+			}
+		},
+		"cancel_pending": {
+			"annotations": {
+				"readOnlyHint": false,
+				"openWorldHint": false,
+				"destructiveHint": true
+			},
+			"justifications": {
+				"read_only_justification": "This tool changes the authenticated user's pending outbox by cancelling a queued operation.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "Cancelling removes the selected queued operation and that same pending operation cannot be restored, so it is accurately marked destructive."
+			}
+		},
+		"list_pending": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		},
+		"list_atoms": {
+			"annotations": {
+				"readOnlyHint": true,
+				"openWorldHint": false,
+				"destructiveHint": false
+			},
+			"justifications": {
+				"read_only_justification": "This tool only retrieves data from the authenticated user's bounded Atoms mirror or pending queue and does not create, update, delete, cancel, or queue anything.",
+				"open_world_justification": "This tool is restricted to the authenticated user's bounded Atoms Plus tenant and does not access the public web, external systems, contacts, or data outside that tenant.",
+				"destructive_justification": "This tool does not mutate or remove data, so invoking it cannot destroy user state."
+			}
+		}
+	},
+	"test_cases": [
+		{
+			"description": "Report the connected account and current mirror status.",
+			"user_prompt": "Check the status of my Atoms mirror. Tell me which account is connected, how many notes are available, and when it last synced.",
+			"file_attachment_urls": null,
+			"tools_triggered": "mirror_status",
+			"expected_output": "Names only the synthetic reviewer account, returns a nonzero mirrored-note count and last-sync timestamp, and does not claim whole-vault access.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Browse the mirror's tag vocabulary and newest atoms.",
+			"user_prompt": "What tags are present in my Atoms mirror and how many atoms use each one? Then list the newest atoms without doing a relevance search.",
+			"file_attachment_urls": null,
+			"tools_triggered": "list_tags, list_atoms",
+			"expected_output": "Includes writing, ritual, place, project, and follow-up with counts, then lists the newest atoms using created-date descending order rather than repeated searches.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Search for an atom and fetch its authoritative content.",
+			"user_prompt": "Find my note about the blue notebook and tell me exactly what habit it records.",
+			"file_attachment_urls": null,
+			"tools_triggered": "search_atoms, fetch_atom",
+			"expected_output": "Finds the blue notebook atom, fetches it before making a body claim, and reports the three-lines-before-breakfast habit.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Inspect the graph neighbors of a known atom.",
+			"user_prompt": "What notes are connected to “Call Mira about the field guide”?",
+			"file_attachment_urls": null,
+			"tools_triggered": "neighbors",
+			"expected_output": "Identifies both synthetic linked notes and does not invent additional links.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Exercise the complete queued-write lifecycle.",
+			"user_prompt": "Save “Try outlining the field guide beside the library window” as a new writing/project atom. Continue “Blue notebook ritual” with “Test the ritual for seven mornings.” Mark “Library window idea” as an active loop, show all pending writes, and cancel only that loop-state change.",
+			"file_attachment_urls": null,
+			"tools_triggered": "create_atom, continue_atom, set_loop, list_pending, cancel_pending",
+			"expected_output": "After required confirmations, queues the new and continued atoms without changing an existing body, queues and then cancels only the loop-state operation, and never claims an immediate vault write.",
+			"expected_output_url": null
+		}
+	],
+	"negative_test_cases": [
+		{
+			"description": "Do not trigger for a current-weather request.",
+			"user_prompt": "What is the weather in Chicago today?",
+			"file_attachment_urls": null,
+			"tools_triggered": null,
+			"expected_output": "Atoms Plus does not trigger; use a weather or web source if available.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Do not trigger when the user supplies all text to summarize.",
+			"user_prompt": "Summarize this sentence: Small habits become easier when the cue is visible.",
+			"file_attachment_urls": null,
+			"tools_triggered": null,
+			"expected_output": "Atoms Plus does not trigger; answer only from the text supplied in the prompt.",
+			"expected_output_url": null
+		},
+		{
+			"description": "Do not trigger for a calendar action.",
+			"user_prompt": "Schedule a calendar event tomorrow at 3 PM called Project check-in.",
+			"file_attachment_urls": null,
+			"tools_triggered": null,
+			"expected_output": "Atoms Plus does not trigger; use a calendar integration if available or explain that one is required.",
+			"expected_output_url": null
+		}
+	]
+}

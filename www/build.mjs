@@ -288,6 +288,8 @@ const ASSETS = [
   ...SETUP_SHOTS,
 ];
 
+const WELL_KNOWN_ASSETS = ["openai-apps-challenge"];
+
 /**
  * CSS and JS ship content-fingerprinted under /a/ with immutable caching, so
  * a deploy can never serve new HTML with a stale stylesheet again (that
@@ -332,6 +334,16 @@ function build() {
 
   for (const asset of ASSETS) {
     copyFileSync(join(srcDir, asset), join(distDir, asset));
+  }
+
+  const wellKnownDist = join(distDir, ".well-known");
+  mkdirSync(wellKnownDist, { recursive: true });
+  for (const asset of WELL_KNOWN_ASSETS) {
+    const content = readFileSync(
+      join(srcDir, ".well-known", asset),
+      "utf8",
+    ).trim();
+    writeFileSync(join(wellKnownDist, asset), content, "utf8");
   }
 
   // Field notes illustration sources (SVG). Email HTML prefers PNG for Gmail;

@@ -20,7 +20,7 @@ import {
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
-  PAIR_CODE_TTL_MS,
+  resolvePairCodeMintOptions,
 } from "./askHelpers.mjs";
 
 export const ASK_SQLITE_DDL = `
@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS mcp_pair_codes (
   email TEXT PRIMARY KEY,
   code_hash TEXT NOT NULL,
   exp_ms INTEGER NOT NULL,
-  consumed_ms INTEGER
+  consumed_ms INTEGER,
+  reusable INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
 CREATE TABLE IF NOT EXISTS ask_outbox (
@@ -277,6 +278,8 @@ export function createAskSqliteMethods(db, deps) {
     const e = normEmail(email);
     db.prepare("DELETE FROM mcp_access_tokens WHERE email = ?").run(e);
     db.prepare("DELETE FROM mcp_refresh_tokens WHERE email = ?").run(e);
+    db.prepare("DELETE FROM mcp_browser_sessions WHERE email = ?").run(e);
+    db.prepare("DELETE FROM mcp_auth_codes WHERE email = ? AND used = 0").run(e);
   }
 
   function mirrorWipe(email) {
@@ -656,18 +659,20 @@ export function createAskSqliteMethods(db, deps) {
     return mcpGetPending(pendingId);
   }
 
-  function pairMint(email) {
+  function pairMint(email, opts = {}) {
     const e = normEmail(email);
-    const code = generatePairCode();
-    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    const mint = resolvePairCodeMintOptions(e, opts);
+    const code = generatePairCode(mint.codeLength);
+    const expMs = Date.now() + mint.ttlMs;
     db.prepare(
-      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms)
-       VALUES (?, ?, ?, NULL)
+      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms, reusable)
+       VALUES (?, ?, ?, NULL, ?)
        ON CONFLICT(email) DO UPDATE SET
          code_hash = excluded.code_hash,
          exp_ms = excluded.exp_ms,
-         consumed_ms = NULL`,
-    ).run(e, hashToken(code), expMs);
+         consumed_ms = NULL,
+         reusable = excluded.reusable`,
+    ).run(e, hashToken(code), expMs, mint.reusable ? 1 : 0);
     return { code, expiresAt: new Date(expMs).toISOString() };
   }
 
@@ -675,18 +680,16 @@ export function createAskSqliteMethods(db, deps) {
     const code = normalizePairCodeInput(rawCode);
     if (!code || code.length < 6) return null;
     const h = hashToken(code);
-    const r = db.prepare("SELECT * FROM mcp_pair_codes WHERE code_hash = ?").get(h);
-    if (!r) return null;
-    if (r.consumed_ms != null) return null;
-    if (Date.now() > r.exp_ms) return null;
-    db.prepare(
-      "UPDATE mcp_pair_codes SET consumed_ms = ? WHERE email = ? AND code_hash = ? AND consumed_ms IS NULL",
-    ).run(Date.now(), r.email, h);
-    const check = db
-      .prepare("SELECT consumed_ms FROM mcp_pair_codes WHERE email = ? AND code_hash = ?")
-      .get(r.email, h);
-    if (!check?.consumed_ms) return null;
-    return { email: r.email };
+    const now = Date.now();
+    const r = db.prepare(
+      `UPDATE mcp_pair_codes
+       SET consumed_ms = CASE WHEN reusable = 1 THEN consumed_ms ELSE ? END
+       WHERE code_hash = ?
+         AND exp_ms >= ?
+         AND (reusable = 1 OR consumed_ms IS NULL)
+       RETURNING email`,
+    ).get(now, h, now);
+    return r ? { email: r.email } : null;
   }
 
   function mcpCreateBrowserSession(email) {

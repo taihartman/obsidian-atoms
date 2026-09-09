@@ -289,7 +289,7 @@ describe("OAuth Ask AS", () => {
           assert.ok(schemes, `missing schemes on ${t.name}`);
           const sc = schemes[0]?.scopes || [];
           if (t.name === "create_atom") {
-            assert.equal(t.annotations?.destructiveHint, true);
+            assert.equal(t.annotations?.destructiveHint, false);
             assert.ok(sc.includes("atoms:write"), JSON.stringify(schemes));
           }
           if (t.name === "search_atoms") {

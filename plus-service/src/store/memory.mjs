@@ -37,7 +37,7 @@ import {
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
-  PAIR_CODE_TTL_MS,
+  resolvePairCodeMintOptions,
 } from "./askHelpers.mjs";
 
 export function createMemoryStore() {
@@ -72,7 +72,7 @@ export function createMemoryStore() {
   const mcpClients = new Map();
   /** browser session id → { email, exp } */
   const mcpBrowserSessions = new Map();
-  /** email → { codeHash, expMs, consumedMs } */
+  /** email → { codeHash, expMs, consumedMs, reusable } */
   const mcpPairCodes = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
@@ -968,14 +968,16 @@ export function createMemoryStore() {
     return row;
   }
 
-  function pairMint(email) {
+  function pairMint(email, opts = {}) {
     const e = normEmail(email);
-    const code = generatePairCode();
-    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    const mint = resolvePairCodeMintOptions(e, opts);
+    const code = generatePairCode(mint.codeLength);
+    const expMs = Date.now() + mint.ttlMs;
     mcpPairCodes.set(e, {
       codeHash: hashToken(code),
       expMs,
       consumedMs: null,
+      reusable: mint.reusable,
     });
     return { code, expiresAt: new Date(expMs).toISOString() };
   }
@@ -986,9 +988,11 @@ export function createMemoryStore() {
     const h = hashToken(code);
     for (const [email, row] of mcpPairCodes) {
       if (row.codeHash !== h) continue;
-      if (row.consumedMs != null) return null;
       if (Date.now() > row.expMs) return null;
-      row.consumedMs = Date.now();
+      if (!row.reusable) {
+        if (row.consumedMs != null) return null;
+        row.consumedMs = Date.now();
+      }
       return { email };
     }
     return null;
@@ -1105,6 +1109,12 @@ export function createMemoryStore() {
         v.revoked = true;
         mcpRefresh.delete(k);
       }
+    }
+    for (const [k, v] of mcpBrowserSessions) {
+      if (v.email === e) mcpBrowserSessions.delete(k);
+    }
+    for (const [k, v] of mcpAuthCodes) {
+      if (normEmail(v.email) === e && !v.used) mcpAuthCodes.delete(k);
     }
   }
 

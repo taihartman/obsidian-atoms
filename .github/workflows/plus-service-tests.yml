@@ -24,6 +24,8 @@ on:
     branches: [master]
     paths:
       - "plus-service/**"
+      - "docs/security/atoms-plus-mcp/**"
+      - "scripts/security/**"
       - ".github/workflows/plus-service-tests.yml"
 
 permissions:
@@ -84,6 +86,18 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Setup Python for security contract
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate Atoms Plus security contract
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml==6.0.2
+          python scripts/security/validate_contract.py validate \
+            --config docs/security/atoms-plus-mcp/contract.config.yaml
 
       - name: Test — memory, sqlite, and postgres
         run: |

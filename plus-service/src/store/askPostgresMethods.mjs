@@ -20,7 +20,7 @@ import {
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
-  PAIR_CODE_TTL_MS,
+  resolvePairCodeMintOptions,
 } from "./askHelpers.mjs";
 
 export const ASK_PG_DDL = `
@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS mcp_pair_codes (
   email TEXT PRIMARY KEY,
   code_hash TEXT NOT NULL,
   exp_ms BIGINT NOT NULL,
-  consumed_ms BIGINT
+  consumed_ms BIGINT,
+  reusable BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
 CREATE TABLE IF NOT EXISTS ask_outbox (
@@ -283,6 +284,11 @@ export function createAskPostgresMethods(pool, deps) {
     const e = normEmail(email);
     await pool.query("DELETE FROM mcp_access_tokens WHERE email = $1", [e]);
     await pool.query("DELETE FROM mcp_refresh_tokens WHERE email = $1", [e]);
+    await pool.query("DELETE FROM mcp_browser_sessions WHERE email = $1", [e]);
+    await pool.query(
+      "DELETE FROM mcp_auth_codes WHERE email = $1 AND used = FALSE",
+      [e],
+    );
   }
 
   async function mirrorWipe(email) {
@@ -686,18 +692,20 @@ export function createAskPostgresMethods(pool, deps) {
     return mcpGetPending(pendingId);
   }
 
-  async function pairMint(email) {
+  async function pairMint(email, opts = {}) {
     const e = normEmail(email);
-    const code = generatePairCode();
-    const expMs = Date.now() + PAIR_CODE_TTL_MS;
+    const mint = resolvePairCodeMintOptions(e, opts);
+    const code = generatePairCode(mint.codeLength);
+    const expMs = Date.now() + mint.ttlMs;
     await pool.query(
-      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms)
-       VALUES ($1,$2,$3,NULL)
+      `INSERT INTO mcp_pair_codes (email, code_hash, exp_ms, consumed_ms, reusable)
+       VALUES ($1,$2,$3,NULL,$4)
        ON CONFLICT (email) DO UPDATE SET
          code_hash = EXCLUDED.code_hash,
          exp_ms = EXCLUDED.exp_ms,
-         consumed_ms = NULL`,
-      [e, hashToken(code), expMs],
+         consumed_ms = NULL,
+         reusable = EXCLUDED.reusable`,
+      [e, hashToken(code), expMs, mint.reusable],
     );
     return { code, expiresAt: new Date(expMs).toISOString() };
   }
@@ -706,19 +714,15 @@ export function createAskPostgresMethods(pool, deps) {
     const code = normalizePairCodeInput(rawCode);
     if (!code || code.length < 6) return null;
     const h = hashToken(code);
-    const { rows } = await pool.query(
-      "SELECT * FROM mcp_pair_codes WHERE code_hash = $1",
-      [h],
-    );
-    const r = rows[0];
-    if (!r) return null;
-    if (r.consumed_ms != null) return null;
-    if (Date.now() > Number(r.exp_ms)) return null;
+    const now = Date.now();
     const upd = await pool.query(
-      `UPDATE mcp_pair_codes SET consumed_ms = $1
-       WHERE email = $2 AND code_hash = $3 AND consumed_ms IS NULL
+      `UPDATE mcp_pair_codes
+       SET consumed_ms = CASE WHEN reusable THEN consumed_ms ELSE $1 END
+       WHERE code_hash = $2
+         AND exp_ms >= $1
+         AND (reusable OR consumed_ms IS NULL)
        RETURNING email`,
-      [Date.now(), r.email, h],
+      [now, h],
     );
     if (!upd.rows[0]) return null;
     return { email: upd.rows[0].email };

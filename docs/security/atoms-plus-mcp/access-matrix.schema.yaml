@@ -1,0 +1,23 @@
+version: 1
+row_status_values: [verified, needs-test, needs-decision, deprecated]
+operation_values: [read, write, create, update, delete, list, call]
+identity_type_values: [plus-session, operator-reviewer, pair-code, mcp-token]
+row_id_pattern: "^[A-Z][A-Z0-9_]+_[0-9]{3}$"
+required_fields:
+  - id
+  - path
+  - operation
+  - allowedActors
+  - deniedActors
+  - identityType
+  - dataShape
+  - tests
+  - threatsCovered
+  - status
+  - owner
+  - lastVerified
+  - notes
+doc_frontmatter:
+  required_keys: [status, owner, last_verified, canonical_for, supersedes, superseded_by]
+  doc_status_values: [canonical, draft, historical, needs-update, superseded]
+  canonical_status: canonical
