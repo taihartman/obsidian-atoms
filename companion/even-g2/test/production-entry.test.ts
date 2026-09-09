@@ -9,6 +9,7 @@ describe("production companion entry", () => {
     const html = readFileSync(join(root, "index.html"), "utf8");
     const entry = readFileSync(join(root, "src/main.ts"), "utf8");
     expect(html).toContain('src="/src/main.ts"');
+    expect(html).toContain('<output id="capability-status" aria-live="polite">Atoms</output>');
     expect(entry).toContain('"https://plus.tryatoms.app"');
     expect(`${html}\n${entry}`).not.toMatch(/localhost|127\.0\.0\.1|simulatorConfig|simulatorSetup|simulator\.html|autoDriveSimulatorSetup|auto=1|pair=/iu);
     expect(readFileSync(join(root, "src/bootstrap.ts"), "utf8")).toMatch(/installEvenSdkEventLogPrivacy\(\)[\s\S]*waitForEvenAppBridge\(\)/u);

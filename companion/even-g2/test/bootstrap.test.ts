@@ -76,11 +76,12 @@ import { markBridgeUnavailable, startG2Companion } from "../src/bootstrap";
 import { waitForEvenAppBridge } from "@evenrealities/even_hub_sdk";
 
 describe("G2 companion bootstrap", () => {
-  const status = { dataset: {} as Record<string, string> };
+  const status = { dataset: {} as Record<string, string>, textContent: "" };
 
   beforeEach(() => {
     vi.clearAllMocks();
     status.dataset = {};
+    status.textContent = "";
     mocks.controllerDependencies = undefined;
     mocks.bridge.getLocalStorage.mockImplementation(async (key: string) => key === "atoms-g2-binding" ? "" : "");
     mocks.bridge.onEvenHubEvent.mockReturnValue(mocks.removeEvents);
@@ -95,6 +96,30 @@ describe("G2 companion bootstrap", () => {
     }));
 
     expect(status.dataset).toEqual({ state: "blocked", reason: "capacity-insufficient" });
+    expect(status.textContent).toBe("Atoms could not start on this phone.");
+    expect(waitForEvenAppBridge).not.toHaveBeenCalled();
+  });
+
+  it("renders a visible failure when the capability probe throws", async () => {
+    await expect(startG2Companion("https://plus.tryatoms.app", async () => {
+      throw new Error("storage failure");
+    })).resolves.toBeUndefined();
+
+    expect(status.dataset).toEqual({ state: "blocked", reason: "probe-failed" });
+    expect(status.textContent).toBe("Atoms could not start on this phone.");
+    expect(waitForEvenAppBridge).not.toHaveBeenCalled();
+  });
+
+  it("asks for one visible reopen before accepting a cold-reload proof", async () => {
+    await startG2Companion("https://plus.tryatoms.app", async () => ({
+      state: "reload-required",
+      bearerFallback: false,
+    }));
+
+    expect(status.dataset).toEqual({ state: "reload-required" });
+    expect(status.textContent).toBe(
+      "Close Atoms, then open it again to finish checking this phone.",
+    );
     expect(waitForEvenAppBridge).not.toHaveBeenCalled();
   });
 
@@ -128,5 +153,6 @@ describe("G2 companion bootstrap", () => {
   it("marks the rendered status when the bridge is unavailable", () => {
     markBridgeUnavailable();
     expect(status.dataset).toEqual({ state: "blocked", reason: "bridge-unavailable" });
+    expect(status.textContent).toBe("Atoms could not start on this phone.");
   });
 });

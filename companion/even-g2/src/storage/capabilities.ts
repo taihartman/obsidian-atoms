@@ -8,9 +8,7 @@ export const RECOVERY_RESERVATION_BYTES = MAX_RECORDING_BYTES * 2;
 type CapabilityBlockReason =
   | "indexeddb-unavailable"
   | "webcrypto-unavailable"
-  | "storage-estimate-unavailable"
   | "capacity-insufficient"
-  | "persistence-denied"
   | "storage-evicted"
   | "key-extractable"
   | "decrypt-failed"
@@ -27,14 +25,17 @@ export type RecoveryCapabilityResult =
       purged: true;
     }
   | {
+      state: "reload-required";
+      bearerFallback: false;
+    }
+  | {
       state: "blocked";
       reason: CapabilityBlockReason;
       bearerFallback: false;
     };
 
 type StorageCapability = {
-  estimate(): Promise<{ quota?: number; usage?: number }>;
-  persist(): Promise<boolean>;
+  estimate?(): Promise<{ quota?: number; usage?: number }>;
 };
 
 type ProbeDependencies = {
@@ -52,13 +53,27 @@ type EncryptedProbeRecord = {
   hash: string;
 };
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
+const DATABASE_NAME = "atoms-g2-capability";
 const KEY_STORE = "keys";
 const BLOB_STORE = "blobs";
+const META_STORE = "metadata";
 const PROBE_KEY = "recovery";
+const VERIFIED_KEY = "verified";
+const VERIFIED_VERSION = 1;
 
 function blocked(reason: CapabilityBlockReason): RecoveryCapabilityResult {
   return { state: "blocked", reason, bearerFallback: false };
+}
+
+function ready(reservedBytes: number): RecoveryCapabilityResult {
+  return {
+    state: "ready",
+    blobPersistence: "encrypted",
+    keyPersistence: "non-extractable",
+    reservedBytes,
+    purged: true,
+  };
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -86,6 +101,9 @@ function openDatabase(indexedDB: IDBFactory, name: string): Promise<IDBDatabase>
       }
       if (!database.objectStoreNames.contains(BLOB_STORE)) {
         database.createObjectStore(BLOB_STORE);
+      }
+      if (!database.objectStoreNames.contains(META_STORE)) {
+        database.createObjectStore(META_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -201,6 +219,34 @@ async function verifyProbe(
   return null;
 }
 
+async function probeState(database: IDBDatabase): Promise<"empty" | "pending" | "verified"> {
+  const transaction = database.transaction([KEY_STORE, BLOB_STORE, META_STORE], "readonly");
+  const done = transactionDone(transaction);
+  const key = requestResult(transaction.objectStore(KEY_STORE).get(PROBE_KEY));
+  const blobs = transaction.objectStore(BLOB_STORE);
+  const records = ["completed", "active"].map((id) => requestResult(blobs.get(id)));
+  const marker = requestResult(transaction.objectStore(META_STORE).get(VERIFIED_KEY));
+  const [storedKey, completed, active, storedMarker] = await Promise.all([
+    key,
+    ...records,
+    marker,
+  ]);
+  await done;
+  const noProbeData = storedKey === undefined && completed === undefined && active === undefined;
+  if (noProbeData && storedMarker === VERIFIED_VERSION) return "verified";
+  if (noProbeData && storedMarker === undefined) return "empty";
+  return "pending";
+}
+
+async function markProbeVerified(database: IDBDatabase): Promise<void> {
+  const transaction = database.transaction([KEY_STORE, BLOB_STORE, META_STORE], "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(KEY_STORE).clear();
+  transaction.objectStore(BLOB_STORE).clear();
+  transaction.objectStore(META_STORE).put(VERIFIED_VERSION, VERIFIED_KEY);
+  await done;
+}
+
 export async function probeRecoveryCapabilities(
   dependencies: ProbeDependencies = {},
 ): Promise<RecoveryCapabilityResult> {
@@ -215,30 +261,49 @@ export async function probeRecoveryCapabilities(
     : globalThis.navigator?.storage;
   const bytesPerRecording = dependencies.bytesPerRecording ?? MAX_RECORDING_BYTES;
   const reservedBytes = bytesPerRecording * 2;
-  const databaseName =
-    dependencies.databaseName ?? `atoms-g2-capability-${crypto?.randomUUID?.() ?? "probe"}`;
+  const databaseName = dependencies.databaseName ?? DATABASE_NAME;
 
   if (!indexedDB) return blocked("indexeddb-unavailable");
   if (!crypto?.subtle) return blocked("webcrypto-unavailable");
-  if (!storage?.estimate || !storage.persist) {
-    return blocked("storage-estimate-unavailable");
+  if (storage?.estimate) {
+    try {
+      const estimate = await storage.estimate();
+      if (
+        estimate.quota !== undefined &&
+        estimate.usage !== undefined &&
+        estimate.quota - estimate.usage < reservedBytes
+      ) {
+        return blocked("capacity-insufficient");
+      }
+    } catch {
+      // WKWebView can expose an unusable estimate API. The bounded write below
+      // remains the authoritative capacity check.
+    }
   }
-
-  const estimate = await storage.estimate();
-  if (
-    estimate.quota === undefined ||
-    estimate.usage === undefined ||
-    estimate.quota - estimate.usage < reservedBytes
-  ) {
-    return blocked("capacity-insufficient");
-  }
-  if (!(await storage.persist())) return blocked("persistence-denied");
 
   let database: IDBDatabase | undefined;
   let needsPurge = false;
   try {
     database = await openDatabase(indexedDB, databaseName);
     needsPurge = true;
+    const state = await probeState(database);
+    if (state === "verified") {
+      database.close();
+      database = undefined;
+      needsPurge = false;
+      return ready(reservedBytes);
+    }
+    if (state === "pending") {
+      const failure = await verifyProbe(database, crypto);
+      if (failure) return blocked(failure);
+      await markProbeVerified(database);
+      database.close();
+      database = undefined;
+      needsPurge = false;
+
+      return ready(reservedBytes);
+    }
+
     const key = await crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       false,
@@ -249,22 +314,8 @@ export async function probeRecoveryCapabilities(
     database = undefined;
 
     await dependencies.afterPersist?.(databaseName);
-
-    database = await openDatabase(indexedDB, databaseName);
-    const failure = await verifyProbe(database, crypto);
-    if (failure) return blocked(failure);
-    database.close();
-    database = undefined;
-    await deleteDatabase(indexedDB, databaseName);
     needsPurge = false;
-
-    return {
-      state: "ready",
-      blobPersistence: "encrypted",
-      keyPersistence: "non-extractable",
-      reservedBytes,
-      purged: true,
-    };
+    return { state: "reload-required", bearerFallback: false };
   } catch {
     return blocked("probe-failed");
   } finally {

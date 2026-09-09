@@ -8,6 +8,7 @@ import { G2AuthClient, G2HttpClient, type G2Session, type PairingPointer } from 
 import { G2CredentialVault } from "./auth/credentials";
 import { singleFlight } from "./auth/singleFlight";
 import { G2_DISCLOSURE_VERSION, g2ServerSetupReady, readG2ServerSetup, type G2ServerConsent } from "./auth/setup";
+import { G2_COPY } from "./i18n/en";
 import { EvenAudioSession, ticketFromResponse } from "./platform/audio";
 import { normalizeEvenAction } from "./platform/even";
 import { installEvenSdkEventLogPrivacy } from "./platform/sdkLogPrivacy";
@@ -35,17 +36,38 @@ function audioBytes(event: EvenHubEvent): Uint8Array | null {
   return raw instanceof Uint8Array ? raw : new Uint8Array(raw);
 }
 
+function showStartupStatus(
+  status: HTMLOutputElement,
+  state: "checking" | "reload-required" | "blocked",
+  copy: string,
+  reason?: string,
+): void {
+  status.dataset.state = state;
+  if (reason) status.dataset.reason = reason;
+  else delete status.dataset.reason;
+  status.textContent = copy;
+}
+
 export async function startG2Companion(
   baseUrl: string,
   capabilityProbe: () => Promise<RecoveryCapabilityResult> = probeRecoveryCapabilities,
 ): Promise<void> {
   const status = document.querySelector<HTMLOutputElement>("#capability-status");
   if (!status) return;
-  status.dataset.state = "checking";
-  const capability = await capabilityProbe();
+  showStartupStatus(status, "checking", G2_COPY.checking);
+  let capability: RecoveryCapabilityResult;
+  try {
+    capability = await capabilityProbe();
+  } catch {
+    showStartupStatus(status, "blocked", G2_COPY.startupBlocked, "probe-failed");
+    return;
+  }
   if (capability.state === "blocked") {
-    status.dataset.state = "blocked";
-    status.dataset.reason = capability.reason;
+    showStartupStatus(status, "blocked", G2_COPY.startupBlocked, capability.reason);
+    return;
+  }
+  if (capability.state === "reload-required") {
+    showStartupStatus(status, "reload-required", G2_COPY.reopenForStorageCheck);
     return;
   }
 
@@ -204,7 +226,6 @@ export async function startG2Companion(
 export function markBridgeUnavailable(): void {
   const status = document.querySelector<HTMLOutputElement>("#capability-status");
   if (status) {
-    status.dataset.state = "blocked";
-    status.dataset.reason = "bridge-unavailable";
+    showStartupStatus(status, "blocked", G2_COPY.startupBlocked, "bridge-unavailable");
   }
 }

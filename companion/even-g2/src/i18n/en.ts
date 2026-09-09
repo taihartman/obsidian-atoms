@@ -13,6 +13,8 @@ export const G2_COPY = Object.freeze({
   appName: "Atoms",
   root: ["New atom", "Ask atoms", "Recent atoms"] as const,
   checking: "Checking device",
+  reopenForStorageCheck: "Close Atoms, then open it again to finish checking this phone.",
+  startupBlocked: "Atoms could not start on this phone.",
   unpaired: "Enter the code from Atoms settings",
   pairingCode: "Pairing code",
   connect: "Connect",

@@ -65,14 +65,47 @@ function mutateRecord(
 }
 
 describe("recovery capability probe", () => {
+  it("proves durable recovery across launches when WKWebView omits the storage persistence API", async () => {
+    const indexedDB = new IDBFactory();
+    const dependencies = {
+      indexedDB,
+      crypto,
+      storage: undefined,
+      bytesPerRecording: 128,
+      databaseName: "wkwebview-probe",
+    };
+
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toEqual({
+      state: "reload-required",
+      bearerFallback: false,
+    });
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toEqual({
+      state: "ready",
+      blobPersistence: "encrypted",
+      keyPersistence: "non-extractable",
+      reservedBytes: 256,
+      purged: true,
+    });
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toMatchObject({
+      state: "ready",
+      purged: true,
+    });
+  });
+
   it("cold-reloads encrypted maximum-bound blobs with a persisted non-extractable key and purges the probe", async () => {
     const indexedDB = new IDBFactory();
-    const result = await probeRecoveryCapabilities({
+    const dependencies = {
       indexedDB,
       crypto,
       storage: storageWith(MAX_RECORDING_BYTES * 3),
       databaseName: "ready-probe",
+    };
+
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toEqual({
+      state: "reload-required",
+      bearerFallback: false,
     });
+    const result = await probeRecoveryCapabilities(dependencies);
 
     expect(result).toEqual({
       state: "ready",
@@ -105,18 +138,23 @@ describe("recovery capability probe", () => {
     expect(persisted).toBe(false);
   });
 
-  it("fails closed when persistent storage is denied", async () => {
-    const result = await probeRecoveryCapabilities({
+  it("uses the cold-reload proof instead of trusting a denied persistence hint", async () => {
+    const dependencies = {
       indexedDB: new IDBFactory(),
       crypto,
       storage: storageWith(1024, false),
       bytesPerRecording: 128,
-    });
+      databaseName: "persistence-hint-probe",
+    };
 
-    expect(result).toEqual({
-      state: "blocked",
-      reason: "persistence-denied",
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toEqual({
+      state: "reload-required",
       bearerFallback: false,
+    });
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toMatchObject({
+      state: "ready",
+      keyPersistence: "non-extractable",
+      blobPersistence: "encrypted",
     });
   });
 
@@ -151,16 +189,20 @@ describe("recovery capability probe", () => {
   it("treats an evicted encrypted blob as a blocked capability", async () => {
     const indexedDB = new IDBFactory();
     const databaseName = "evicted-probe";
-    const result = await probeRecoveryCapabilities({
+    const dependencies = {
       indexedDB,
       crypto,
       storage: storageWith(1024),
       bytesPerRecording: 128,
       databaseName,
       afterPersist: () => deleteRecord(indexedDB, databaseName, "blobs", "active"),
-    });
+    };
 
-    expect(result).toEqual({
+    await expect(probeRecoveryCapabilities(dependencies)).resolves.toEqual({
+      state: "reload-required",
+      bearerFallback: false,
+    });
+    await expect(probeRecoveryCapabilities({ ...dependencies, afterPersist: undefined })).resolves.toEqual({
       state: "blocked",
       reason: "storage-evicted",
       bearerFallback: false,
@@ -169,19 +211,23 @@ describe("recovery capability probe", () => {
 
   it("blocks decrypt and hash mismatches", async () => {
     const decryptDatabase = new IDBFactory();
+    const decryptDependencies = {
+      indexedDB: decryptDatabase,
+      crypto,
+      storage: storageWith(1024),
+      bytesPerRecording: 128,
+      databaseName: "decrypt-probe",
+      afterPersist: () =>
+        mutateRecord(decryptDatabase, "decrypt-probe", "active", (record) => ({
+          ...record,
+          iv: new Uint8Array(12),
+        })),
+    };
     await expect(
-      probeRecoveryCapabilities({
-        indexedDB: decryptDatabase,
-        crypto,
-        storage: storageWith(1024),
-        bytesPerRecording: 128,
-        databaseName: "decrypt-probe",
-        afterPersist: () =>
-          mutateRecord(decryptDatabase, "decrypt-probe", "active", (record) => ({
-            ...record,
-            iv: new Uint8Array(12),
-          })),
-      }),
+      probeRecoveryCapabilities(decryptDependencies),
+    ).resolves.toEqual({ state: "reload-required", bearerFallback: false });
+    await expect(
+      probeRecoveryCapabilities({ ...decryptDependencies, afterPersist: undefined }),
     ).resolves.toEqual({
       state: "blocked",
       reason: "decrypt-failed",
@@ -189,19 +235,23 @@ describe("recovery capability probe", () => {
     });
 
     const hashDatabase = new IDBFactory();
+    const hashDependencies = {
+      indexedDB: hashDatabase,
+      crypto,
+      storage: storageWith(1024),
+      bytesPerRecording: 128,
+      databaseName: "hash-probe",
+      afterPersist: () =>
+        mutateRecord(hashDatabase, "hash-probe", "active", (record) => ({
+          ...record,
+          hash: "not-the-plaintext-hash",
+        })),
+    };
     await expect(
-      probeRecoveryCapabilities({
-        indexedDB: hashDatabase,
-        crypto,
-        storage: storageWith(1024),
-        bytesPerRecording: 128,
-        databaseName: "hash-probe",
-        afterPersist: () =>
-          mutateRecord(hashDatabase, "hash-probe", "active", (record) => ({
-            ...record,
-            hash: "not-the-plaintext-hash",
-          })),
-      }),
+      probeRecoveryCapabilities(hashDependencies),
+    ).resolves.toEqual({ state: "reload-required", bearerFallback: false });
+    await expect(
+      probeRecoveryCapabilities({ ...hashDependencies, afterPersist: undefined }),
     ).resolves.toEqual({
       state: "blocked",
       reason: "hash-mismatch",

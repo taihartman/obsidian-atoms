@@ -41,12 +41,20 @@ describe("simulator recovery capability adapter", () => {
     expect(dependencies).not.toHaveProperty("bytesPerRecording");
     await expect(dependencies.storage.estimate()).resolves.toEqual({ quota: 64 * 1024 * 1024, usage: 0 });
     await expect(dependencies.storage.persist()).resolves.toBe(true);
-    await expect(probeRecoveryCapabilities({
+    const probeDependencies = {
       ...dependencies,
       indexedDB: new IDBFactory(),
       crypto: webcrypto as unknown as Crypto,
       databaseName: "simulator-production-size-probe",
-    })).resolves.toMatchObject({ state: "ready", reservedBytes: MAX_RECORDING_BYTES * 2 });
+    };
+    await expect(probeRecoveryCapabilities(probeDependencies)).resolves.toEqual({
+      state: "reload-required",
+      bearerFallback: false,
+    });
+    await expect(probeRecoveryCapabilities(probeDependencies)).resolves.toMatchObject({
+      state: "ready",
+      reservedBytes: MAX_RECORDING_BYTES * 2,
+    });
   });
 });
 
