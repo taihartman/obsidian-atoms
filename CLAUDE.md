@@ -197,7 +197,7 @@ Default: plan → implement claim → verify. Full ce-* loop for net-new / high-
 After **implementation** on any non-trivial change (feature or fix), **always** finish the loop before calling the work done or opening a PR:
 
 1. **`ce-simplify-code`** — tighten the freshly written code (reuse, clarity, efficiency) without changing behavior  
-2. **`ce-code-review`** — run one multi-agent review of the branch/diff, then fix its findings. Do **not** automatically run a second review after those fixes; move on to QA unless the human explicitly asks for re-review. When the review includes an automatic cross-model check, use **Grok** by default.
+2. **`ce-code-review`** — multi-agent review of the branch/diff; fix P0/P1
 3. **`ce-compound`** — write the durable learning to `docs/solutions/` (and CONCEPTS if needed) so the next session inherits *why*  
 4. **`world-class-qa`** — pre-merge product QA (project adapter: `docs/qa/`). Proves changed behavior with evidence; not unit tests alone. Ends with **`adversarial-qa`** (break-it pass) per that skill’s hard gate.  
 5. **PR** — body must include **`Closes #<issue>`** (auto-close the hard-claim Issue; “Issue #N” alone is not enough) + distilled **Core user stories** + **Edge cases & testing** (link full report under `docs/qa/YYYY-MM-DD-*-world-class-qa.md`)
