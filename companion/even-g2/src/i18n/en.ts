@@ -19,6 +19,7 @@ export const G2_COPY = Object.freeze({
   pairingCode: "Pairing code",
   connect: "Connect",
   pairing: "Connecting G2",
+  secureConnectionFailed: "Could not start a secure connection. Try again.",
   disclosureTitle: "Before your words are saved",
   disclosureBody: "Speech is transcribed on this phone. Only the transcript you confirm is queued for your Obsidian Inbox, where you can edit it before Atoms processes it.",
   acceptDisclosure: "Accept and continue",

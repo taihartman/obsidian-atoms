@@ -6,7 +6,7 @@ export type PhoneState =
   | { screen: "disclosure" }
   | { screen: "setup-required" }
   | { screen: "loading"; operation: "pairing" }
-  | { screen: "pairing-error"; reason: "invalid" | "expired" | "replayed"; origin: string }
+  | { screen: "pairing-error"; reason: "invalid" | "expired" | "replayed" | "connection"; origin: string }
   | { screen: "review"; title: string; transcript: string }
   | { screen: "ready" };
 
@@ -26,7 +26,10 @@ function phoneText(state: PhoneState): string {
     case "setup-required": return G2_COPY.setupRequired;
     case "loading": return G2_COPY.pairing;
     case "pairing-error": {
-      const error = state.reason === "expired" ? G2_COPY.expiredCode : state.reason === "replayed" ? G2_COPY.replayedCode : G2_COPY.invalidCode;
+      const error = state.reason === "expired" ? G2_COPY.expiredCode
+        : state.reason === "replayed" ? G2_COPY.replayedCode
+          : state.reason === "connection" ? G2_COPY.secureConnectionFailed
+            : G2_COPY.invalidCode;
       return `${error}\n${G2_COPY.unpaired}\n${G2_COPY.privateTestOrigin(state.origin)}`;
     }
     case "review": return `${state.transcript}\n\n${state.title}`;

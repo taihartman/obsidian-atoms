@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { G2AuthClient, G2HttpClient } from "../src/auth/client";
+import { G2AuthClient, G2HttpClient, pairingFailureReason } from "../src/auth/client";
 import { singleFlight } from "../src/auth/singleFlight";
 import { g2ServerSetupReady, readG2ServerSetup } from "../src/auth/setup";
 
@@ -62,6 +62,12 @@ describe("G2 HTTP client", () => {
 });
 
 describe("G2 auth lifecycle (KTD2, AE1, AE9)", () => {
+  it("calls only a server refusal an invalid pairing code", () => {
+    expect(pairingFailureReason(new Error("pairing_refused"))).toBe("invalid");
+    expect(pairingFailureReason(new Error("auth_unavailable"))).toBe("connection");
+    expect(pairingFailureReason(new DOMException("key failed", "OperationError"))).toBe("connection");
+  });
+
   it("preserves the stored refresh credential when restore fails transiently", async () => {
     const vault = vaultDouble();
     const fetcher = vi.fn(async () => { throw new TypeError("offline"); });

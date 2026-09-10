@@ -5,6 +5,9 @@ type CipherRecord = { accountId: string; deviceFamilyId: string; iv: Uint8Array;
 const VERSION = 1;
 const KEYS = "keys";
 const TOKENS = "tokens";
+const PROOF_LEGACY = "proof";
+const PROOF_PRIVATE = "proof-private";
+const PROOF_PUBLIC = "proof-public";
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -55,15 +58,24 @@ export class G2CredentialVault {
   }
 
   async createOrLoadProofKey(): Promise<JsonWebKey> {
+    if (this.proofKey) return this.crypto.subtle.exportKey("jwk", this.proofKey.publicKey);
     const database = await this.ready();
     const transaction = database.transaction(KEYS, "readonly");
-    const stored = await request(transaction.objectStore(KEYS).get("proof")) as CryptoKeyPair | undefined;
+    const store = transaction.objectStore(KEYS);
+    const [privateKey, publicKey, legacy] = await Promise.all([
+      request(store.get(PROOF_PRIVATE)) as Promise<CryptoKey | undefined>,
+      request(store.get(PROOF_PUBLIC)) as Promise<CryptoKey | undefined>,
+      request(store.get(PROOF_LEGACY)) as Promise<CryptoKeyPair | undefined>,
+    ]);
     await complete(transaction);
-    if (stored) this.proofKey = stored;
+    if (privateKey && publicKey) this.proofKey = { privateKey, publicKey };
+    else if (legacy?.privateKey && legacy.publicKey) this.proofKey = legacy;
     else {
       this.proofKey = await this.crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
       const write = database.transaction(KEYS, "readwrite");
-      write.objectStore(KEYS).put(this.proofKey, "proof");
+      const keyStore = write.objectStore(KEYS);
+      keyStore.put(this.proofKey.privateKey, PROOF_PRIVATE);
+      keyStore.put(this.proofKey.publicKey, PROOF_PUBLIC);
       await complete(write);
     }
     return this.crypto.subtle.exportKey("jwk", this.proofKey.publicKey);

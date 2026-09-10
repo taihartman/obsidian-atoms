@@ -16,6 +16,12 @@ class G2AuthRequestError extends Error {
   }
 }
 
+export type PairingFailureReason = "invalid" | "connection";
+
+export function pairingFailureReason(error: unknown): PairingFailureReason {
+  return error instanceof Error && error.message === "pairing_refused" ? "invalid" : "connection";
+}
+
 function base64url(value: Uint8Array): string {
   let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);

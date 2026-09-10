@@ -4,7 +4,7 @@ import { CreateFlow } from "./app/createFlow";
 import { G2AppController } from "./app/controller";
 import { QueryFlow } from "./app/queryFlow";
 import { ReadFlow } from "./app/readFlow";
-import { G2AuthClient, G2HttpClient, type G2Session, type PairingPointer } from "./auth/client";
+import { G2AuthClient, G2HttpClient, pairingFailureReason, type G2Session, type PairingPointer } from "./auth/client";
 import { G2CredentialVault } from "./auth/credentials";
 import { singleFlight } from "./auth/singleFlight";
 import { G2_DISCLOSURE_VERSION, g2ServerSetupReady, readG2ServerSetup, type G2ServerConsent } from "./auth/setup";
@@ -122,8 +122,8 @@ export async function startG2Companion(
         await renderer.render({ screen: "setup-required", selectedIndex: 0 });
         phone({ screen: consent.g2Disclosure.granted ? "setup-required" : "disclosure" });
       }
-    } catch {
-      phone({ screen: "pairing-error", reason: "invalid", origin: privateTestOrigin });
+    } catch (error) {
+      phone({ screen: "pairing-error", reason: pairingFailureReason(error), origin: privateTestOrigin });
     }
   });
 
