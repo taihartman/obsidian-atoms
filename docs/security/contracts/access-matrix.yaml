@@ -118,7 +118,7 @@ rows:
     lastVerified: 2026-09-09
     notes: Additive recovery endpoint. The configured exact HTTPS origin or the sentinel-validated canonical dynamic-port iPhone loopback Origin applies before DPoP or setup-state lookup. Older clients do not call it; newer clients against an older server fail closed as Setup required.
   - id: G2_CONTENT_006
-    path: /v1/g2/{transcribe|prepare|commit|status|query|recent|fetch}
+    path: /v1/g2/{captures|setup/status|recent|fetch}
     operation: call
     allowedActors: [current scoped g2a_ family member with matching DPoP proof and live Plus entitlement]
     deniedActors: [wrong scope, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
@@ -128,21 +128,60 @@ rows:
     threatsCovered: [proof replay, token theft, route confusion, tenant disclosure, lapsed entitlement]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-09
+    lastVerified: 2026-09-10
     notes: The one configured exact HTTPS origin or a canonical dynamic-port loopback Origin validated under the explicit http://127.0.0.1:* sentinel applies to every G2 route. The exact validated request Origin is echoed with Vary Origin; no-store applies to success and error.
   - id: G2_PREPARE_METADATA_013
-    path: /v1/g2/prepare
+    path: /v1/g2/{prepare|prepare/local|commit|status|transcribe|query}
     operation: create
     allowedActors: [current scoped g2a_ family member with matching DPoP proof, live Plus entitlement, current G2 disclosure, and current authorization generation]
     deniedActors: [withdrawn disclosure, stale generation, revoked device family, missing server provider key, invalid provider output, anonymous]
     identityType: g2-access-dpop
-    dataShape: The exact final transcript plus at most 50 mirror titles and 50 existing tags may reach the server-held Anthropic boundary. Structured output contains only a declarative title, existing-tag candidates, and reason-bearing existing-note link candidates. Exact downstream mirror allowlists remain authoritative; the captured-record bytes are never sourced from model output.
+    dataShape: The exact final transcript may come from the bound server transcription record or directly from the phone-local engine at /prepare/local. It plus at most 50 mirror titles and 50 existing tags may reach the server-held Anthropic boundary. Structured output contains only a declarative title, existing-tag candidates, and reason-bearing existing-note link candidates. Exact downstream mirror allowlists remain authoritative; the captured-record bytes are never sourced from model output.
     tests: [plus-service/test/g2-creation.test.mjs, plus-service/test/http-g2-auth.test.mjs]
     threatsCovered: [late model completion after consent withdrawal, late model completion after device revocation, prompt-injected metadata, invented tag or link persistence, captured-record rewriting, silent heuristic fallback]
+    status: deprecated
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Removed from V1. These cloud transcription, generated metadata, direct atom write, and generated answer routes return not found and no provider fallback exists.
+  - id: G2_CAPTURE_ENQUEUE_016
+    path: /v1/g2/captures
+    operation: create
+    allowedActors: [current g2a_ family member with g2:capture scope, matching DPoP proof, live Plus entitlement, current G2 disclosure, and current authorization generation]
+    deniedActors: [unconfirmed transcript, wrong scope, withdrawn disclosure, stale generation, revoked device family, malformed timestamp or fingerprint, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Exact confirmed canonical UTF-8 transcript, exact-offset captured-at timestamp, opaque client capture ID, and matching SHA-256 fingerprint. The server encrypts the transcript at rest and does not title, tag, link, summarize, classify, or consume filing credit.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs, companion/even-g2/test/create-flow.test.ts]
+    threatsCovered: [unconfirmed content egress, proof replay, token theft, payload substitution, cross-tenant collision, captured-record rewriting]
     status: verified
     owner: product-engineering
-    lastVerified: 2026-09-09
-    notes: Missing credentials, timeout, upstream failure, or invalid structured output returns an explicit unavailable or failed preparation state. In-flight calls own abort controllers and authorization is rechecked after the model returns and immediately before persistence.
+    lastVerified: 2026-09-10
+    notes: Identical account-scoped retries return the original receipt. Changed reuse conflicts without disclosing foreign rows. The exact validated request Origin is echoed and every response is no-store.
+  - id: G2_CAPTURE_CLAIM_017
+    path: /v1/g2/captures/claim
+    operation: update
+    allowedActors: [verified Plus plugin session for the owning account]
+    deniedActors: [other tenant session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Bounded oldest-first lease of encrypted pending captures; response decrypts only the owning account's exact body and timestamp and returns an opaque claim token.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-tenant content disclosure, unbounded drain, concurrent claim duplication, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Already accepted captures remain claimable by the current account plugin after originating-device revocation or subscription lapse. The global G2 emergency gate still pauses delivery.
+  - id: G2_CAPTURE_ACK_018
+    path: /v1/g2/captures/ack
+    operation: update
+    allowedActors: [verified Plus plugin session for the owning account holding the current claim token]
+    deniedActors: [wrong tenant, stale or wrong claim token, MCP bearer, G2 bearer, anonymous]
+    identityType: verified-session
+    dataShape: Acknowledgement immediately purges transcript ciphertext and retains only a content-resistant retry receipt before reducing to an opaque tombstone.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs, test/g2CaptureRelay.test.ts]
+    threatsCovered: [false delivery acknowledgement, content retention, cross-tenant deletion, claim replay]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Plugin acknowledgement follows a verified idempotent Inbox append. Duplicate acknowledgement is safe.
   - id: G2_GROUNDED_QUERY_014
     path: /v1/g2/{query|recent|fetch}
     operation: read

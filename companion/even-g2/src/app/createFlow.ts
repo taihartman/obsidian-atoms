@@ -1,14 +1,13 @@
 import { CREATE_COPY } from "../i18n/en";
 
-type PreparedResponse = { preparationId: string; fingerprint: string; title: string; body: string; expiresAt: string };
-type CommitResponse = { state: "queued" | "saved" | "title_collision" | "setup_required" | "expired" | "confirmation_mismatch" | "commit_unknown" | "rejected"; outboxId?: string; receipt?: DeliveryReceipt };
-type StatusResponse = { state: "queued" | "saved" | "rejected" | "not_found" | "setup_required"; receipt?: DeliveryReceipt };
-type DeliveryReceipt = { path: string; title: string };
+type EnqueueResponse = {
+  state: "pending" | "claimed" | "applied";
+  captureId: string;
+  already?: boolean;
+};
 
 export type CreateApi = {
-  prepare(recordingId: string, capturedAt: string): Promise<PreparedResponse>;
-  commit(request: { preparationId: string; fingerprint: string; confirmedTitle: string; commitKey: string }): Promise<CommitResponse>;
-  status(outboxId: string): Promise<StatusResponse>;
+  enqueue(request: { captureId: string; capturedAt: string; body: string }): Promise<EnqueueResponse>;
 };
 
 export type CreateRecovery = {
@@ -18,28 +17,29 @@ export type CreateRecovery = {
 };
 
 export type CreateRecoveryRecord = {
-  state: "prepared" | "queued" | "saved" | "rejected" | "title_collision" | "proposal_expired" | "commit_unknown" | "revoked";
+  state: "prepared";
   recordingId: string;
   capturedAt: string;
-  preparationId: string;
-  fingerprint: string;
   title: string;
   body: string;
   expiresAt: string;
-  commitKey?: string;
-  outboxId?: string;
-  receipt?: DeliveryReceipt;
-  acceptedAt?: string;
+  // Legacy fields stay optional so encrypted recovery rows from the private test
+  // remain readable until their normal retention window expires.
+  preparationId?: string;
+  fingerprint?: string;
 };
 
 export type CreateView = {
-  state: CreateRecoveryRecord["state"] | "idle";
+  state: "prepared" | "queued" | "idle";
   title?: string;
+  transcript?: string;
   message?: string;
-  receipt?: DeliveryReceipt;
   acceptedAt?: string;
-  stillQueued?: boolean;
 };
+
+function canonicalTranscript(value: string | undefined): string {
+  return (value ?? "").replace(/\r\n?/g, "\n").normalize("NFC").trim();
+}
 
 export class CreateFlow {
   private record: CreateRecoveryRecord | null = null;
@@ -47,25 +47,31 @@ export class CreateFlow {
   constructor(
     private readonly api: CreateApi,
     private readonly recovery: CreateRecovery,
-    private readonly makeCommitKey: () => string,
+    _legacyMakeCommitKey?: (() => string),
     private readonly now: () => number = Date.now,
   ) {}
 
-  private view(): CreateView {
+  private view(message?: string): CreateView {
     if (!this.record) return { state: "idle" };
-    if (this.record.state === "prepared") return { state: "prepared", title: this.record.title };
-    if (this.record.state === "queued") return { state: "queued", message: CREATE_COPY.queued, acceptedAt: this.record.acceptedAt, stillQueued: Boolean(this.record.acceptedAt && this.now() - Date.parse(this.record.acceptedAt) >= 15 * 60 * 1000) };
-    if (this.record.state === "saved") return { state: "saved", message: CREATE_COPY.saved, receipt: this.record.receipt };
-    if (this.record.state === "title_collision") return { state: "title_collision", message: CREATE_COPY.collision };
-    if (this.record.state === "proposal_expired") return { state: "proposal_expired", message: CREATE_COPY.expired };
-    if (this.record.state === "commit_unknown") return { state: "commit_unknown", message: CREATE_COPY.waiting };
-    if (this.record.state === "revoked") return { state: "revoked", message: CREATE_COPY.revoked };
-    return { state: "rejected", message: CREATE_COPY.rejected };
+    return {
+      state: "prepared",
+      title: this.record.title,
+      transcript: this.record.body,
+      ...(message ? { message } : {}),
+    };
   }
 
-  async prepare(recordingId: string, capturedAt: string): Promise<CreateView> {
-    const proposal = await this.api.prepare(recordingId, capturedAt);
-    this.record = { state: "prepared", recordingId, capturedAt, ...proposal };
+  async prepare(recordingId: string, capturedAt: string, transcript?: string): Promise<CreateView> {
+    const body = canonicalTranscript(transcript);
+    if (!body) throw new Error("empty_transcript");
+    this.record = {
+      state: "prepared",
+      recordingId,
+      capturedAt,
+      title: "Review capture",
+      body,
+      expiresAt: new Date(this.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
     await this.recovery.save(this.record);
     return this.view();
   }
@@ -82,65 +88,26 @@ export class CreateFlow {
   }
 
   async confirm(): Promise<CreateView> {
-    if (!this.record || this.record.state !== "prepared") return this.view();
-    const commitKey = this.record.commitKey || this.makeCommitKey();
-    this.record.commitKey = commitKey;
-    await this.recovery.save(this.record);
-    let result: CommitResponse;
+    if (!this.record) return this.view();
     try {
-      result = await this.api.commit({
-        preparationId: this.record.preparationId,
-        fingerprint: this.record.fingerprint,
-        confirmedTitle: this.record.title,
-        commitKey,
+      const result = await this.api.enqueue({
+        captureId: this.record.recordingId,
+        capturedAt: this.record.capturedAt,
+        body: this.record.body,
       });
+      if (!["pending", "claimed", "applied"].includes(result.state) || result.captureId !== this.record.recordingId) {
+        return this.view(CREATE_COPY.waiting);
+      }
+      const acceptedAt = new Date(this.now()).toISOString();
+      this.record = null;
+      await this.recovery.clear();
+      return { state: "queued", message: CREATE_COPY.queued, acceptedAt };
     } catch {
-      return { state: "prepared", title: this.record.title, message: CREATE_COPY.waiting };
+      return this.view(CREATE_COPY.waiting);
     }
-    if (result.state === "queued" && result.outboxId) {
-      this.record.state = "queued";
-      this.record.outboxId = result.outboxId;
-      this.record.acceptedAt = new Date(this.now()).toISOString();
-    } else if (result.state === "saved" && result.receipt) {
-      this.record.state = "saved";
-      this.record.receipt = result.receipt;
-    } else if (result.state === "title_collision") {
-      this.record.state = "title_collision";
-    } else if (result.state === "expired" || result.state === "confirmation_mismatch") {
-      this.record.state = "proposal_expired";
-    } else if (result.state === "commit_unknown") {
-      this.record.state = "commit_unknown";
-    } else if (result.state === "setup_required") {
-      this.record.state = "revoked";
-    } else {
-      this.record.state = "rejected";
-    }
-    if (this.record.state === "saved" && this.record.receipt) await this.recovery.clear();
-    else await this.recovery.save(this.record);
-    return this.view();
   }
 
   async refresh(): Promise<CreateView> {
-    if (!this.record?.outboxId || (this.record.state !== "queued" && this.record.state !== "commit_unknown")) return this.view();
-    try {
-      const result = await this.api.status(this.record.outboxId);
-      if (result.state === "saved" && result.receipt) {
-        this.record.state = "saved";
-        this.record.receipt = result.receipt;
-      } else if (result.state === "queued") {
-        this.record.state = "queued";
-      } else if (result.state === "setup_required") {
-        this.record.state = "revoked";
-      } else if (result.state === "rejected") {
-        this.record.state = "rejected";
-      } else if (result.state === "not_found") {
-        this.record.state = "commit_unknown";
-      }
-      if (this.record.state === "saved" && this.record.receipt) await this.recovery.clear();
-      else await this.recovery.save(this.record);
-      return this.view();
-    } catch {
-      return { ...this.view(), message: CREATE_COPY.waiting };
-    }
+    return this.view();
   }
 }

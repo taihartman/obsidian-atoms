@@ -5,6 +5,8 @@ import {
   askMirrorReconcile,
   askMirrorUpsert,
   askOutboxAck,
+  g2CaptureAck,
+  g2CaptureClaim,
   PLUS_BASE_REFUSED_MESSAGE,
   askMirrorStatus,
   askMcpPair,
@@ -57,6 +59,31 @@ function neverCalled() {
 }
 
 describe("plusClient", () => {
+  it("G2_CAPTURE_CLAIM_017 and G2_CAPTURE_ACK_018 require a verified Plus base and preserve exact capture text", async () => {
+    const seen: RequestUrlParam[] = [];
+    const request = mockRequest((p) => {
+      seen.push(p);
+      return p.url.endsWith("/claim")
+        ? { json: { items: [{ captureId: "capture_one", capturedAt: "2026-09-10T18:00:00.000Z", body: "exact\nwords", claimToken: "g2c_secret" }] } }
+        : { json: { captureId: "capture_one", state: "applied" } };
+    });
+    const cfg = { baseUrl: base, verifiedBase: base, request };
+    await expect(g2CaptureClaim(cfg, "sess_g2", 10)).resolves.toEqual({
+      ok: true,
+      items: [{ captureId: "capture_one", capturedAt: "2026-09-10T18:00:00.000Z", body: "exact\nwords", claimToken: "g2c_secret" }],
+    });
+    await expect(g2CaptureAck(cfg, "sess_g2", { captureId: "capture_one", claimToken: "g2c_secret" })).resolves.toEqual({
+      ok: true, captureId: "capture_one", state: "applied",
+    });
+    expect(JSON.parse(String(seen[0]?.body))).toEqual({ limit: 10 });
+    expect(JSON.parse(String(seen[1]?.body))).toEqual({ captureId: "capture_one", claimToken: "g2c_secret" });
+  });
+
+  it("refuses a G2 capture claim before network egress when the Plus base is unverified", async () => {
+    await expect(g2CaptureClaim({ baseUrl: base, verifiedBase: "https://other.test", request: neverCalled() }, "sess_g2"))
+      .resolves.toMatchObject({ ok: false, message: PLUS_BASE_REFUSED_MESSAGE });
+  });
+
   it("exposes the G2 session-authenticated device and consent client", async () => {
     const client = await import("../src/platform/plusClient");
     expect(typeof client.g2CreatePairingCode).toBe("function");

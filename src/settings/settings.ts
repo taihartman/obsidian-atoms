@@ -159,6 +159,7 @@ import {
   g2ReadConsent,
   g2RevokeDevice,
   g2SynchronizeConsent,
+  G2_CAPTURE_DISCLOSURE_VERSION,
   plusFetchRequest,
   PLUS_UNREACHABLE_MESSAGE,
   type G2ConsentState,
@@ -204,12 +205,10 @@ const LS_G2_PAIRING_STARTED = "atoms:g2:pairing-started";
 
 export function g2SetupReady(
   consent: G2ConsentState,
-  local: Pick<LinkerSettings, "askEnabled" | "askPrivacyAckAt" | "askPrivacyAckVersion" | "askWriteAckAt" | "askWriteAckVersion">,
+  _local: Pick<LinkerSettings, "askEnabled" | "askPrivacyAckAt" | "askPrivacyAckVersion" | "askWriteAckAt" | "askWriteAckVersion">,
 ): boolean {
   return consent.g2Disclosure.granted &&
-    consent.askMirror.granted && consent.askMirror.version === ASK_PRIVACY_ACK_VERSION &&
-    consent.askWrite.granted && consent.askWrite.version === ASK_WRITE_ACK_VERSION &&
-    askMirrorPermitted(local) && askWriteAckIsCurrent(local);
+    consent.g2Disclosure.version === G2_CAPTURE_DISCLOSURE_VERSION;
 }
 
 /** Public marketing + pricing page. Source lives in `www/` in this repo. */
@@ -1595,7 +1594,6 @@ export class AtomsSettingTab extends PluginSettingTab {
       desc: G2_EN.connect.rowDescription(setup),
       label: G2_EN.connect.label,
       onClick: async () => {
-        if (!await this.synchronizeG2Consent(true)) return;
         const result = await g2CreatePairingCode(this.g2Config(base), session.sessionToken);
         if (!result.ok) {
           new Notice(G2_EN.connect.failed(result.message));

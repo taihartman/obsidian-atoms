@@ -5,6 +5,7 @@ import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, mergeG2Disclosure, normalizeG2Scopes,
   G2_RECEIPT_RETENTION_MS,
+  g2CaptureDigest,
   publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
@@ -169,11 +170,18 @@ CREATE TABLE IF NOT EXISTS ask_outbox (
   g2_receipt_expires_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
-CREATE INDEX IF NOT EXISTS idx_ask_outbox_g2_receipt_expiry ON ask_outbox(g2_receipt_expires_at)
-  WHERE g2_receipt_expires_at IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
   ON ask_outbox(email, client_request_id)
   WHERE client_request_id IS NOT NULL AND client_request_id != '';
+CREATE TABLE IF NOT EXISTS g2_capture_relay (
+  email TEXT NOT NULL, capture_id TEXT NOT NULL, family_id TEXT NOT NULL,
+  captured_at TEXT NOT NULL, body_enc TEXT, digest TEXT,
+  status TEXT NOT NULL, claim_token_hash TEXT, claim_until_ms BIGINT,
+  receipt_until_ms BIGINT, created_at_ms BIGINT NOT NULL,
+  PRIMARY KEY (email, capture_id)
+);
+CREATE INDEX IF NOT EXISTS idx_g2_capture_relay_claim
+  ON g2_capture_relay(email, status, created_at_ms);
 `;
 
 /**
@@ -307,6 +315,7 @@ export function createAskPostgresMethods(pool, deps) {
     const consent = publicG2Consent(row);
     return Boolean(subscriptionLive(row ? { ...row, periodEnd: row.period_end } : null) && row && !row.revoked &&
       consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.disclosureVersion || consent.g2Disclosure.version === opts.disclosureVersion) &&
       (!opts.requireMirror || consent.askMirror.granted) &&
       (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
   }
@@ -504,6 +513,10 @@ export function createAskPostgresMethods(pool, deps) {
     counts.receipts = (await pool.query(`DELETE FROM ask_outbox WHERE ctid IN
       (SELECT ctid FROM ask_outbox WHERE status='applied' AND g2_receipt_expires_at IS NOT NULL
        AND g2_receipt_expires_at<=$1 LIMIT $2)`, [now, cap])).rowCount;
+    counts.receipts += (await pool.query(`UPDATE g2_capture_relay
+      SET status='tombstone', family_id='', captured_at='', digest=NULL, receipt_until_ms=NULL
+      WHERE ctid IN (SELECT ctid FROM g2_capture_relay
+        WHERE status='applied' AND receipt_until_ms IS NOT NULL AND receipt_until_ms<=$1 LIMIT $2)`, [now, cap])).rowCount;
     return counts;
   }
 
@@ -1037,6 +1050,113 @@ export function createAskPostgresMethods(pool, deps) {
     return result.rowCount > 0;
   }
 
+  async function g2CaptureEnqueueWith(queryable, email, row, opts = {}) {
+    const account = normEmail(email);
+    const digest = g2CaptureDigest(row);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const bodyEnc = encryptG2Artifact(row.body, {
+      account, artifact: "capture", row: row.captureId,
+    });
+    const inserted = await queryable.query(`INSERT INTO g2_capture_relay
+      (email,capture_id,family_id,captured_at,body_enc,digest,status,created_at_ms)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)
+      ON CONFLICT (email,capture_id) DO NOTHING RETURNING status`,
+    [account, row.captureId, row.familyId, row.capturedAt, bodyEnc, digest, now]);
+    if (inserted.rowCount) return { captureId: row.captureId, state: "pending" };
+    const existing = await queryable.query(
+      "SELECT status,digest FROM g2_capture_relay WHERE email=$1 AND capture_id=$2",
+      [account, row.captureId],
+    );
+    return existing.rows[0]?.digest === digest
+      ? { captureId: row.captureId, state: existing.rows[0].status, already: true }
+      : { error: "capture_id_conflict" };
+  }
+
+  function g2CaptureEnqueue(email, row, opts = {}) {
+    return g2CaptureEnqueueWith(pool, email, row, opts);
+  }
+
+  async function g2CaptureEnqueueAuthorized(binding, row, opts = {}) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, { disclosureVersion: opts.disclosureVersion }, true)) {
+        await client.query("ROLLBACK");
+        return { state: "setup_required" };
+      }
+      const result = await g2CaptureEnqueueWith(
+        client,
+        binding.email,
+        { ...row, familyId: binding.familyId },
+        opts,
+      );
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function g2CaptureClaim(email, opts = {}) {
+    const account = normEmail(email);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const leaseMs = Number.isFinite(opts.leaseMs) ? opts.leaseMs : 5 * 60 * 1000;
+    const limit = Math.max(1, Math.min(10, Number(opts.limit) || 10));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE g2_capture_relay
+        SET status='pending',claim_token_hash=NULL,claim_until_ms=NULL
+        WHERE email=$1 AND status='claimed' AND claim_until_ms<=$2`, [account, now]);
+      const { rows } = await client.query(`SELECT * FROM g2_capture_relay
+        WHERE email=$1 AND status='pending' ORDER BY created_at_ms ASC
+        FOR UPDATE SKIP LOCKED LIMIT $2`, [account, limit]);
+      const items = [];
+      for (const row of rows) {
+        const claimToken = id("g2c");
+        await client.query(`UPDATE g2_capture_relay
+          SET status='claimed',claim_token_hash=$1,claim_until_ms=$2
+          WHERE email=$3 AND capture_id=$4`,
+        [hashToken(claimToken), now + leaseMs, account, row.capture_id]);
+        items.push({ captureId: row.capture_id, capturedAt: row.captured_at,
+          body: decryptG2ArtifactOrLegacy(row.body_enc, {
+            account, artifact: "capture", row: row.capture_id,
+          }), claimToken });
+      }
+      await client.query("COMMIT");
+      return { items };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function g2CaptureAck(email, opts = {}) {
+    const account = normEmail(email);
+    const captureId = String(opts.captureId || "");
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const changed = await pool.query(`UPDATE g2_capture_relay
+      SET status='applied',body_enc=NULL,claim_token_hash=NULL,claim_until_ms=NULL,receipt_until_ms=$1
+      WHERE email=$2 AND capture_id=$3 AND status='claimed' AND claim_until_ms>$4 AND claim_token_hash=$5
+      RETURNING capture_id`, [
+      now + G2_RECEIPT_RETENTION_MS, account, captureId, now,
+      hashToken(String(opts.claimToken || "")),
+    ]);
+    if (changed.rowCount) return { captureId, state: "applied" };
+    const existing = await pool.query(
+      "SELECT status FROM g2_capture_relay WHERE email=$1 AND capture_id=$2",
+      [account, captureId],
+    );
+    return ["applied", "tombstone"].includes(existing.rows[0]?.status)
+      ? { captureId, state: existing.rows[0].status, already: true }
+      : { error: "not_found" };
+  }
+
   async function outboxPendingCount(email) {
     const e = normEmail(email);
     await outboxReclaimStale(e);
@@ -1445,6 +1565,10 @@ export function createAskPostgresMethods(pool, deps) {
     g2PreparationPut,
     g2PreparationGet,
     g2PreparationDelete,
+    g2CaptureEnqueue,
+    g2CaptureEnqueueAuthorized,
+    g2CaptureClaim,
+    g2CaptureAck,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

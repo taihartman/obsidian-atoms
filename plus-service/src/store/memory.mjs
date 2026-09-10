@@ -13,6 +13,7 @@ import {
   G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS,
   G2_RECEIPT_RETENTION_MS,
+  g2CaptureDigest,
   normalizeG2Scopes,
   mergeG2Consent,
   mergeG2Disclosure,
@@ -76,6 +77,8 @@ export function createMemoryStore() {
   const askOutbox = new Map();
   /** Applied G2 receipt expiry index; avoids unbounded scans of normal Ask rows. */
   const g2ReceiptExpiries = new Map();
+  /** account + capture id -> encrypted confirmed capture relay row */
+  const g2Captures = new Map();
   /** pending_id → pending oauth */
   const mcpPending = new Map();
   /** code_hash → auth code row */
@@ -943,6 +946,85 @@ export function createMemoryStore() {
     return g2Preparations.delete(row.id);
   }
 
+  function g2CaptureEnqueue(email, row, opts = {}) {
+    const account = normEmail(email);
+    const key = `${account}\0${row.captureId}`;
+    const digest = g2CaptureDigest(row);
+    const existing = g2Captures.get(key);
+    if (existing) {
+      if (existing.digest !== digest) return { error: "capture_id_conflict" };
+      return { captureId: row.captureId, state: existing.status, already: true };
+    }
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    g2Captures.set(key, {
+      email: account,
+      captureId: row.captureId,
+      familyId: row.familyId,
+      capturedAt: row.capturedAt,
+      bodyEnc: encryptG2Artifact(row.body, { account, artifact: "capture", row: row.captureId }),
+      digest,
+      status: "pending",
+      claimTokenHash: null,
+      claimUntilMs: null,
+      receiptUntilMs: null,
+      createdAtMs: now,
+    });
+    return { captureId: row.captureId, state: "pending" };
+  }
+
+  function g2CaptureEnqueueAuthorized(binding, row, opts = {}) {
+    if (!g2Authorize(binding, { disclosureVersion: opts.disclosureVersion })) {
+      return { state: "setup_required" };
+    }
+    return g2CaptureEnqueue(binding.email, { ...row, familyId: binding.familyId }, opts);
+  }
+
+  function g2CaptureClaim(email, opts = {}) {
+    const account = normEmail(email);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const leaseMs = Number.isFinite(opts.leaseMs) ? opts.leaseMs : 5 * 60 * 1000;
+    const limit = Math.max(1, Math.min(10, Number(opts.limit) || 10));
+    const candidates = [...g2Captures.values()]
+      .filter((row) => row.email === account && (row.status === "pending" ||
+        (row.status === "claimed" && Number(row.claimUntilMs) <= now)))
+      .sort((a, b) => a.createdAtMs - b.createdAtMs)
+      .slice(0, limit);
+    return { items: candidates.map((row) => {
+      const claimToken = id("g2c");
+      row.status = "claimed";
+      row.claimTokenHash = hashToken(claimToken);
+      row.claimUntilMs = now + leaseMs;
+      return {
+        captureId: row.captureId,
+        capturedAt: row.capturedAt,
+        body: decryptG2ArtifactOrLegacy(row.bodyEnc, {
+          account, artifact: "capture", row: row.captureId,
+        }),
+        claimToken,
+      };
+    }) };
+  }
+
+  function g2CaptureAck(email, opts = {}) {
+    const account = normEmail(email);
+    const row = g2Captures.get(`${account}\0${String(opts.captureId || "")}`);
+    if (!row) return { error: "not_found" };
+    if (row.status === "applied" || row.status === "tombstone") {
+      return { captureId: row.captureId, state: row.status, already: true };
+    }
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    if (row.status !== "claimed" || row.claimUntilMs <= now ||
+        row.claimTokenHash !== hashToken(String(opts.claimToken || ""))) {
+      return { error: "not_found" };
+    }
+    row.status = "applied";
+    row.bodyEnc = null;
+    row.claimTokenHash = null;
+    row.claimUntilMs = null;
+    row.receiptUntilMs = now + G2_RECEIPT_RETENTION_MS;
+    return { captureId: row.captureId, state: "applied" };
+  }
+
   function outboxPendingCount(email) {
     outboxReclaimStale(email);
     return outboxOpenCount(email);
@@ -1346,6 +1428,7 @@ export function createMemoryStore() {
     const family = g2Families.get(String(binding.familyId));
     return Boolean(subscriptionLive(account) && family && family.email === email && !family.revoked &&
       consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.disclosureVersion || consent.g2Disclosure.version === opts.disclosureVersion) &&
       (!opts.requireMirror || consent.askMirror.granted) &&
       (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
   }
@@ -1491,6 +1574,18 @@ export function createMemoryStore() {
       }
       g2ReceiptExpiries.delete(outboxId);
     }
+    let captureReceipts = 0;
+    for (const row of g2Captures.values()) {
+      if (captureReceipts >= limit) break;
+      if (row.status !== "applied" || Number(row.receiptUntilMs || Infinity) > now) continue;
+      row.status = "tombstone";
+      row.familyId = "";
+      row.capturedAt = "";
+      row.digest = null;
+      row.receiptUntilMs = null;
+      counts.receipts += 1;
+      captureReceipts += 1;
+    }
     for (const [key, row] of g2TranscriptionSlots) if (row.expiresAt <= now) g2TranscriptionSlots.delete(key);
     return counts;
   }
@@ -1567,6 +1662,10 @@ export function createMemoryStore() {
     g2PreparationPut,
     g2PreparationGet,
     g2PreparationDelete,
+    g2CaptureEnqueue,
+    g2CaptureEnqueueAuthorized,
+    g2CaptureClaim,
+    g2CaptureAck,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

@@ -9,17 +9,21 @@ import { G2CredentialVault } from "./auth/credentials";
 import { singleFlight } from "./auth/singleFlight";
 import { G2_DISCLOSURE_VERSION, g2ServerSetupReady, readG2ServerSetup, type G2ServerConsent } from "./auth/setup";
 import { G2_COPY } from "./i18n/en";
-import { EvenAudioSession, ticketFromResponse } from "./platform/audio";
+import { LocalTranscriber } from "./audio/localTranscriber";
+import { MoonshineWorkerClient } from "./audio/moonshineWorker";
+import { EvenLocalAudioSession } from "./platform/localAudio";
 import { normalizeEvenAction } from "./platform/even";
 import { installEvenSdkEventLogPrivacy } from "./platform/sdkLogPrivacy";
 import { AppRecoveryStore } from "./storage/appRecovery";
 import { probeRecoveryCapabilities, type RecoveryCapabilityResult } from "./storage/capabilities";
-import { RecoveryJournal } from "./storage/recovery";
 import { renderPhone, type PhoneState } from "./ui/phone";
 import { EvenGlassesRenderer } from "./ui/render";
 
 const BINDING_POINTER = "atoms-g2-binding";
-const AUDIO_POINTER = "atoms-g2-recording";
+
+function canQueueCaptures(session: G2Session): boolean {
+  return session.scopes.includes("g2:capture");
+}
 
 function parsePointer(raw: string): PairingPointer | null {
   try {
@@ -34,6 +38,12 @@ function audioBytes(event: EvenHubEvent): Uint8Array | null {
   const raw = event.audioEvent?.audioPcm;
   if (!raw) return null;
   return raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+}
+
+async function captureFingerprint(request: { captureId: string; capturedAt: string; body: string }): Promise<string> {
+  const canonical = JSON.stringify({ version: 1, ...request });
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function showStartupStatus(
@@ -81,7 +91,7 @@ export async function startG2Companion(
   const auth = new G2AuthClient(baseUrl, vault);
   const http = new G2HttpClient(auth);
   let controller: G2AppController | null = null;
-  let audio: EvenAudioSession | null = null;
+  let audio: EvenLocalAudioSession | null = null;
   let removeEvents = () => {};
   let disclosureRevision = 0;
 
@@ -89,6 +99,8 @@ export async function startG2Companion(
     connect: (code) => { void pair(code); },
     acceptDisclosure: () => { void acceptDisclosure(); },
     reconnect: () => { phone({ screen: "unpaired", origin: privateTestOrigin }); },
+    saveCapture: () => { void controller?.handle({ kind: "click", envelope: "list", selectedIndex: 0 }); },
+    retryCapture: () => { void controller?.handle({ kind: "click", envelope: "list", selectedIndex: 1 }); },
   });
 
   let bootSession!: (session: G2Session) => Promise<void>;
@@ -97,6 +109,11 @@ export async function startG2Companion(
     phone({ screen: "loading", operation: "pairing" });
     try {
       const session = await auth.pair(code);
+      if (!canQueueCaptures(session)) {
+        await renderer.render({ screen: "unpaired", selectedIndex: 0 });
+        phone({ screen: "unpaired", origin: privateTestOrigin });
+        return;
+      }
       await bridge.setLocalStorage(BINDING_POINTER, JSON.stringify({ accountId: session.accountId, deviceFamilyId: session.deviceFamilyId }));
       const consent = await readG2ServerSetup((path, body) => http.post<G2ServerConsent>(path, body));
       disclosureRevision = consent.revision;
@@ -112,7 +129,7 @@ export async function startG2Companion(
 
   const acceptDisclosure = singleFlight(async (): Promise<void> => {
     try {
-      const consent = await http.post<G2ServerConsent>("/v1/g2/transcribe/disclosure", {
+      const consent = await http.post<G2ServerConsent>("/v1/g2/captures/disclosure", {
         baseRevision: disclosureRevision,
         freshGesture: true,
         disclosure: { granted: true, version: G2_DISCLOSURE_VERSION },
@@ -131,24 +148,18 @@ export async function startG2Companion(
   bootSession = singleFlight(async (session: G2Session): Promise<void> => {
     const recovery = new AppRecoveryStore();
     await recovery.open(session.accountId, session.deviceFamilyId);
-    const journal = new RecoveryJournal();
-    await journal.open(session.accountId, session.deviceFamilyId);
-    audio = new EvenAudioSession(
+    audio = new EvenLocalAudioSession(
       bridge,
-      { ticket: async (recordingId) => ticketFromResponse(await http.post("/v1/g2/transcribe/ticket", { recordingId, purpose: "stream" })) },
-      journal,
-      `${baseUrl}/v1/g2/transcribe/stream`,
-      {
-        save: async (value) => { await bridge.setLocalStorage(AUDIO_POINTER, JSON.stringify(value)); },
-        clear: async () => { await bridge.setLocalStorage(AUDIO_POINTER, ""); },
-      },
+      () => new LocalTranscriber({ worker: new MoonshineWorkerClient() }),
     );
+    await audio.initialize();
 
     const create = new CreateFlow({
-      prepare: (recordingId, capturedAt) => http.post("/v1/g2/prepare", { recordingId, capturedAt }),
-      commit: (request) => http.post("/v1/g2/commit", request),
-      status: (outboxId) => http.post("/v1/g2/status", { outboxId }),
-    }, recovery, () => crypto.randomUUID());
+      enqueue: async (request) => http.post("/v1/g2/captures", {
+        ...request,
+        fingerprint: await captureFingerprint(request),
+      }),
+    }, recovery);
     const query = new QueryFlow({ query: (question) => http.post("/v1/g2/query", { question }) });
     const read = new ReadFlow({
       recent: (offset = 0) => http.post("/v1/g2/recent", { offset, limit: 20 }),
@@ -156,7 +167,12 @@ export async function startG2Companion(
     });
 
     controller = new G2AppController({
-      render: (state) => renderer.render(state),
+      render: (state) => {
+        if (state.screen === "confirmation") {
+          phone({ screen: "review", title: state.title, transcript: state.transcript ?? state.title });
+        }
+        return renderer.render(state);
+      },
       startRecording: async (purpose) => { await audio?.start(purpose); },
       stopRecording: async () => {
         const result = await audio?.stop();
@@ -178,7 +194,10 @@ export async function startG2Companion(
     removeEvents();
     removeEvents = bridge.onEvenHubEvent((event) => {
       const pcm = audioBytes(event);
-      if (pcm) audio?.accept(pcm);
+      if (pcm) {
+        try { audio?.accept(pcm); }
+        catch (error) { void controller?.audioInputFailed(error); }
+      }
       const action = normalizeEvenAction(event);
       if (!action || !controller) return;
       if (action.kind === "foreground-exit") void controller.systemEvent("foreground-exit");
@@ -186,21 +205,13 @@ export async function startG2Companion(
       else if (action.kind === "abnormal-exit") void controller.systemEvent("abnormal-exit");
       else void controller.handle(action);
     });
-    const rawAudioPointer = await bridge.getLocalStorage(AUDIO_POINTER);
-    let recoveredRecording = false;
-    try {
-      const candidate = JSON.parse(rawAudioPointer) as { recordingId?: unknown; purpose?: unknown };
-      if (typeof candidate.recordingId === "string" && (candidate.purpose === "create" || candidate.purpose === "query")) {
-        recoveredRecording = await audio.restore(candidate.recordingId, candidate.purpose);
-      }
-    } catch { /* A wake-up pointer is optional and contains no content. */ }
     phone({ screen: "ready" });
-    await controller.start({ paired: true, setupReady: true, recoveredRecording });
+    await controller.start({ paired: true, setupReady: true, recoveredRecording: false });
   });
 
   const pointer = parsePointer(await bridge.getLocalStorage(BINDING_POINTER));
   const restored = pointer ? await auth.restore(pointer) : null;
-  if (restored) {
+  if (restored && canQueueCaptures(restored)) {
     try {
       const consent = await readG2ServerSetup((path, body) => http.post<G2ServerConsent>(path, body));
       disclosureRevision = consent.revision;

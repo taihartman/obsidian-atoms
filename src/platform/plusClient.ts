@@ -88,14 +88,13 @@ export type PlusClientConfig = {
 };
 
 export const G2_V1_SCOPES = [
-  "g2:transcribe",
-  "g2:prepare",
-  "g2:commit",
+  "g2:capture",
   "g2:status",
-  "g2:query",
   "g2:recent",
   "g2:fetch",
 ] as const;
+
+export const G2_CAPTURE_DISCLOSURE_VERSION = "g2-capture-relay-v1";
 
 export type G2Device = {
   id: string;
@@ -200,6 +199,7 @@ function redact(msg: string): string {
     .replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[redacted]")
     .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
     .replace(/sess_[a-zA-Z0-9_-]+/g, "[redacted]")
+    .replace(/g2c_[a-zA-Z0-9_-]+/g, "[redacted]")
     .replace(/mt_[a-fA-F0-9]{8,}/g, "[redacted]")
     .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted]")
     .slice(0, 200);
@@ -1424,6 +1424,74 @@ export type AskOutboxItem = {
     preparation_id?: string;
   } | null;
 };
+
+export type G2CaptureRelayItem = {
+  captureId: string;
+  capturedAt: string;
+  body: string;
+  claimToken: string;
+};
+
+function parseG2CaptureRelayItem(value: unknown): G2CaptureRelayItem | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.captureId !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(row.captureId) ||
+    typeof row.capturedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.capturedAt) || !Number.isFinite(Date.parse(row.capturedAt)) ||
+    typeof row.body !== "string" || !row.body ||
+    typeof row.claimToken !== "string" || !/^g2c_[A-Za-z0-9_-]+$/.test(row.claimToken)
+  ) return null;
+  return { captureId: row.captureId, capturedAt: row.capturedAt, body: row.body, claimToken: row.claimToken };
+}
+
+export async function g2CaptureClaim(
+  cfg: PlusMirrorConfig,
+  sessionToken: string,
+  limit = 10,
+): Promise<{ ok: true; items: G2CaptureRelayItem[] } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
+  const boundedLimit = Math.max(1, Math.min(10, Math.floor(limit)));
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/captures/claim",
+    method: "POST",
+    sessionToken,
+    body: { limit: boundedLimit },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  if (!Array.isArray(res.json.items)) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  const items = res.json.items.map(parseG2CaptureRelayItem);
+  if (items.some((item) => item === null)) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  return { ok: true, items: items as G2CaptureRelayItem[] };
+}
+
+export async function g2CaptureAck(
+  cfg: PlusMirrorConfig,
+  sessionToken: string,
+  opts: { captureId: string; claimToken: string },
+): Promise<{ ok: true; captureId: string; state: "applied" | "tombstone" } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/captures/ack",
+    method: "POST",
+    sessionToken,
+    body: opts,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  const captureId = typeof res.json.captureId === "string" ? res.json.captureId : "";
+  const state = res.json.state;
+  if (captureId !== opts.captureId || (state !== "applied" && state !== "tombstone")) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  return { ok: true, captureId, state };
+}
 
 export async function askOutboxPull(
   cfg: PlusClientConfig,

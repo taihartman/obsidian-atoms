@@ -258,7 +258,7 @@ describe("simulator bootstrap HTTP sequence", () => {
       askWrite: { granted: true, version: "2026-09-08" },
     });
     expect(JSON.parse(String(calls[5].init?.body)).scopes).toEqual([
-      "g2:transcribe", "g2:prepare", "g2:commit", "g2:status", "g2:query", "g2:recent", "g2:fetch",
+      "g2:capture", "g2:transcribe", "g2:prepare", "g2:commit", "g2:status", "g2:query", "g2:recent", "g2:fetch",
     ]);
   });
 

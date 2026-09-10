@@ -5,6 +5,9 @@ export default defineConfig({
     target: "es2022",
     sourcemap: false,
   },
+  worker: {
+    format: "es",
+  },
   test: {
     environment: "node",
   },

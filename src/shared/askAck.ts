@@ -37,8 +37,8 @@ import type { LinkerSettings } from "./types";
  */
 export const ASK_PRIVACY_ACK_VERSION = "2026-08-07";
 
-/** Names `ASK_WRITE_DISCLOSURE` after connected apps, including G2, joined the boundary. */
-export const ASK_WRITE_ACK_VERSION = "2026-09-08";
+/** Names the current connected-app write disclosure after G2 moved to the editable Inbox relay. */
+export const ASK_WRITE_ACK_VERSION = "2026-09-10";
 
 /**
  * Acked against the disclosure this build actually shows. Anything else is not consent.

@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { createMemoryStore } from "../src/store/memory.mjs";
 import { createSqliteStore } from "../src/store/sqlite.mjs";
 import { createPostgresStore } from "../src/store/postgres.mjs";
+import { ASK_PG_DDL } from "../src/store/askPostgresMethods.mjs";
 import { postgresStoreRows, withSearchPath } from "./helpers/postgresTestStore.mjs";
 import pg from "pg";
 import {
@@ -38,6 +39,12 @@ after(() => {
 });
 
 beforeEach(resetEnv);
+
+describe("U8 Postgres upgrade ordering", () => {
+  it("does not create the G2 receipt index before legacy ask_outbox gains its column", () => {
+    assert.doesNotMatch(ASK_PG_DDL, /idx_ask_outbox_g2_receipt_expiry/);
+  });
+});
 
 describe("U8 G2 production boundary", () => {
   it("emits only content-free cost and latency metadata", () => {
@@ -90,7 +97,7 @@ describe("U8 G2 production boundary", () => {
     assert.deepEqual(checkProductionReady(), { ok: true, errors: [] });
   });
 
-  it("requires the complete G2 production contract only when enabled", async () => {
+  it("requires the model-free G2 relay contract without provider credentials", async () => {
     Object.assign(process.env, {
       ATOMS_PLUS_ENV: "production",
       DOGFOOD_AUTO_GRANT: "0",
@@ -108,14 +115,14 @@ describe("U8 G2 production boundary", () => {
       ATOMS_PLUS_ALERT_EMAIL: "ops@tryatoms.app",
       ATOMS_ASK_MIRROR_KEY: "a".repeat(64),
       G2_ENABLED: "1",
+      G2_APP_ORIGIN: "http://127.0.0.1:*",
+      G2_RETENTION_DISCLOSURE_VERSION: "g2-retention-v1",
+      G2_DATA_KEY_CURRENT: "b".repeat(64),
+      G2_DATA_KEY_CURRENT_VERSION: "k1",
     });
     const { checkProductionReady } = await import(`../src/prodGate.mjs?u8-on=${Math.random()}`);
     const result = checkProductionReady();
-    assert.equal(result.ok, false);
-    for (const name of [
-      "G2_APP_ORIGIN", "G2_OPENAI_API_KEY", "G2_ANTHROPIC_API_KEY",
-      "G2_PROVIDER_CONTROLS_ACCEPTED", "G2_RETENTION_DISCLOSURE_VERSION", "G2_DATA_KEY_CURRENT",
-    ]) assert.ok(result.errors.some((error) => error.includes(name)), name);
+    assert.deepEqual(result, { ok: true, errors: [] });
   });
 
   it("accepts one exact HTTPS Origin or the explicit iPhone loopback sentinel and rejects every other wildcard or URL shape", async () => {

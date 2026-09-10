@@ -865,7 +865,7 @@ describe("copy lockstep on the screens this plan wrote (U11, R15)", () => {
   it("keeps untouched consent versions and advances the widened connected-app write consent", () => {
     expect(EGRESS_ACK_VERSION).toBe("2026-08-06");
     expect(ASK_PRIVACY_ACK_VERSION).toBe("2026-08-07");
-    expect(ASK_WRITE_ACK_VERSION).toBe("2026-09-08");
+    expect(ASK_WRITE_ACK_VERSION).toBe("2026-09-10");
   });
 
   /** R8: a user reading Settings has to be able to say which build they are looking at. */
@@ -2984,7 +2984,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     await flush();
     expect(rowNames(active.tab)).toContain("Walk G2");
     expect(active.tab.containerEl.textContent).toContain("Setup required");
-    expect(active.tab.containerEl.textContent).toContain("2 confirmed atoms are still waiting");
+    expect(active.tab.containerEl.textContent).toContain("2 confirmed captures are still waiting");
   });
 
   it("names the selected G2 and pending work before disconnecting it", async () => {
@@ -3008,7 +3008,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     await flush();
     press(tab, "Walk G2", "Disconnect");
     expect(sheetText()).toContain("Disconnect Walk G2?");
-    expect(sheetText()).toContain("1 confirmed atom stays queued");
+    expect(sheetText()).toContain("1 confirmed capture stays queued");
     expect(sheetText()).toContain("Ask mirror and other connected apps stay as they are");
     pressSheet("Disconnect");
     await flush();
@@ -3018,7 +3018,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
   it("requires every independent local and server gate before G2 is ready", () => {
     const consent = {
       revision: 2,
-      g2Disclosure: { granted: true, version: "g2-v1" },
+      g2Disclosure: { granted: true, version: "g2-capture-relay-v1" },
       askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION },
       askWrite: { granted: true, version: ASK_WRITE_ACK_VERSION },
     };
@@ -3038,7 +3038,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     })).toBe(false);
   });
 
-  it("publishes current mirror and write grants before minting a G2 pairing code", async () => {
+  it("mints a G2 pairing code without changing Ask mirror or connected-app write grants", async () => {
     const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
     const request = async (input: { url: string; body?: string }) => {
       const path = new URL(input.url).pathname;
@@ -3071,15 +3071,10 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     await flush();
     await flush();
 
-    expect(calls.map((call) => call.path)).toEqual(["/v1/g2/consent", "/v1/g2/pair/code"]);
-    expect(calls[0]?.body).toMatchObject({
-      freshGesture: true,
-      askMirror: { granted: true, version: ASK_PRIVACY_ACK_VERSION },
-      askWrite: { granted: true, version: ASK_WRITE_ACK_VERSION },
-    });
+    expect(calls.map((call) => call.path)).toEqual(["/v1/g2/pair/code"]);
   });
 
-  it("does not mint a G2 code when the server refuses synchronized grants", async () => {
+  it("keeps G2 pairing independent when Ask grants are withdrawn", async () => {
     const paths: string[] = [];
     const request = async (input: { url: string }) => {
       const path = new URL(input.url).pathname;
@@ -3089,13 +3084,9 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
         text: "",
         arrayBuffer: new ArrayBuffer(0),
         headers: {},
-        json: {
-          revision: 9,
-          regrantRequired: true,
-          g2Disclosure: { granted: false, version: "" },
-          askMirror: { granted: false, version: "" },
-          askWrite: { granted: false, version: "" },
-        },
+        json: path === "/v1/g2/pair/code"
+          ? { code: "ABCD1234", expiresAt: "2026-09-09T12:00:00.000Z" }
+          : {},
       };
     };
     const { tab } = settingTab({
@@ -3110,7 +3101,7 @@ describe("Connect Claude or ChatGPT destination (U6)", () => {
     await flush();
     await flush();
 
-    expect(paths).toEqual(["/v1/g2/consent"]);
+    expect(paths).toEqual(["/v1/g2/pair/code"]);
   });
 
   /**

@@ -47,6 +47,7 @@ firepit-log.txt
 # Even G2 companion build and private package artifacts
 companion/even-g2/dist/
 companion/even-g2/*.ehpk
+companion/even-g2/public/moonshine/
 
 # Claude Code personal overrides (not shared)
 .claude/settings.local.json

@@ -11,7 +11,7 @@ export type AppState =
   | { screen: "starting-recording"; purpose: "create" | "query"; selectedIndex: number }
   | { screen: "recording"; purpose: "create" | "query"; selectedIndex: number; transcript?: string }
   | { screen: "loading"; operation: "pairing" | "transcribing" | "preparing" | "querying" | "recent" | "committing"; selectedIndex: number }
-  | { screen: "confirmation"; title: string; selectedIndex: number; message?: string }
+  | { screen: "confirmation"; title: string; transcript?: string; selectedIndex: number; message?: string }
   | { screen: "queued"; selectedIndex: number; acceptedAt?: string; stillQueued?: boolean }
   | { screen: "saved"; selectedIndex: number; title?: string }
   | { screen: "answer"; answer: string; sources: Source[]; selectedIndex: number }
@@ -62,8 +62,6 @@ export function reduceAppState(state: AppState, event: AppEvent): AppState {
   }
   if (event.type === "select-root" && state.screen === "root") {
     if (event.index === 0) return { screen: "starting-recording", purpose: "create", selectedIndex: 0 };
-    if (event.index === 1) return { screen: "starting-recording", purpose: "query", selectedIndex: 0 };
-    if (event.index === 2) return { screen: "loading", operation: "recent", selectedIndex: 0 };
     return state;
   }
   if (event.type === "recording-started" && state.screen === "starting-recording") return { screen: "recording", purpose: state.purpose, selectedIndex: 0 };
@@ -83,7 +81,7 @@ export function allStableStates(): AppState[] {
     { screen: "starting-recording", purpose: "create", selectedIndex: 0 },
     { screen: "recording", purpose: "create", selectedIndex: 0 }, { screen: "recording", purpose: "query", selectedIndex: 0 },
     { screen: "loading", operation: "transcribing", selectedIndex: 0 },
-    { screen: "confirmation", title: "A walk thought", selectedIndex: 0 },
+    { screen: "confirmation", title: "A walk thought", transcript: "Remember the blue flowers.", selectedIndex: 0 },
     { screen: "queued", selectedIndex: 0 }, { screen: "queued", selectedIndex: 0, stillQueued: true },
     { screen: "saved", selectedIndex: 0, title: "A walk thought" },
     { screen: "answer", answer: "The launch is Friday.", sources: [{ id: "one", title: "Launch" }], selectedIndex: 0 },

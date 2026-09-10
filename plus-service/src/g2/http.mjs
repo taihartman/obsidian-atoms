@@ -6,8 +6,10 @@ import { generateG2Metadata } from "./metadata.mjs";
 import { createG2QueryService, createG2ReadService } from "./query.mjs";
 import { config } from "../config.mjs";
 import { g2ResultStatusClass } from "./telemetry.mjs";
+import { createG2CaptureService } from "./capture.mjs";
 
 const CONTENT_SCOPES = Object.freeze({
+  captures: "g2:capture",
   transcribe: "g2:transcribe", prepare: "g2:prepare", commit: "g2:commit",
   status: "g2:status", setup: "g2:status", query: "g2:query", recent: "g2:recent", fetch: "g2:fetch",
 });
@@ -18,6 +20,16 @@ const IPHONE_LOOPBACK_ORIGIN = "http://127.0.0.1:*";
 const preparationServices = new WeakMap();
 const queryServices = new WeakMap();
 const readServices = new WeakMap();
+const captureServices = new WeakMap();
+
+function captureFor(store) {
+  let service = captureServices.get(store);
+  if (!service) {
+    service = createG2CaptureService({ store });
+    captureServices.set(store, service);
+  }
+  return service;
+}
 
 function preparationFor(store) {
   let service = preparationServices.get(store);
@@ -244,11 +256,23 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     return true;
   }
   const sessionRoute = path === "/v1/g2/pair/code" || path === "/v1/g2/devices" ||
-    path === "/v1/g2/consent" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
+    path === "/v1/g2/consent" || path === "/v1/g2/captures/claim" ||
+    path === "/v1/g2/captures/ack" || /^\/v1\/g2\/devices\/[^/]+\/revoke$/.test(path);
   // Plugin management endpoints retain the existing Obsidian-compatible
   // wildcard policy. Only the packaged companion boundary is exact-origin.
   if (req.method === "OPTIONS" && sessionRoute) return false;
   if (sessionRoute) {
+    if (req.method === "POST" && (path === "/v1/g2/captures/claim" || path === "/v1/g2/captures/ack")) {
+      const account = await store.accountFromSession(bearer(req), { requireVerified: true });
+      if (!account) { json(res, 401, { message: "Request denied" }); return true; }
+      const body = await readBody(req);
+      const result = path.endsWith("/claim")
+        ? await captureFor(store).claim(account.email, body)
+        : await captureFor(store).ack(account.email, body);
+      json(res, result.error ? 404 : 200, result.error ? { message: "Not found" } : result,
+        { "cache-control": "no-store" });
+      return true;
+    }
     if (req.method === "POST" && path === "/v1/g2/pair/code") {
       const account = await store.accountFromSession(bearer(req), { requireVerified: true });
       if (!account || !subscriptionLive(account) || !await store.g2ConsumeAttempt(`mint:${clientIp(req)}`)) { json(res, 401, { message: "Request denied" }); return true; }
@@ -328,6 +352,26 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
     if (route === "setup" && req.method === "POST" && path === "/v1/g2/setup/status") {
       json(res, 200, consent, extra); return true;
     }
+    if (route === "captures" && req.method === "POST") {
+      const action = path.split("/")[4] || "";
+      if (action === "disclosure") {
+        const next = await store.g2SynchronizeDisclosure(auth.email, await readBody(req));
+        json(res, 200, next, extra); return true;
+      }
+      if (path !== "/v1/g2/captures" || !consent.g2Disclosure.granted) {
+        json(res, path === "/v1/g2/captures" ? 403 : 404,
+          path === "/v1/g2/captures" ? { state: "setup_required" } : { message: "Not found" }, extra);
+        return true;
+      }
+      const day = new Date().toISOString().slice(0, 10);
+      if (!await store.g2ConsumeAttempt(`capture:${auth.email}:${day}`, { limit: 100, windowMs: 24 * 60 * 60 * 1000 })) {
+        json(res, 429, { state: "limit_reached" }, extra); return true;
+      }
+      const result = await captureFor(store).enqueue(binding, await readBody(req));
+      const status = result.state === "setup_required" ? 403
+        : result.state === "invalid_capture" || result.error === "capture_id_conflict" ? 409 : 200;
+      json(res, status, result, extra); return true;
+    }
     if (route === "transcribe") {
       if (req.method !== "POST" || !transcription) {
         json(res, 404, { message: "Not found" }, extra); return true;
@@ -397,18 +441,27 @@ export async function handleG2Routes({ req, res, path, store, bearer, json, read
       json(res, 404, { message: "Not found" }, extra); return true;
     }
     if (route === "prepare" && req.method === "POST") {
+      if (path !== "/v1/g2/prepare" && path !== "/v1/g2/prepare/local") {
+        json(res, 404, { message: "Not found" }, extra); return true;
+      }
       const metricStarted = Date.now();
       const day = new Date().toISOString().slice(0, 10);
       if (!await store.g2ConsumeAttempt(`prepare:${auth.email}:${day}`, { limit: 30, windowMs: 24 * 60 * 60 * 1000 })) {
         json(res, 429, { state: "limit_reached" }, extra); return true;
       }
       const body = await readBody(req);
-      const terminal = transcription?.status(binding, body.recordingId);
-      if (!terminal || terminal.state !== "completed" || typeof terminal.transcript !== "string") {
-        json(res, 409, { state: terminal?.state || "not_found" }, extra); return true;
+      let transcript;
+      if (path === "/v1/g2/prepare/local") {
+        transcript = body.transcript;
+      } else {
+        const terminal = transcription?.status(binding, body.recordingId);
+        if (!terminal || terminal.state !== "completed" || typeof terminal.transcript !== "string") {
+          json(res, 409, { state: terminal?.state || "not_found" }, extra); return true;
+        }
+        transcript = terminal.transcript;
       }
       const result = await preparationFor(store).prepare(binding, {
-        transcript: terminal.transcript,
+        transcript,
         transcriptionId: body.recordingId,
         capturedAt: body.capturedAt,
       });

@@ -5,6 +5,7 @@ import {
   G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
   G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, mergeG2Disclosure, normalizeG2Scopes,
   G2_RECEIPT_RETENTION_MS,
+  g2CaptureDigest,
   publicG2Consent, publicG2Device,
   subscriptionLive,
 } from "./shared.mjs";
@@ -174,6 +175,15 @@ CREATE INDEX IF NOT EXISTS idx_ask_outbox_g2_receipt_expiry ON ask_outbox(g2_rec
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
   ON ask_outbox(email, client_request_id)
   WHERE client_request_id IS NOT NULL AND client_request_id != '';
+CREATE TABLE IF NOT EXISTS g2_capture_relay (
+  email TEXT NOT NULL, capture_id TEXT NOT NULL, family_id TEXT NOT NULL,
+  captured_at TEXT NOT NULL, body_enc TEXT, digest TEXT,
+  status TEXT NOT NULL, claim_token_hash TEXT, claim_until_ms INTEGER,
+  receipt_until_ms INTEGER, created_at_ms INTEGER NOT NULL,
+  PRIMARY KEY (email, capture_id)
+);
+CREATE INDEX IF NOT EXISTS idx_g2_capture_relay_claim
+  ON g2_capture_relay(email, status, created_at_ms);
 `;
 
 /**
@@ -290,6 +300,7 @@ export function createAskSqliteMethods(db, deps) {
     const family = db.prepare("SELECT * FROM g2_device_families WHERE family_id=? AND email=?").get(String(binding.familyId), email);
     return Boolean(subscriptionLive(deps.getAccount(email)) && family && !family.revoked &&
       consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.disclosureVersion || consent.g2Disclosure.version === opts.disclosureVersion) &&
       (!opts.requireMirror || consent.askMirror.granted) &&
       (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
   }
@@ -470,6 +481,11 @@ export function createAskSqliteMethods(db, deps) {
     counts.receipts = db.prepare(`DELETE FROM ask_outbox WHERE rowid IN
       (SELECT rowid FROM ask_outbox WHERE status='applied' AND g2_receipt_expires_at IS NOT NULL
        AND g2_receipt_expires_at<=? LIMIT ?)`)
+      .run(now, cap).changes;
+    counts.receipts += db.prepare(`UPDATE g2_capture_relay
+      SET status='tombstone', family_id='', captured_at='', digest=NULL, receipt_until_ms=NULL
+      WHERE rowid IN (SELECT rowid FROM g2_capture_relay
+        WHERE status='applied' AND receipt_until_ms IS NOT NULL AND receipt_until_ms<=? LIMIT ?)`)
       .run(now, cap).changes;
     return counts;
   }
@@ -946,6 +962,92 @@ export function createAskSqliteMethods(db, deps) {
     return db.prepare(`DELETE FROM g2_preparations WHERE id=? AND email=?`).run(String(preparationId || ""), normEmail(email)).changes > 0;
   }
 
+  function g2CaptureEnqueue(email, row, opts = {}) {
+    const account = normEmail(email);
+    const digest = g2CaptureDigest(row);
+    const existing = db.prepare("SELECT status,digest FROM g2_capture_relay WHERE email=? AND capture_id=?")
+      .get(account, row.captureId);
+    if (existing) return existing.digest === digest
+      ? { captureId: row.captureId, state: existing.status, already: true }
+      : { error: "capture_id_conflict" };
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    db.prepare(`INSERT INTO g2_capture_relay
+      (email,capture_id,family_id,captured_at,body_enc,digest,status,created_at_ms)
+      VALUES (?,?,?,?,?,?,?,?)`).run(
+      account, row.captureId, row.familyId, row.capturedAt,
+      encryptG2Artifact(row.body, { account, artifact: "capture", row: row.captureId }),
+      digest, "pending", now,
+    );
+    return { captureId: row.captureId, state: "pending" };
+  }
+
+  function g2CaptureEnqueueAuthorized(binding, row, opts = {}) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (!g2Authorize(binding, { disclosureVersion: opts.disclosureVersion })) {
+        db.exec("ROLLBACK");
+        return { state: "setup_required" };
+      }
+      const result = g2CaptureEnqueue(binding.email, { ...row, familyId: binding.familyId }, opts);
+      db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  function g2CaptureClaim(email, opts = {}) {
+    const account = normEmail(email);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const leaseMs = Number.isFinite(opts.leaseMs) ? opts.leaseMs : 5 * 60 * 1000;
+    const limit = Math.max(1, Math.min(10, Number(opts.limit) || 10));
+    db.prepare(`UPDATE g2_capture_relay SET status='pending', claim_token_hash=NULL, claim_until_ms=NULL
+      WHERE email=? AND status='claimed' AND claim_until_ms<=?`).run(account, now);
+    const rows = db.prepare(`SELECT * FROM g2_capture_relay WHERE email=? AND status='pending'
+      ORDER BY created_at_ms ASC LIMIT ?`).all(account, limit);
+    const items = [];
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const row of rows) {
+        const claimToken = id("g2c");
+        const changed = db.prepare(`UPDATE g2_capture_relay SET status='claimed',claim_token_hash=?,claim_until_ms=?
+          WHERE email=? AND capture_id=? AND status='pending'`).run(
+          hashToken(claimToken), now + leaseMs, account, row.capture_id,
+        ).changes;
+        if (!changed) continue;
+        items.push({ captureId: row.capture_id, capturedAt: row.captured_at,
+          body: decryptG2ArtifactOrLegacy(row.body_enc, {
+            account, artifact: "capture", row: row.capture_id,
+          }), claimToken });
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return { items };
+  }
+
+  function g2CaptureAck(email, opts = {}) {
+    const account = normEmail(email);
+    const captureId = String(opts.captureId || "");
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const row = db.prepare("SELECT status FROM g2_capture_relay WHERE email=? AND capture_id=?")
+      .get(account, captureId);
+    if (!row) return { error: "not_found" };
+    if (row.status === "applied" || row.status === "tombstone") {
+      return { captureId, state: row.status, already: true };
+    }
+    const changed = db.prepare(`UPDATE g2_capture_relay
+      SET status='applied',body_enc=NULL,claim_token_hash=NULL,claim_until_ms=NULL,receipt_until_ms=?
+      WHERE email=? AND capture_id=? AND status='claimed' AND claim_until_ms>? AND claim_token_hash=?`).run(
+      now + G2_RECEIPT_RETENTION_MS, account, captureId, now,
+      hashToken(String(opts.claimToken || "")),
+    ).changes;
+    return changed ? { captureId, state: "applied" } : { error: "not_found" };
+  }
+
   function outboxPendingCount(email) {
     const e = normEmail(email);
     outboxReclaimStale(e);
@@ -1334,6 +1436,10 @@ export function createAskSqliteMethods(db, deps) {
     g2PreparationPut,
     g2PreparationGet,
     g2PreparationDelete,
+    g2CaptureEnqueue,
+    g2CaptureEnqueueAuthorized,
+    g2CaptureClaim,
+    g2CaptureAck,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,

@@ -98,12 +98,6 @@ export function checkProductionReady() {
     const validG2Origin = config.g2AppOrigin === "http://127.0.0.1:*" ||
       /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(config.g2AppOrigin);
     need(!validG2Origin, "G2_APP_ORIGIN must be one exact https origin or http://127.0.0.1:* when G2 is enabled");
-    need(!config.g2OpenAiApiKey, "G2_OPENAI_API_KEY required when G2 is enabled");
-    need(!config.g2AnthropicApiKey, "G2_ANTHROPIC_API_KEY required when G2 is enabled");
-    need(
-      !config.g2ProviderControlsAccepted,
-      "G2_PROVIDER_CONTROLS_ACCEPTED=2026-09-09 required when G2 is enabled",
-    );
     need(config.g2RetentionDisclosureVersion !== "g2-retention-v1", "G2_RETENTION_DISCLOSURE_VERSION=g2-retention-v1 required when G2 is enabled");
     need(!/^[a-fA-F0-9]{64}$/.test(config.g2DataKeyCurrent), "G2_DATA_KEY_CURRENT must be a 64-character hex AES-256 key when G2 is enabled");
     need(!/^[A-Za-z0-9._-]{1,32}$/.test(config.g2DataKeyCurrentVersion), "G2_DATA_KEY_CURRENT_VERSION required when G2 is enabled");

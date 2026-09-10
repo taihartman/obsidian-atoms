@@ -3,10 +3,11 @@ import { paginateUtf8Text } from "../ui/paginate";
 import type { AppState, Source } from "./state";
 import { initialState, reduceAppState } from "./state";
 
+type CreateView = { state: string; title?: string; transcript?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean };
 type CreatePort = {
-  restore(): Promise<{ state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
-  confirm(): Promise<{ state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
-  prepare?(recordingId: string, capturedAt: string): Promise<{ state: string; title?: string; message?: string }>;
+  restore(): Promise<CreateView>;
+  confirm(): Promise<CreateView>;
+  prepare?(recordingId: string, capturedAt: string, transcript: string): Promise<CreateView>;
   cancel?(): Promise<unknown>;
   refresh?(): Promise<{ state: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }>;
 };
@@ -77,7 +78,7 @@ export class G2AppController {
     if (!status.setupReady) { this.show({ screen: "setup-required", selectedIndex: 0 }); return; }
     const recovered = await this.dependencies.create.restore();
     if (recovered.state === "prepared") {
-      this.show({ screen: "confirmation", title: recovered.title ?? "", message: recovered.message, selectedIndex: 0 });
+      this.show({ screen: "confirmation", title: recovered.title ?? "", transcript: recovered.transcript, message: recovered.message, selectedIndex: 0 });
     } else if (recovered.state === "queued") {
       this.show({ screen: "queued", selectedIndex: 0, acceptedAt: recovered.acceptedAt, stillQueued: recovered.stillQueued });
     } else if (recovered.state === "saved") {
@@ -118,11 +119,7 @@ export class G2AppController {
     if (action.kind !== "click" && action.kind !== "double-click") return;
     if (this.state.screen === "root") {
       const index = action.selectedIndex ?? this.state.selectedIndex;
-      if (index === 0 || index === 1) await this.beginRecording(index === 0 ? "create" : "query");
-      else if (index === 2) {
-        this.show({ screen: "loading", operation: "recent", selectedIndex: 0 });
-        await this.loadRecent();
-      }
+      if (index === 0) await this.beginRecording("create");
       return;
     }
     if (this.state.screen === "starting-recording" || this.state.screen === "loading") return;
@@ -135,7 +132,7 @@ export class G2AppController {
       return;
     }
     if (this.state.screen === "confirmation") {
-      if ((action.selectedIndex ?? this.state.selectedIndex) !== 0) { await this.dependencies.create.cancel?.(); this.showRoot(); return; }
+      if ((action.selectedIndex ?? this.state.selectedIndex) !== 0) { await this.startFreshCreate(); return; }
       this.show(reduceAppState(this.state, { type: "confirm-create" }));
       this.applyCreateView(await this.dependencies.create.confirm());
       return;
@@ -222,6 +219,19 @@ export class G2AppController {
     this.dependencies.unsubscribe();
   }
 
+  async audioInputFailed(_error: unknown): Promise<void> {
+    const purpose = this.state.screen === "recording" || this.state.screen === "starting-recording"
+      ? this.state.purpose
+      : "create";
+    this.recordingStartGeneration += 1;
+    try { await this.dependencies.stopAudio("permission_lost"); }
+    catch { /* The input failure is already terminal; keep the UI recoverable. */ }
+    this.showError(
+      { screen: "error", reason: "transcription-failed", primaryAction: "retry", selectedIndex: 0 },
+      () => this.beginRecording(purpose),
+    );
+  }
+
   private async finishRecording(): Promise<void> {
     if (this.finishingRecording) return this.finishingRecording;
     const operation = this.finishRecordingOnce();
@@ -299,8 +309,8 @@ export class G2AppController {
     this.showRoot();
   }
 
-  private applyCreateView(view: { state: string; title?: string; message?: string; receipt?: { title: string }; acceptedAt?: string; stillQueued?: boolean }): void {
-    if (view.state === "prepared") this.show({ screen: "confirmation", title: view.title ?? "", message: view.message, selectedIndex: 0 });
+  private applyCreateView(view: CreateView): void {
+    if (view.state === "prepared") this.show({ screen: "confirmation", title: view.title ?? "", transcript: view.transcript, message: view.message, selectedIndex: 0 });
     else if (view.state === "queued") this.show({ screen: "queued", selectedIndex: 0, acceptedAt: view.acceptedAt, stillQueued: view.stillQueued });
     else if (view.state === "saved") this.show({ screen: "saved", title: view.receipt?.title, selectedIndex: 0 });
     else if (view.state === "title_collision") this.showError({ screen: "error", reason: "title-collision", primaryAction: "retry", selectedIndex: 0 }, () => this.startFreshCreate());
@@ -332,7 +342,7 @@ export class G2AppController {
     if (!this.dependencies.create.prepare) return;
     this.show({ screen: "loading", operation: "preparing", selectedIndex: 0 });
     try {
-      const view = await this.dependencies.create.prepare(result.recordingId, result.capturedAt);
+      const view = await this.dependencies.create.prepare(result.recordingId, result.capturedAt, result.transcript);
       await result.completeHandoff?.().catch(() => undefined);
       this.applyCreateView(view);
     } catch (error) {

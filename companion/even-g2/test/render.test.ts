@@ -6,6 +6,17 @@ import { EvenGlassesRenderer, renderGlasses } from "../src/ui/render";
 import { paginateUtf8Text } from "../src/ui/paginate";
 
 describe("G2 rendering", () => {
+  it("shows the exact local transcript before save", () => {
+    const view = renderGlasses({
+      screen: "confirmation",
+      title: "A thought from the walk",
+      transcript: "Remember the blue flowers by the east trail.",
+      selectedIndex: 0,
+    });
+    expect(view.text).toContain("Remember the blue flowers by the east trail.");
+    expect(view.items).toEqual(["Save", "Try again"]);
+  });
+
   it("adds a selectable Return row after populated answer, match, and recent sources", () => {
     expect(renderGlasses({ screen: "answer", answer: "Friday", sources: [{ id: "a", title: "Launch" }], selectedIndex: 0 }).items).toEqual(["Launch", "Return"]);
     expect(renderGlasses({ screen: "closest-matches", matches: [{ id: "a", title: "Launch" }], selectedIndex: 0 }).items).toEqual(["Launch", "Return"]);

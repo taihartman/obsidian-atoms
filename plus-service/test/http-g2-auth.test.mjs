@@ -151,6 +151,57 @@ before(async () => {
 after(() => { if (child && !child.killed) child.kill("SIGTERM"); });
 
 describe("G2 HTTP authorization contract", () => {
+  it("G2_CAPTURE_ENQUEUE_016 G2_CAPTURE_CLAIM_017 G2_CAPTURE_ACK_018 relays confirmed text to the plugin session", async () => {
+    const paired = await pair(["g2:capture"]);
+    const disclosePath = "/v1/g2/captures/disclosure";
+    const discloseNonce = await nonce();
+    const disclosed = await fetch(`${BASE}${disclosePath}`, {
+      method: "POST",
+      headers: { origin: ORIGIN, authorization: `Bearer ${paired.accessToken}`,
+        dpop: dpop("POST", disclosePath, discloseNonce, paired.accessToken),
+        "dpop-nonce": discloseNonce, "content-type": "application/json" },
+      body: JSON.stringify({ baseRevision: 0, freshGesture: true,
+        disclosure: { granted: true, version: "g2-capture-relay-v1" } }),
+    });
+    assert.equal(disclosed.status, 200, await disclosed.clone().text());
+
+    const captureId = `capture_${randomUUID()}`;
+    const capturedAt = new Date().toISOString();
+    const body = "Words to review in Obsidian before Atoms processes them";
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify({ version: 1, captureId, capturedAt, body }), "utf8")
+      .digest("hex");
+    const enqueuePath = "/v1/g2/captures";
+    const enqueueNonce = await nonce();
+    const enqueued = await fetch(`${BASE}${enqueuePath}`, {
+      method: "POST",
+      headers: { origin: ORIGIN, authorization: `Bearer ${paired.accessToken}`,
+        dpop: dpop("POST", enqueuePath, enqueueNonce, paired.accessToken),
+        "dpop-nonce": enqueueNonce, "content-type": "application/json" },
+      body: JSON.stringify({ captureId, capturedAt, body, fingerprint }),
+    });
+    assert.equal(enqueued.status, 200, await enqueued.clone().text());
+    assert.deepEqual(await enqueued.json(), { captureId, state: "pending" });
+
+    const claimed = await fetch(`${BASE}/v1/g2/captures/claim`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${paired.session}`, "content-type": "application/json" },
+      body: JSON.stringify({ limit: 10 }),
+    });
+    assert.equal(claimed.status, 200, await claimed.clone().text());
+    const item = (await claimed.json()).items[0];
+    assert.deepEqual({ captureId: item.captureId, capturedAt: item.capturedAt, body: item.body },
+      { captureId, capturedAt, body });
+
+    const acked = await fetch(`${BASE}/v1/g2/captures/ack`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${paired.session}`, "content-type": "application/json" },
+      body: JSON.stringify({ captureId, claimToken: item.claimToken }),
+    });
+    assert.equal(acked.status, 200, await acked.clone().text());
+    assert.deepEqual(await acked.json(), { captureId, state: "applied" });
+  });
+
   it("G2_SETUP_STATUS_015 returns current setup gates to a restored sender-constrained session without mutation", async () => {
     const paired = await pair(["g2:status"]);
     const pathName = "/v1/g2/setup/status";
@@ -331,6 +382,62 @@ describe("G2 HTTP authorization contract", () => {
       dpop: dpop("POST", "/v1/g2/query", signedNonce, paired.accessToken), "dpop-nonce": differentHeaderNonce,
     } });
     assert.equal(nonceMismatch.status, 401, "nonce");
+  });
+
+  it("G2_CONTENT_006 G2_PREPARE_METADATA_013 accept a local transcript without a cloud transcription record", async () => {
+    const paired = await pair(["g2:prepare", "g2:transcribe"]);
+    const consent = await fetch(`${BASE}/v1/g2/consent`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${paired.session}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        baseRevision: 0,
+        freshGesture: true,
+        askMirror: { granted: true, version: "2026-08-07" },
+        askWrite: { granted: true, version: "2026-09-08" },
+      }),
+    });
+    assert.equal(consent.status, 200);
+
+    const disclosurePath = "/v1/g2/transcribe/disclosure";
+    const disclosureNonce = await nonce();
+    const disclosure = await fetch(`${BASE}${disclosurePath}`, {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        authorization: `Bearer ${paired.accessToken}`,
+        dpop: dpop("POST", disclosurePath, disclosureNonce, paired.accessToken),
+        "dpop-nonce": disclosureNonce,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        baseRevision: 1,
+        freshGesture: true,
+        disclosure: { granted: true, version: "g2-local-transcript-v1" },
+      }),
+    });
+    assert.equal(disclosure.status, 200);
+
+    const pathName = "/v1/g2/prepare/local";
+    const n = await nonce();
+    const response = await fetch(`${BASE}${pathName}`, {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        authorization: `Bearer ${paired.accessToken}`,
+        dpop: dpop("POST", pathName, n, paired.accessToken),
+        "dpop-nonce": n,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        recordingId: "rec_local_only",
+        capturedAt: "2026-09-10T18:00:00.000Z",
+        transcript: "Remember the blue flowers by the east trail.",
+      }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { state: "preparation_unavailable" });
+    assert.equal(child._log().includes("provider_started"), false);
   });
 
   it("G2_STREAM_TICKET_010 consumes a DPoP-bound ticket only after disclosure", async () => {

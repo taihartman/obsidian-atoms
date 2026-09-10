@@ -1,7 +1,7 @@
 /**
  * Shared store helpers (memory / sqlite / postgres).
  */
-import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+import { randomBytes, createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pkceChallengeS256 } from "./askHelpers.mjs";
 
 export function id(prefix) {
@@ -22,7 +22,20 @@ export const G2_PAIR_CODE_TTL_MS = 5 * 60 * 1000;
 export const G2_ACCESS_TTL_MS = 10 * 60 * 1000;
 export const G2_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const G2_RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const G2_CAPTURE_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+export function g2CaptureDigest(row) {
+  const key = process.env.G2_DATA_KEY_CURRENT || "atoms-g2-capture-test-key";
+  return createHmac("sha256", key).update(JSON.stringify({
+    version: 1,
+    captureId: row.captureId,
+    familyId: row.familyId,
+    capturedAt: row.capturedAt,
+    body: row.body,
+  }), "utf8").digest("hex");
+}
 export const G2_ALLOWED_SCOPES = Object.freeze([
+  "g2:capture",
   "g2:transcribe",
   "g2:prepare",
   "g2:commit",

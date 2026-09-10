@@ -14,19 +14,17 @@ describe("G2 lifecycle controller", () => {
     const stopAudio = vi.fn();
     const closeSockets = vi.fn();
     const unsubscribe = vi.fn();
-    const create = { restore: vi.fn(async () => ({ state: "prepared" as const, title: "Walk “East”" })), confirm: vi.fn(async () => ({ state: "queued" as const, message: "Queued" })) };
+    const create = { restore: vi.fn(async () => ({ state: "prepared" as const, title: "Walk “East”", transcript: "Remember the east trail" })), confirm: vi.fn(async () => ({ state: "queued" as const, message: "Queued" })) };
     const query = { ask: vi.fn(async () => ({ state: "answered" as const, answer: "Friday", sources: [{ id: "atm-one", title: "Launch" }] })), openSource: vi.fn(() => "atm-one") };
     const read = { loadRecent: vi.fn(async () => ({ items: [{ id: "atm-two", title: "Walk" }], selectedIndex: 0, coverageComplete: true })), openById: vi.fn(async () => ({ text: "café 🌱", position: { offset: 0, next_offset: null } })) };
     const app = new G2AppController({ render, stopAudio, closeSockets, unsubscribe, create, query, read });
 
     await app.start({ paired: true, setupReady: true });
-    expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ screen: "confirmation", title: "Walk “East”" }));
+    expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ screen: "confirmation", title: "Walk “East”", transcript: "Remember the east trail" }));
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(create.confirm).toHaveBeenCalledTimes(1);
 
     app.showRoot();
-    await app.handle({ kind: "scroll-down", envelope: "list", selectedIndex: 1 });
-    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
     await app.submitSpeech("When?");
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(read.openById).toHaveBeenCalledWith("atm-one");
@@ -87,6 +85,7 @@ describe("G2 lifecycle controller", () => {
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(stopRecording).toHaveBeenCalledOnce();
     expect(prepare).toHaveBeenCalledTimes(2);
+    expect(prepare).toHaveBeenCalledWith("rec-retry", "2026-09-08T20:00:00Z", "exact transcript");
     expect(completeHandoff).toHaveBeenCalledOnce();
     expect(app.snapshot()).toMatchObject({ screen: "confirmation", title: "Exact retry" });
   });
@@ -120,7 +119,7 @@ describe("G2 lifecycle controller", () => {
     expect(app.snapshot().screen).toBe("closest-matches");
   });
 
-  it("returns from source bodies to retained answer/recent lists and then returns to root", async () => {
+  it("returns from source bodies to the retained answer list and then returns to root", async () => {
     const answer = { state: "answered" as const, answer: "Friday", sources: [{ id: "atm-answer", title: "Launch" }] };
     const recent = { items: [{ id: "atm-recent", title: "Notes" }], selectedIndex: 0, coverageComplete: true };
     const read = {
@@ -142,13 +141,6 @@ describe("G2 lifecycle controller", () => {
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
     expect(app.snapshot()).toEqual({ screen: "root", selectedIndex: 0 });
 
-    await app.handle({ kind: "click", envelope: "list", selectedIndex: 2 });
-    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
-    expect(app.snapshot()).toMatchObject({ screen: "body", title: "Notes", pageIndex: 0 });
-    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
-    expect(app.snapshot()).toEqual({ screen: "recent", ...recent });
-    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
-    expect(app.snapshot()).toEqual({ screen: "root", selectedIndex: 0 });
   });
 
   it("returns from closest-match source context and then its Return row to root", async () => {
@@ -284,6 +276,28 @@ describe("G2 lifecycle controller", () => {
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(app.snapshot()).toMatchObject({ screen: "error", reason: "preparation-failed", primaryAction: "retry" });
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(startRecording).toHaveBeenCalledWith("create");
+    expect(app.snapshot()).toMatchObject({ screen: "recording", purpose: "create" });
+  });
+
+  it("starts a fresh local recording when transcript review selects Try again", async () => {
+    const startRecording = vi.fn(async () => undefined);
+    const cancel = vi.fn(async () => undefined);
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(), startRecording,
+      create: {
+        restore: async () => ({ state: "prepared", title: "Draft", transcript: "wrong local words" }),
+        confirm: async () => ({ state: "idle" }),
+        cancel,
+      },
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+
+    await app.start({ paired: true, setupReady: true });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 1 });
 
     expect(cancel).toHaveBeenCalledOnce();
     expect(startRecording).toHaveBeenCalledWith("create");

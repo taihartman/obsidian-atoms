@@ -166,6 +166,10 @@ describe("#508 — the content-bearing Plus calls all demand a verified base", (
     // text from the vault. The id-and-status shape reads as content-free and is
     // not.
     "askOutboxAck",
+    // Claim returns exact confirmed capture text. Ack carries the corresponding
+    // opaque lease secret and shares the same verified-origin boundary.
+    "g2CaptureClaim",
+    "g2CaptureAck",
   ];
 
   it("exactly the registered calls take a PlusMirrorConfig", () => {

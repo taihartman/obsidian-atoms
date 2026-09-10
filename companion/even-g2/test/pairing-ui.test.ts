@@ -29,11 +29,22 @@ describe("G2 pairing", () => {
       { screen: "loading" as const, operation: "pairing" as const },
       { screen: "pairing-error" as const, reason: "expired" as const, origin: "evenhub://app.tryatoms.g2" },
       { screen: "ready" as const },
+      { screen: "review" as const, title: "Blue flowers", transcript: "Remember the blue flowers by the east trail." },
     ]) {
       const root = { textContent: "", replaceChildren() {} } as unknown as HTMLElement;
       renderPhone(root, state);
       expect(root.textContent?.trim()).toBeTruthy();
     }
+  });
+
+  it("shows the full local transcript on the phone before save", () => {
+    const root = { textContent: "", replaceChildren() {} } as unknown as HTMLElement;
+    renderPhone(root, {
+      screen: "review",
+      title: "Blue flowers",
+      transcript: "Remember the blue flowers by the east trail.",
+    });
+    expect(root.textContent).toContain("Remember the blue flowers by the east trail.");
   });
 
   it("shows the exact private test origin with the Even G2 pairing instruction", () => {

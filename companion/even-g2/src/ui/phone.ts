@@ -7,9 +7,16 @@ export type PhoneState =
   | { screen: "setup-required" }
   | { screen: "loading"; operation: "pairing" }
   | { screen: "pairing-error"; reason: "invalid" | "expired" | "replayed"; origin: string }
+  | { screen: "review"; title: string; transcript: string }
   | { screen: "ready" };
 
-export type PhoneHandlers = { connect?(code: string): void; acceptDisclosure?(): void; reconnect?(): void };
+export type PhoneHandlers = {
+  connect?(code: string): void;
+  acceptDisclosure?(): void;
+  reconnect?(): void;
+  saveCapture?(): void;
+  retryCapture?(): void;
+};
 
 function phoneText(state: PhoneState): string {
   switch (state.screen) {
@@ -22,6 +29,7 @@ function phoneText(state: PhoneState): string {
       const error = state.reason === "expired" ? G2_COPY.expiredCode : state.reason === "replayed" ? G2_COPY.replayedCode : G2_COPY.invalidCode;
       return `${error}\n${G2_COPY.unpaired}\n${G2_COPY.privateTestOrigin(state.origin)}`;
     }
+    case "review": return `${state.transcript}\n\n${state.title}`;
     case "ready": return G2_COPY.ready;
   }
 }
@@ -56,6 +64,16 @@ export function renderPhone(root: HTMLElement, state: PhoneState, handlers: Phon
     button.textContent = G2_COPY.reconnect;
     button.addEventListener("click", () => handlers.reconnect?.());
     section.append(button);
+  } else if (state.screen === "review") {
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = G2_COPY.save;
+    save.addEventListener("click", () => handlers.saveCapture?.());
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = G2_COPY.tryAgain;
+    retry.addEventListener("click", () => handlers.retryCapture?.());
+    section.append(save, retry);
   }
   root.replaceChildren(section);
 }

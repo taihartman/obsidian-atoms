@@ -5,7 +5,7 @@ import { truncateUtf8 } from "../src/ui/paginate";
 
 describe("G2 app state", () => {
   it("keeps the approved root order and requires confirmation before create", () => {
-    expect(ROOT_ACTIONS).toEqual(["New atom", "Ask atoms", "Recent atoms"]);
+    expect(ROOT_ACTIONS).toEqual(["New capture"]);
     const ready = { ...initialState(), screen: "root" as const };
     const starting = reduceAppState(ready, { type: "select-root", index: 0 });
     expect(starting.screen).toBe("starting-recording");

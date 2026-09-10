@@ -2,22 +2,21 @@
   "package_id": "app.tryatoms.g2",
   "edition": "202601",
   "name": "Atoms",
-  "version": "0.1.3",
+  "version": "0.1.16",
   "min_app_version": "2.2.10",
   "min_sdk_version": "0.0.15",
   "entrypoint": "index.html",
   "permissions": [
     {
       "name": "network",
-      "desc": "Connect to Atoms Plus for pairing, transcription, and atom access.",
+      "desc": "Connect to Atoms Plus for pairing, confirmed capture relay, and atom access.",
       "whitelist": [
-        "https://plus.tryatoms.app",
-        "wss://plus.tryatoms.app"
+        "https://plus.tryatoms.app"
       ]
     },
     {
       "name": "g2-microphone",
-      "desc": "Record speech when you choose New atom or Ask atoms."
+      "desc": "Record speech when you choose New capture or Ask atoms."
     }
   ],
   "supported_languages": ["en"]

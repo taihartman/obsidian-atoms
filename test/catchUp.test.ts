@@ -825,6 +825,9 @@ describe("runCatchUpPass single-flight", () => {
       waivedFilingStamps: [] as number[],
       pendingNewDrainWork: 0,
       waiverUsedThisSignal: false,
+      g2ReviewPending: false,
+      syncG2Captures: async () => ({ imported: 0, acknowledged: 0 }),
+      holdG2CapturesForReview: () => {},
       stageInput: (AtomsPlugin.prototype as never as {
         stageInput: (...a: unknown[]) => unknown;
       }).stageInput,

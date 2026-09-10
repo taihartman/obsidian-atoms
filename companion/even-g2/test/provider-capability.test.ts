@@ -3,38 +3,75 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  OPENAI_TRANSCRIPTION_CAPABILITY,
-  buildPcm16Wav,
-  evaluateSyntheticProviderCapability,
+  LOCAL_TRANSCRIPTION_CAPABILITY,
+  evaluateLocalSpeechCapability,
 } from "../src/provider/capability";
 
-describe("synthetic speech-provider capability contract", () => {
-  it("pins the completed-audio batch fallback without client secrets or network probes", () => {
-    expect(OPENAI_TRANSCRIPTION_CAPABILITY).toMatchObject({
-      transport: "completed-audio-batch",
-      endpoint: "https://api.openai.com/v1/audio/transcriptions",
-      model: "gpt-4o-transcribe",
+describe("phone-local speech capability contract", () => {
+  it("pins Tiny Streaming English without a cloud speech fallback", () => {
+    expect(LOCAL_TRANSCRIPTION_CAPABILITY).toMatchObject({
+      package: "@moonshine-ai/moonshine-wasm",
+      version: "0.1.5",
+      runtime: "single-thread-simd",
+      model: "tiny-streaming-en",
+      modelArch: "tiny_streaming",
       audio: {
-        container: "wav",
         encoding: "pcm_s16le",
         sampleRateHz: 16_000,
         channels: 1,
+        maxDurationSeconds: 120,
       },
-      interimResults: false,
-      finalization: "single-final-response",
-      authorizationLocation: "server-only",
-      networkCallsDuringProbe: false,
-      serviceRetentionHours: 24,
-      providerDataControls: {
-        trainingUse: false,
-        abuseMonitoringRetention: "none",
-        applicationStateRetention: "none",
-        zeroDataRetentionEligible: true,
-      },
+      execution: "worker",
+      networkAudioEgress: false,
+      cloudFallback: false,
     });
   });
 
-  it("exact-pins the current Even floors and declares only exact Atoms origins", () => {
+  it("reports the packaged single-thread SIMD build without requiring cross-origin isolation", () => {
+    expect(evaluateLocalSpeechCapability({
+      worker: true,
+      webAssembly: true,
+      simd: true,
+      sharedArrayBuffer: true,
+      crossOriginIsolated: true,
+      cacheApi: true,
+      crypto: true,
+    })).toEqual({ state: "ready", runtime: "single-thread-simd" });
+
+    expect(evaluateLocalSpeechCapability({
+      worker: true,
+      webAssembly: true,
+      simd: true,
+      sharedArrayBuffer: false,
+      crossOriginIsolated: false,
+      cacheApi: true,
+      crypto: true,
+    })).toEqual({ state: "ready", runtime: "single-thread-simd" });
+  });
+
+  it("fails closed when the WebView cannot support either allowed local runtime", () => {
+    expect(evaluateLocalSpeechCapability({
+      worker: true,
+      webAssembly: true,
+      simd: false,
+      sharedArrayBuffer: false,
+      crossOriginIsolated: false,
+      cacheApi: true,
+      crypto: true,
+    })).toEqual({ state: "blocked", reason: "wasm-simd-unavailable" });
+
+    expect(evaluateLocalSpeechCapability({
+      worker: false,
+      webAssembly: true,
+      simd: true,
+      sharedArrayBuffer: false,
+      crossOriginIsolated: false,
+      cacheApi: true,
+      crypto: true,
+    })).toEqual({ state: "blocked", reason: "worker-unavailable" });
+  });
+
+  it("packages only Atoms Plus network access and no WebSocket speech route", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
@@ -42,17 +79,13 @@ describe("synthetic speech-provider capability contract", () => {
     const manifest = JSON.parse(readFileSync("app.json", "utf8")) as {
       min_app_version: string;
       min_sdk_version: string;
-      entrypoint: string;
-      permissions: Array<{ name: string; whitelist?: string[] }>;
+      permissions: Array<{ name: string; whitelist?: string[]; desc?: string }>;
     };
 
-    expect(packageJson.dependencies["@evenrealities/even_hub_sdk"]).toBe("0.0.15");
-    expect(packageJson.devDependencies["@evenrealities/evenhub-cli"]).toBe("0.1.14");
-    expect(packageJson.devDependencies["@evenrealities/evenhub-simulator"]).toBe("0.9.5");
+    expect(packageJson.dependencies["@moonshine-ai/moonshine-wasm"]).toBe("0.1.5");
     expect(manifest).toMatchObject({
       min_app_version: "2.2.10",
       min_sdk_version: "0.0.15",
-      entrypoint: "index.html",
     });
     expect(manifest.permissions.map(({ name }) => name)).toEqual([
       "network",
@@ -60,57 +93,38 @@ describe("synthetic speech-provider capability contract", () => {
     ]);
     expect(manifest.permissions[0]?.whitelist).toEqual([
       "https://plus.tryatoms.app",
-      "wss://plus.tryatoms.app",
     ]);
+    expect(JSON.stringify(manifest)).not.toMatch(/transcription|speech provider|wss:/i);
   });
 
-  it("wraps arbitrary even-byte PCM chunks in an exact mono 16 kHz PCM16 WAV", () => {
-    const wav = buildPcm16Wav([
-      new Uint8Array([1, 2]),
-      new Uint8Array([3, 4, 5, 6]),
-    ]);
-    const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
+  it("pins the reproducible single-thread runtime artifacts", () => {
+    const runtime = JSON.parse(readFileSync("src/audio/moonshine-runtime-manifest.json", "utf8")) as {
+      sourceTag: string;
+      sourceCommit: string;
+      onnxRuntimeVersion: string;
+      emscriptenVersion: string;
+      buildMode: string;
+      artifacts: Array<{ name: string; bytes: number; sha256: string }>;
+    };
 
-    expect(new TextDecoder().decode(wav.subarray(0, 4))).toBe("RIFF");
-    expect(new TextDecoder().decode(wav.subarray(8, 12))).toBe("WAVE");
-    expect(view.getUint16(20, true)).toBe(1);
-    expect(view.getUint16(22, true)).toBe(1);
-    expect(view.getUint32(24, true)).toBe(16_000);
-    expect(view.getUint16(34, true)).toBe(16);
-    expect(view.getUint32(40, true)).toBe(6);
-    expect(Array.from(wav.subarray(44))).toEqual([1, 2, 3, 4, 5, 6]);
-  });
-
-  it("fails closed for malformed, over-duration, timeout, abort, and disconnected inputs", () => {
-    expect(evaluateSyntheticProviderCapability({ pcmBytes: 3 })).toEqual({
-      state: "blocked",
-      reason: "unaligned-pcm",
+    expect(runtime).toMatchObject({
+      sourceTag: "v0.1.5",
+      sourceCommit: "234f60faa0eb388b01cdf7e60aca232af37aefda",
+      onnxRuntimeVersion: "1.23.2",
+      emscriptenVersion: "4.0.8",
+      buildMode: "single-thread-simd",
     });
-    expect(evaluateSyntheticProviderCapability({ pcmBytes: 3_840_002 })).toEqual({
-      state: "blocked",
-      reason: "duration-exceeded",
-    });
-    expect(
-      evaluateSyntheticProviderCapability({ pcmBytes: 32_000, timedOut: true }),
-    ).toEqual({ state: "blocked", reason: "timeout" });
-    expect(
-      evaluateSyntheticProviderCapability({ pcmBytes: 32_000, aborted: true }),
-    ).toEqual({ state: "blocked", reason: "aborted" });
-    expect(
-      evaluateSyntheticProviderCapability({ pcmBytes: 32_000, disconnected: true }),
-    ).toEqual({ state: "staged", reason: "awaiting-recording-lease-status" });
-  });
-
-  it("accepts bounded synthetic PCM without sending it", () => {
-    expect(evaluateSyntheticProviderCapability({ pcmBytes: 32_000 })).toEqual({
-      state: "ready",
-      durationMs: 1000,
-      request: {
-        endpoint: "https://api.openai.com/v1/audio/transcriptions",
-        model: "gpt-4o-transcribe",
-        filename: "recording.wav",
-        responseFormat: "json",
+    expect(runtime.artifacts).toEqual([
+      {
+        name: "moonshine.mjs",
+        bytes: 138_055,
+        sha256: "59f8405f95e4764aae8999a23a8d684c55aa37417f883b8feafa6105d09cb2f9",
       },
-    });
+      {
+        name: "moonshine.wasm",
+        bytes: 13_255_489,
+        sha256: "ee0948e8c5163dd93ff276fbe5170fdb10a110387a1a949e3bba269ff42cacb9",
+      },
+    ]);
   });
 });

@@ -10,7 +10,9 @@ describe("production companion entry", () => {
     const entry = readFileSync(join(root, "src/main.ts"), "utf8");
     expect(html).toContain('src="/src/main.ts"');
     expect(html).toContain('<output id="capability-status" aria-live="polite">Atoms</output>');
-    expect(entry).toContain('"https://plus.tryatoms.app"');
+    expect(html).not.toContain('<pre id="u1-report">');
+    expect(entry).not.toContain("runPackagedLocalSpeechProbe");
+    expect(entry).toContain("startG2Companion");
     expect(`${html}\n${entry}`).not.toMatch(/localhost|127\.0\.0\.1|simulatorConfig|simulatorSetup|simulator\.html|autoDriveSimulatorSetup|auto=1|pair=/iu);
     expect(readFileSync(join(root, "src/bootstrap.ts"), "utf8")).toMatch(/installEvenSdkEventLogPrivacy\(\)[\s\S]*waitForEvenAppBridge\(\)/u);
   });
@@ -26,6 +28,10 @@ describe("production companion entry", () => {
 
   it("exposes explicit simulator and supporting-services commands", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
+    expect(pkg.version).toBe("0.1.16");
+    expect(manifest.version).toBe("0.1.16");
+    expect(pkg.scripts["runtime:prepare"]).toBe("node scripts/prepare-local-runtime.mjs");
     expect(pkg.scripts.simulator).toBe("node scripts/simulator-harness.mjs");
     expect(pkg.scripts["simulator:services"]).toBe("node scripts/simulator-harness.mjs --services-check");
     expect(pkg.scripts).not.toHaveProperty("simulator:smoke");

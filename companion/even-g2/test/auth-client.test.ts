@@ -214,23 +214,24 @@ describe("G2 startup gates", () => {
     await third;
   });
 
-  it("requires disclosure, mirror, and write server gates before boot", () => {
+  it("requires only the current capture disclosure before boot", () => {
     const ready = {
       revision: 4,
-      g2Disclosure: { granted: true, version: "g2-audio-v1" },
+      g2Disclosure: { granted: true, version: "g2-capture-relay-v1" },
       askMirror: { granted: true, version: "2026-08-07" },
       askWrite: { granted: true, version: "2026-09-08" },
     };
     expect(g2ServerSetupReady(ready)).toBe(true);
-    expect(g2ServerSetupReady({ ...ready, askMirror: { granted: false, version: "" } })).toBe(false);
-    expect(g2ServerSetupReady({ ...ready, askWrite: { granted: false, version: "" } })).toBe(false);
+    expect(g2ServerSetupReady({ ...ready, askMirror: { granted: false, version: "" } })).toBe(true);
+    expect(g2ServerSetupReady({ ...ready, askWrite: { granted: false, version: "" } })).toBe(true);
+    expect(g2ServerSetupReady({ ...ready, regrantRequired: true })).toBe(true);
     expect(g2ServerSetupReady({ ...ready, g2Disclosure: { granted: true, version: "old" } })).toBe(false);
   });
 
   it("reads current server gates before a cold restored session can boot", async () => {
     const consent = {
       revision: 5,
-      g2Disclosure: { granted: true, version: "g2-audio-v1" },
+      g2Disclosure: { granted: true, version: "g2-capture-relay-v1" },
       askMirror: { granted: true, version: "2026-08-07" },
       askWrite: { granted: true, version: "2026-09-08" },
     };

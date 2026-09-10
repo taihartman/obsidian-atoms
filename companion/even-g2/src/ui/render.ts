@@ -35,7 +35,7 @@ export function renderGlasses(state: AppState): GlassesView {
       const labels = { pairing: G2_COPY.pairing, transcribing: G2_COPY.preparing, preparing: G2_COPY.preparing, querying: G2_COPY.preparing, recent: G2_COPY.recentLoading, committing: G2_COPY.queued };
       return page(labels[state.operation]);
     }
-    case "confirmation": return page(`Create “${state.title}”?${state.message ? `\n${state.message}` : ""}`, [G2_COPY.create, G2_COPY.tryAgain], state.selectedIndex);
+    case "confirmation": return page(`${state.transcript || state.title}${state.message ? `\n${state.message}` : ""}`, [G2_COPY.save, G2_COPY.tryAgain], state.selectedIndex);
     case "queued": return page(state.stillQueued ? `${G2_COPY.stillQueued}${state.acceptedAt ? ` · ${state.acceptedAt}` : ""}` : G2_COPY.queued, [G2_COPY.actions.wait]);
     case "saved": return page(state.title ? `${G2_COPY.saved}\n${state.title}` : G2_COPY.saved, [G2_COPY.actions.return]);
     case "answer": return page(state.answer, [...state.sources.map((source) => source.title), G2_COPY.actions.return], state.selectedIndex);
@@ -77,6 +77,12 @@ export class EvenGlassesRenderer {
   render(state: AppState): Promise<void> {
     const content = containers(renderGlasses(state));
     const rendered = this.renderTail.then(() => this.renderContent(content));
+    this.renderTail = rendered.catch(() => undefined);
+    return rendered;
+  }
+
+  renderPrivateProbe(text: string, items: readonly string[] = []): Promise<void> {
+    const rendered = this.renderTail.then(() => this.renderContent(containers(page(text, items))));
     this.renderTail = rendered.catch(() => undefined);
     return rendered;
   }
