@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { G2AuthClient, G2HttpClient, pairingFailureReason } from "../src/auth/client";
+import { createXhrFetcher, G2AuthClient, G2HttpClient, pairingFailureReason } from "../src/auth/client";
 import { singleFlight } from "../src/auth/singleFlight";
 import { g2ServerSetupReady, readG2ServerSetup } from "../src/auth/setup";
 
@@ -62,6 +62,46 @@ describe("G2 HTTP client", () => {
 });
 
 describe("G2 auth lifecycle (KTD2, AE1, AE9)", () => {
+  it("sends the pairing proof through the iPhone WebView XHR transport", async () => {
+    const requests: Array<{ method: string; url: string; headers: Record<string, string>; body: Document | XMLHttpRequestBodyInit | null }> = [];
+    class XhrDouble {
+      method = "";
+      url = "";
+      headers: Record<string, string> = {};
+      response = new TextEncoder().encode(JSON.stringify({ nonce: "nonce-one" })).buffer;
+      status = 200;
+      statusText = "OK";
+      responseType: XMLHttpRequestResponseType = "";
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      open(method: string, url: string): void { this.method = method; this.url = url; }
+      setRequestHeader(name: string, value: string): void { this.headers[name] = value; }
+      getAllResponseHeaders(): string { return "content-type: application/json\r\ncache-control: no-store\r\n"; }
+      send(body: Document | XMLHttpRequestBodyInit | null): void {
+        requests.push({ method: this.method, url: this.url, headers: this.headers, body });
+        queueMicrotask(() => this.onload?.());
+      }
+      abort(): void { this.onabort?.(); }
+    }
+    const fetcher = createXhrFetcher(() => new XhrDouble() as unknown as XMLHttpRequest);
+
+    const response = await fetcher("https://plus.example/v1/g2/pair/redeem", {
+      method: "POST",
+      headers: { "content-type": "application/json", dpop: "proof-one", "dpop-nonce": "nonce-one" },
+      body: JSON.stringify({ code: "ABCD1234", name: "Even G2" }),
+    });
+
+    expect(requests).toEqual([{
+      method: "POST",
+      url: "https://plus.example/v1/g2/pair/redeem",
+      headers: { "content-type": "application/json", dpop: "proof-one", "dpop-nonce": "nonce-one" },
+      body: JSON.stringify({ code: "ABCD1234", name: "Even G2" }),
+    }]);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ nonce: "nonce-one" });
+  });
+
   it("calls only a server refusal an invalid pairing code", () => {
     expect(pairingFailureReason(new Error("pairing_refused"))).toBe("invalid");
     expect(pairingFailureReason(new Error("auth_unavailable"))).toBe("connection");

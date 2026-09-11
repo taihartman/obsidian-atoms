@@ -5,6 +5,49 @@ export type G2Session = PairingPointer & { accessToken: string; expiresAt: numbe
 type TokenResponse = { accessToken: string; refreshToken: string; expiresIn: number; scopes: string[]; device: { id: string } };
 const REFRESH_WINDOW_MS = 30_000;
 const DEFAULT_HTTP_TIMEOUT_MS = 10_000;
+type G2Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+function responseHeaders(raw: string): Headers {
+  const headers = new Headers();
+  for (const line of raw.trim().split(/\r?\n/u)) {
+    if (!line) continue;
+    const separator = line.indexOf(":");
+    if (separator > 0) headers.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+  }
+  return headers;
+}
+
+export function createXhrFetcher(
+  createRequest: () => XMLHttpRequest = () => new XMLHttpRequest(),
+): G2Fetcher {
+  return (input, init = {}) => new Promise<Response>((resolve, reject) => {
+    const request = createRequest();
+    const signal = init.signal;
+    let settled = false;
+    const finish = (operation: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener("abort", abort);
+      operation();
+    };
+    const abort = () => {
+      request.abort();
+      finish(() => reject(signal?.reason ?? new DOMException("Request aborted", "AbortError")));
+    };
+    request.open(init.method ?? "GET", String(input), true);
+    request.responseType = "arraybuffer";
+    for (const [name, value] of new Headers(init.headers)) request.setRequestHeader(name, value);
+    request.onload = () => finish(() => resolve(new Response(
+      request.status === 204 || request.status === 205 ? null : request.response,
+      { status: request.status, statusText: request.statusText, headers: responseHeaders(request.getAllResponseHeaders()) },
+    )));
+    request.onerror = () => finish(() => reject(new TypeError("network_request_failed")));
+    request.onabort = () => finish(() => reject(new DOMException("Request aborted", "AbortError")));
+    if (signal?.aborted) return abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    request.send((init.body ?? null) as XMLHttpRequestBodyInit | null);
+  });
+}
 
 class G2AuthRequestError extends Error {
   constructor(
@@ -43,7 +86,7 @@ export class G2AuthClient {
   constructor(
     private readonly baseUrl: string,
     private readonly vault: G2CredentialVault,
-    private readonly fetcher: typeof fetch = fetch,
+    private readonly fetcher: G2Fetcher = createXhrFetcher(),
     private readonly now: () => number = Date.now,
     private readonly timeoutMs = DEFAULT_HTTP_TIMEOUT_MS,
   ) {}
