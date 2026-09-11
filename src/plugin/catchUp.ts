@@ -111,7 +111,7 @@ export type AskOutboxItem = {
 
 /** What the vault write did with one item. */
 export type OutboxApplyResult =
-  | { kind: "applied" }
+  | { kind: "applied"; targetPath?: string }
   | { kind: "rejected"; error: string };
 
 /**
@@ -142,7 +142,7 @@ export type AskOutboxHost = {
   pullOne(): Promise<AskOutboxItem | null>;
   ack(
     id: string,
-    ack: { status: "applied" | "rejected"; error?: string },
+    ack: { status: "applied" | "rejected"; error?: string; target_path?: string },
   ): Promise<void>;
   /**
    * Whether this pass may still create files, asked **live** before every item.
@@ -226,7 +226,9 @@ export async function applyOutboxItemToVault(
     }
   }
   if (plan.action === "reject") return { kind: "rejected", error: plan.reason };
-  return { kind: "applied" };
+  return payload.origin === "g2"
+    ? { kind: "applied", targetPath: plan.path }
+    : { kind: "applied" };
 }
 
 /** One item per pull (P0), capped so a pass cannot run away. */
@@ -308,6 +310,16 @@ export async function runAskOutboxApply(
         ...(raw.client_request_id
           ? { client_request_id: raw.client_request_id }
           : {}),
+        ...(raw.origin === "g2" ? { origin: "g2" as const } : {}),
+        ...(raw.captured_at ? { captured_at: raw.captured_at } : {}),
+        ...(raw.captured_record_sha256
+          ? { captured_record_sha256: raw.captured_record_sha256 }
+          : {}),
+        ...(raw.loop_inference === false ? { loop_inference: false as const } : {}),
+        ...(raw.proposal_fingerprint
+          ? { proposal_fingerprint: raw.proposal_fingerprint }
+          : {}),
+        ...(raw.preparation_id ? { preparation_id: raw.preparation_id } : {}),
       };
       const applied = await host.applyToVault(payload, kind);
       if (applied.kind === "rejected") {
@@ -355,7 +367,12 @@ export async function runAskOutboxApply(
           })(),
         );
       }
-      await host.ack(item.id, { status: "applied" });
+      await host.ack(item.id, {
+        status: "applied",
+        ...(payload.origin === "g2" && applied.targetPath
+          ? { target_path: applied.targetPath }
+          : {}),
+      });
       landed++;
     }
     return finish({ kind: "worked", landed, rejected });

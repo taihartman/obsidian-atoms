@@ -1,0 +1,223 @@
+version: 1
+rows:
+  - id: G2_NONCE_007
+    path: /v1/g2/auth/nonce
+    operation: read
+    allowedActors: [packaged companion origin]
+    deniedActors: [wrong or absent origin]
+    identityType: none
+    dataShape: Short-lived signed nonce only; contains no account or credential state.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-origin proof priming, nonce forgery]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Shared attempt and DPoP replay budgets constrain use. Origin is either the one configured exact HTTPS origin or, only when G2_APP_ORIGIN is exactly http://127.0.0.1:*, a canonical http://127.0.0.1 request Origin with an explicit valid numeric port. The validated request Origin is echoed; the sentinel never is.
+  - id: G2_SESSION_MINT_001
+    path: /v1/g2/pair/code
+    operation: create
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Single active short-lived code per account; requested scopes are allowlisted.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [credential-family confusion, pairing-code disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Existing Obsidian-compatible origin policy applies.
+  - id: G2_SESSION_LIST_002
+    path: /v1/g2/devices
+    operation: list
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Only devices owned by the session account; never returns token hashes or key material.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [tenant disclosure, credential disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Unknown and foreign devices are indistinguishable to revoke callers.
+  - id: G2_SESSION_REVOKE_003
+    path: /v1/g2/devices/{deviceFamilyId}/revoke
+    operation: delete
+    allowedActors: [verified Plus plugin session owning the device]
+    deniedActors: [other tenant session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Atomically revokes one device family and every access and refresh member.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [cross-tenant revocation, partial family revocation]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Generic not-found response does not disclose ownership.
+  - id: G2_SESSION_CONSENT_008
+    path: /v1/g2/consent
+    operation: read
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Account-scoped G2 disclosure plus plugin-owned Ask mirror and connected-app write consent. Updates carry the last observed server revision; stale grants are refused while stale withdrawals may advance the revision.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [cross-tenant consent disclosure, stale grant replay, concurrent regrant race, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Withdrawal wins concurrent conflicts. Regrant requires a fresh user gesture against the current server revision. Old clients do not call this additive endpoint and keep their existing local gates; new clients against old servers fail closed as Setup required.
+  - id: G2_SESSION_CONSENT_009
+    path: /v1/g2/consent
+    operation: update
+    allowedActors: [verified Plus plugin session]
+    deniedActors: [unverified session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Plugin-owned Ask mirror and connected-app write decisions with the last observed revision and an explicit fresh-gesture marker for grants. G2 disclosure is read-only to this authority.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [stale grant replay, concurrent regrant race, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-08
+    notes: Stale withdrawals may advance state; stale or gesture-free grants are refused. Wrong rollout order fails closed because the new client treats an absent endpoint as Setup required.
+  - id: G2_REDEEM_004
+    path: /v1/g2/pair/redeem
+    operation: call
+    allowedActors: [holder of unused code presenting a valid initial DPoP proof]
+    deniedActors: [expired or replayed code, session bearer, MCP bearer, malformed or symmetric key proof]
+    identityType: pairing-code-device-key
+    dataShape: Code is single-use; ES256 public JWK thumbprint becomes the family key binding.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [code replay, bearer downgrade, key substitution, account enumeration]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. Missing, malformed, non-loopback, credentialed, path-bearing, query-bearing, fragment-bearing, IPv6, localhost, HTTPS-loopback, and portless Origins fail closed.
+  - id: G2_REFRESH_005
+    path: /v1/g2/auth/refresh
+    operation: call
+    allowedActors: [current g2r_ family member with matching DPoP proof]
+    deniedActors: [replayed refresh, wrong key, session bearer, MCP bearer, G2 access bearer, anonymous]
+    identityType: g2-refresh-dpop
+    dataShape: Rotates refresh token atomically; replay revokes the whole family.
+    tests: [plus-service/test/http-g2-auth.test.mjs, plus-service/test/store-g2.test.mjs]
+    threatsCovered: [refresh replay, stolen bearer use, split-brain rotation]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. The exact validated request Origin remains the DPoP/CORS boundary.
+  - id: G2_SETUP_STATUS_015
+    path: /v1/g2/setup/status
+    operation: read
+    allowedActors: [current g2a_ family member with g2:status scope, matching DPoP proof, and live Plus entitlement]
+    deniedActors: [wrong scope, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Account-scoped setup decisions and their revision only; returns no account identity, token, atom, or mirror content.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-tenant consent disclosure, proof replay, token theft, stale setup acceptance, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Additive recovery endpoint. The configured exact HTTPS origin or the sentinel-validated canonical dynamic-port iPhone loopback Origin applies before DPoP or setup-state lookup. Older clients do not call it; newer clients against an older server fail closed as Setup required.
+  - id: G2_CONTENT_006
+    path: /v1/g2/{captures|setup/status|recent|fetch}
+    operation: call
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof and live Plus entitlement]
+    deniedActors: [wrong scope, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: DPoP typ alg jwk htm htu iat jti ath and nonce validate before tenant or content lookup.
+    tests: [plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [proof replay, token theft, route confusion, tenant disclosure, lapsed entitlement]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: The one configured exact HTTPS origin or a canonical dynamic-port loopback Origin validated under the explicit http://127.0.0.1:* sentinel applies to every G2 route. The exact validated request Origin is echoed with Vary Origin; no-store applies to success and error.
+  - id: G2_PREPARE_METADATA_013
+    path: /v1/g2/{prepare|prepare/local|commit|status|transcribe|query}
+    operation: create
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof, live Plus entitlement, current G2 disclosure, and current authorization generation]
+    deniedActors: [withdrawn disclosure, stale generation, revoked device family, missing server provider key, invalid provider output, anonymous]
+    identityType: g2-access-dpop
+    dataShape: The exact final transcript may come from the bound server transcription record or directly from the phone-local engine at /prepare/local. It plus at most 50 mirror titles and 50 existing tags may reach the server-held Anthropic boundary. Structured output contains only a declarative title, existing-tag candidates, and reason-bearing existing-note link candidates. Exact downstream mirror allowlists remain authoritative; the captured-record bytes are never sourced from model output.
+    tests: [plus-service/test/g2-creation.test.mjs, plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [late model completion after consent withdrawal, late model completion after device revocation, prompt-injected metadata, invented tag or link persistence, captured-record rewriting, silent heuristic fallback]
+    status: deprecated
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Removed from V1. These cloud transcription, generated metadata, direct atom write, and generated answer routes return not found and no provider fallback exists.
+  - id: G2_CAPTURE_ENQUEUE_016
+    path: /v1/g2/captures
+    operation: create
+    allowedActors: [current g2a_ family member with g2:capture scope, matching DPoP proof, live Plus entitlement, current G2 disclosure, and current authorization generation]
+    deniedActors: [unconfirmed transcript, wrong scope, withdrawn disclosure, stale generation, revoked device family, malformed timestamp or fingerprint, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Exact confirmed canonical UTF-8 transcript, exact-offset captured-at timestamp, opaque client capture ID, and matching SHA-256 fingerprint. The server encrypts the transcript at rest and does not title, tag, link, summarize, classify, or consume filing credit.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs, companion/even-g2/test/create-flow.test.ts]
+    threatsCovered: [unconfirmed content egress, proof replay, token theft, payload substitution, cross-tenant collision, captured-record rewriting]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Identical account-scoped retries return the original receipt. Changed reuse conflicts without disclosing foreign rows. The exact validated request Origin is echoed and every response is no-store.
+  - id: G2_CAPTURE_CLAIM_017
+    path: /v1/g2/captures/claim
+    operation: update
+    allowedActors: [verified Plus plugin session for the owning account]
+    deniedActors: [other tenant session, MCP bearer, G2 access or refresh bearer, anonymous]
+    identityType: verified-session
+    dataShape: Bounded oldest-first lease of encrypted pending captures; response decrypts only the owning account's exact body and timestamp and returns an opaque claim token.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs]
+    threatsCovered: [cross-tenant content disclosure, unbounded drain, concurrent claim duplication, credential-family confusion]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Already accepted captures remain claimable by the current account plugin after originating-device revocation or subscription lapse. The global G2 emergency gate still pauses delivery.
+  - id: G2_CAPTURE_ACK_018
+    path: /v1/g2/captures/ack
+    operation: update
+    allowedActors: [verified Plus plugin session for the owning account holding the current claim token]
+    deniedActors: [wrong tenant, stale or wrong claim token, MCP bearer, G2 bearer, anonymous]
+    identityType: verified-session
+    dataShape: Acknowledgement immediately purges transcript ciphertext and retains only a content-resistant retry receipt before reducing to an opaque tombstone.
+    tests: [plus-service/test/g2-capture.test.mjs, plus-service/test/http-g2-auth.test.mjs, test/g2CaptureRelay.test.ts]
+    threatsCovered: [false delivery acknowledgement, content retention, cross-tenant deletion, claim replay]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-10
+    notes: Plugin acknowledgement follows a verified idempotent Inbox append. Duplicate acknowledgement is safe.
+  - id: G2_GROUNDED_QUERY_014
+    path: /v1/g2/{query|recent|fetch}
+    operation: read
+    allowedActors: [current scoped g2a_ family member with matching DPoP proof, live Plus entitlement, current Ask mirror consent, and current authorization generation]
+    deniedActors: [wrong tenant, title in place of opaque id, withdrawn Ask mirror consent, stale generation, revoked device family, unknown or changed snapshot, invalid model citation]
+    identityType: g2-access-dpop
+    dataShape: Query synthesis receives bounded immutable mirror chunks with server-generated content-hash-bound IDs. Claims return only after exact unambiguous evidence quotes resolve to UTF-8 byte ranges, cover every substantive claim word, and account for every materially retrieved source; the structured model must instead declare insufficient or conflicting evidence. Recent is atom-only before pagination. Fetch is opaque-ID-only and bounded by byte position. Query, recent, and fetch recheck disclosure, Ask consent, live entitlement, family, and exact generation immediately before content emission. G2 responses omit account identity and logs contain event metadata only.
+    tests: [plus-service/test/g2-query.test.mjs, plus-service/test/ask-domain-parity.test.mjs, plus-service/test/http-g2-auth.test.mjs, companion/even-g2/test/query-read-flow.test.ts]
+    threatsCovered: [cross-tenant content disclosure, prompt injection, invented answer, irrelevant evidence, altered quote, ambiguous quote, unicode normalization trick, snapshot mutation, stale mirror answer, model-call abuse]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Weak or invalid evidence returns content-free closest-match metadata instead of an answer.
+  - id: G2_STREAM_TICKET_010
+    path: /v1/g2/transcribe/ticket
+    operation: create
+    allowedActors: [current g2a_ family member with matching DPoP proof, live Plus entitlement, and current G2 disclosure]
+    deniedActors: [wrong scope, withdrawn disclosure, revoked or expired family, refresh bearer, session bearer, MCP bearer, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Very short-lived single-use ticket stored only as a hash and bound to account, device family, key thumbprint, the exact validated request Origin, recording ID, purpose, authorization generation, byte limit, and duration limit; atomic cross-instance consumption happens before upgrade; disclosure revision advance or family revocation invalidates every matching unconsumed ticket; no audio is accepted by this route.
+    tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs, plus-service/test/g2-operations.test.mjs]
+    threatsCovered: [pre-auth audio egress, ticket replay, cross-device ticket theft, stale authorization generation, tenant disclosure]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Additive endpoint. New clients keep completed audio staged when an older server lacks it. Ticket consumption never substitutes stale stored binding data for current disclosure/family authority.
+  - id: G2_STREAM_AUDIO_011
+    path: RFC6455 /v1/g2/transcribe/stream?ticket={single-use-ticket}; authenticated HTTPS status/retry/cancel compatibility routes
+    operation: call
+    allowedActors: [consumer of a current single-use stream ticket or current scoped g2a_ owner of the recording with matching DPoP proof]
+    deniedActors: [unused access without a ticket, replayed or stale ticket, wrong Origin, wrong account or device key, revoked generation, anonymous]
+    identityType: g2-access-dpop
+    dataShape: Upgrade accepts only the exact validated request Origin and one ticket query key. With an exact HTTPS configuration that Origin must equal the configured value; with the explicit http://127.0.0.1:* private-iPhone sentinel it must be canonical HTTP IPv4 loopback with an explicit valid numeric port. The store-backed ticket is consumed before 101 and before any application bytes. Client text frames are bounded finalize/cancel controls; binary frames are uint32-be sequence followed by non-empty even-byte PCM16. Delivery is ack-driven; unacknowledged encrypted journal chunks replay from the server next-sequence after reconnect. Impossible forward state fails closed. Chunks are sequence-bound and limited to two minutes. Durable per-account workload slots enforce the provider ceiling across service instances. Retained transcripts use versioned AES-256-GCM bound to account, artifact, and row. One recording owns one leased provider call and durable terminal status; ambiguous completion requires status or explicit manual retry.
+    tests: [plus-service/test/g2-transcription.test.mjs, plus-service/test/http-g2-auth.test.mjs, plus-service/test/g2-operations.test.mjs, companion/even-g2/test/audio-recovery.test.ts]
+    threatsCovered: [pre-auth audio egress, duplicate provider egress, unbounded buffering, stale completion disclosure, cross-tenant recovery]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-09
+    notes: Literal RFC6455 upgrade is the companion audio path. Access and refresh bearers are forbidden in the URL. Wrong Origin, extra query credentials, ticket replay, malformed frames, idle timeout, sequence/backpressure or duration/size/concurrency breach close or refuse the connection. Revocation or disclosure withdrawal closes the socket, aborts the lease, and invalidates late completion.

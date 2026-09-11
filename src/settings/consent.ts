@@ -1,12 +1,13 @@
 import { App, Modal, Setting } from "obsidian";
 import { markDestructive } from "./destructiveButton";
+import { G2_EN } from "../i18n/g2";
 
 /**
  * The three consents, and the three disclosures that carry them (KTD7).
  *
  * They are never unified. The egress ack covers this vault's own key sending captures to
  * Anthropic; the Ask privacy ack covers bodies stored on Atoms Plus servers, decryptable at
- * rest in v1; the write ack covers Claude or ChatGPT creating files in the vault. Merging any
+ * rest in v1; the write ack covers connected apps creating files in the vault. Merging any
  * two would let agreeing to one silently authorize another, so each has its own sheet and each
  * sheet writes exactly its own field.
  */
@@ -33,7 +34,7 @@ export const ASK_PRIVACY_DISCLOSURE =
 export const ASK_WRITE_ACK_TITLE = "Vault write acknowledgment";
 // **Changing what this discloses means bumping `ASK_WRITE_ACK_VERSION`** (src/shared/askAck.ts).
 export const ASK_WRITE_DISCLOSURE =
-  "Claude or ChatGPT can queue new atom bodies to Atoms Plus, and this vault will write them as new files under my Atoms folder. New files only — existing bodies are never rewritten. This is a separate consent from the Ask privacy acknowledgment, and turning it off stops the writes without touching the mirror.";
+  G2_EN.consent.writeDisclosure;
 
 /** How a consent sheet ended. Only `accepted` grants; only `withdrawn` revokes. */
 export type ConsentVerdict = "accepted" | "declined" | "withdrawn";

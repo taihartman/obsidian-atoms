@@ -1,8 +1,17 @@
 /**
  * Ask mirror + MCP OAuth methods for Postgres Pool.
  */
-import { hashToken, id, subscriptionLive } from "./shared.mjs";
-import { encryptMirrorField } from "../mirror/crypto.mjs";
+import {
+  G2_ACCESS_TTL_MS, G2_PAIR_CODE_TTL_MS,
+  G2_REFRESH_TTL_MS, hashToken, id, mergeG2Consent, mergeG2Disclosure, normalizeG2Scopes,
+  G2_RECEIPT_RETENTION_MS,
+  g2CaptureDigest,
+  publicG2Consent, publicG2Device,
+  subscriptionLive,
+} from "./shared.mjs";
+import { decryptMirrorField, encryptMirrorField } from "../mirror/crypto.mjs";
+import { config } from "../config.mjs";
+import { decryptG2ArtifactOrLegacy, encryptG2Artifact } from "../g2/crypto.mjs";
 import {
   aggregateMirrorTags,
   buildNeighborsGraph,
@@ -17,6 +26,8 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  g2MirrorReceipt,
+  normalizeOutboxReceiptTarget,
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
@@ -40,6 +51,7 @@ CREATE TABLE IF NOT EXISTS atom_mirror (
   PRIMARY KEY (email, path)
 );
 CREATE INDEX IF NOT EXISTS idx_atom_mirror_email ON atom_mirror(email);
+CREATE INDEX IF NOT EXISTS idx_atom_mirror_email_atom_id ON atom_mirror(email, atom_id);
 CREATE TABLE IF NOT EXISTS mcp_oauth_pending (
   pending_id TEXT PRIMARY KEY,
   payload_json TEXT NOT NULL,
@@ -93,6 +105,56 @@ CREATE TABLE IF NOT EXISTS mcp_pair_codes (
   consumed_ms BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_mcp_pair_codes_hash ON mcp_pair_codes(code_hash);
+CREATE TABLE IF NOT EXISTS g2_pair_codes (
+  code_hash TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, scopes_json TEXT NOT NULL,
+  exp_ms BIGINT NOT NULL, used BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_g2_pair_codes_email ON g2_pair_codes(email);
+CREATE TABLE IF NOT EXISTS g2_device_families (
+  family_id TEXT PRIMARY KEY, email TEXT NOT NULL, key_thumbprint TEXT NOT NULL,
+  name TEXT NOT NULL, scopes_json TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL, revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_g2_families_email ON g2_device_families(email);
+CREATE TABLE IF NOT EXISTS g2_access_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms BIGINT NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS g2_refresh_tokens (
+  token_hash TEXT PRIMARY KEY, family_id TEXT NOT NULL, email TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, scopes_json TEXT NOT NULL, exp_ms BIGINT NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE, used BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS g2_proof_replay (jti TEXT PRIMARY KEY, exp_ms BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS g2_attempt_budgets (
+  attempt_key TEXT PRIMARY KEY, window_start_ms BIGINT NOT NULL, attempts INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS g2_consent (
+  email TEXT PRIMARY KEY, revision BIGINT NOT NULL,
+  g2_disclosure_granted BOOLEAN NOT NULL, g2_disclosure_version TEXT NOT NULL,
+  ask_mirror_granted BOOLEAN NOT NULL, ask_mirror_version TEXT NOT NULL,
+  ask_write_granted BOOLEAN NOT NULL, ask_write_version TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS g2_transcriptions (
+  recording_id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  generation BIGINT NOT NULL, state TEXT NOT NULL, lease_owner TEXT,
+  lease_until_ms BIGINT NOT NULL, transcript_enc TEXT, retained_until_ms BIGINT
+);
+CREATE TABLE IF NOT EXISTS g2_preparations (
+  id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  payload_enc TEXT NOT NULL, expires_at BIGINT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS g2_transcription_tickets (
+  ticket_hash TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL,
+  key_thumbprint TEXT NOT NULL, origin TEXT NOT NULL, generation BIGINT NOT NULL,
+  recording_id TEXT NOT NULL, purpose TEXT NOT NULL, expires_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_g2_tickets_binding ON g2_transcription_tickets(email, family_id, generation);
+CREATE TABLE IF NOT EXISTS g2_transcription_slots (
+  recording_id TEXT PRIMARY KEY, email TEXT NOT NULL, family_id TEXT NOT NULL, expires_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_g2_slots_email ON g2_transcription_slots(email, expires_at);
 CREATE TABLE IF NOT EXISTS ask_outbox (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
@@ -104,11 +166,22 @@ CREATE TABLE IF NOT EXISTS ask_outbox (
   created_at TIMESTAMPTZ NOT NULL,
   claimed_at TIMESTAMPTZ,
   applied_at TIMESTAMPTZ
+  , receipt_json JSONB,
+  g2_receipt_expires_at BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_ask_outbox_email_status ON ask_outbox(email, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
   ON ask_outbox(email, client_request_id)
   WHERE client_request_id IS NOT NULL AND client_request_id != '';
+CREATE TABLE IF NOT EXISTS g2_capture_relay (
+  email TEXT NOT NULL, capture_id TEXT NOT NULL, family_id TEXT NOT NULL,
+  captured_at TEXT NOT NULL, body_enc TEXT, digest TEXT,
+  status TEXT NOT NULL, claim_token_hash TEXT, claim_until_ms BIGINT,
+  receipt_until_ms BIGINT, created_at_ms BIGINT NOT NULL,
+  PRIMARY KEY (email, capture_id)
+);
+CREATE INDEX IF NOT EXISTS idx_g2_capture_relay_claim
+  ON g2_capture_relay(email, status, created_at_ms);
 `;
 
 /**
@@ -116,6 +189,359 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ask_outbox_email_crid
  * @param {{ getAccount: Function, refreshAccountStatus: Function }} deps
  */
 export function createAskPostgresMethods(pool, deps) {
+  const normDevice = (r) => publicG2Device({
+    ...r, familyId: r.family_id, scopes: JSON.parse(r.scopes_json || "[]"),
+    createdAt: r.created_at, lastSeenAt: r.last_seen_at,
+  });
+
+  async function g2PairMint(email, opts = {}) {
+    const e = normEmail(email); const now = opts.now ?? Date.now(); const code = generatePairCode();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Serialize replacement codes for one account even when no prior code
+      // row exists yet. The account is guaranteed to exist before mint.
+      await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [e]);
+      await client.query("DELETE FROM g2_pair_codes WHERE email=$1 AND used=FALSE", [e]);
+      await client.query("INSERT INTO g2_pair_codes VALUES ($1,$2,$3,$4,FALSE)",
+        [hashToken(code), e, JSON.stringify(normalizeG2Scopes(opts.scopes)), now + G2_PAIR_CODE_TTL_MS]);
+      await client.query("COMMIT");
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    return { code, expiresAt: new Date(now + G2_PAIR_CODE_TTL_MS).toISOString() };
+  }
+
+  async function insertG2Tokens(client, family, now) {
+    const accessToken = id("g2a"); const refreshToken = id("g2r");
+    const args = [family.family_id, family.email, family.key_thumbprint, family.scopes_json];
+    await client.query("INSERT INTO g2_access_tokens VALUES ($1,$2,$3,$4,$5,$6,FALSE)",
+      [hashToken(accessToken), ...args, now + G2_ACCESS_TTL_MS]);
+    await client.query("INSERT INTO g2_refresh_tokens VALUES ($1,$2,$3,$4,$5,$6,FALSE,FALSE)",
+      [hashToken(refreshToken), ...args, now + G2_REFRESH_TTL_MS]);
+    return { accessToken, refreshToken, expiresIn: G2_ACCESS_TTL_MS / 1000 };
+  }
+
+  async function g2PairRedeem(code, opts = {}) {
+    const now = opts.now ?? Date.now(); if (!opts.jkt) return null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_pair_codes WHERE code_hash=$1 FOR UPDATE", [hashToken(normalizePairCodeInput(code))]);
+      const row = rows[0];
+      if (!row || row.used || Number(row.exp_ms) < now || !subscriptionLive(await deps.getAccount(row.email), now)) {
+        await client.query("ROLLBACK"); return null;
+      }
+      await client.query("UPDATE g2_pair_codes SET used=TRUE WHERE code_hash=$1", [row.code_hash]);
+      const family = { family_id: id("g2d"), email: row.email, key_thumbprint: opts.jkt,
+        name: String(opts.name || "Even G2").slice(0, 80), scopes_json: row.scopes_json,
+        created_at: new Date(now), last_seen_at: new Date(now), revoked: false };
+      await client.query("INSERT INTO g2_device_families VALUES ($1,$2,$3,$4,$5,$6,$7,FALSE)",
+        [family.family_id, family.email, family.key_thumbprint, family.name, family.scopes_json, family.created_at, family.last_seen_at]);
+      const tokens = await insertG2Tokens(client, family, now); await client.query("COMMIT");
+      return { ...tokens, scopes: JSON.parse(row.scopes_json), device: normDevice(family) };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function revokeFamily(client, familyId) {
+    await client.query("UPDATE g2_device_families SET revoked=TRUE WHERE family_id=$1", [familyId]);
+    await client.query("UPDATE g2_access_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
+    await client.query("UPDATE g2_refresh_tokens SET revoked=TRUE WHERE family_id=$1", [familyId]);
+    await client.query("UPDATE g2_transcriptions SET state='revoked', lease_owner=NULL, lease_until_ms=0, transcript_enc=NULL WHERE family_id=$1", [familyId]);
+    await client.query("DELETE FROM g2_preparations WHERE family_id=$1", [familyId]);
+    await client.query("DELETE FROM g2_transcription_tickets WHERE family_id=$1", [familyId]);
+    await client.query("DELETE FROM g2_transcription_slots WHERE family_id=$1", [familyId]);
+  }
+
+  async function g2Refresh(token, jkt, opts = {}) {
+    const now = opts.now ?? Date.now(); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_refresh_tokens WHERE token_hash=$1 FOR UPDATE", [hashToken(String(token || ""))]);
+      const row = rows[0]; if (!row) { await client.query("ROLLBACK"); return null; }
+      if (row.used) { await revokeFamily(client, row.family_id); await client.query("COMMIT"); return null; }
+      const family = (await client.query("SELECT * FROM g2_device_families WHERE family_id=$1 FOR UPDATE", [row.family_id])).rows[0];
+      if (row.revoked || Number(row.exp_ms) < now || !family || family.revoked || row.key_thumbprint !== jkt || !subscriptionLive(await deps.getAccount(row.email), now)) {
+        await client.query("ROLLBACK"); return null;
+      }
+      await client.query("UPDATE g2_refresh_tokens SET used=TRUE WHERE token_hash=$1", [row.token_hash]);
+      family.last_seen_at = new Date(now);
+      await client.query("UPDATE g2_device_families SET last_seen_at=$1 WHERE family_id=$2", [family.last_seen_at, family.family_id]);
+      const tokens = await insertG2Tokens(client, family, now); await client.query("COMMIT");
+      return { ...tokens, scopes: JSON.parse(family.scopes_json), device: normDevice(family) };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2AccessLookup(token, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const { rows } = await pool.query(`SELECT t.*, f.name, f.created_at, f.last_seen_at, f.revoked AS family_revoked
+      FROM g2_access_tokens t JOIN g2_device_families f ON f.family_id=t.family_id WHERE t.token_hash=$1`, [hashToken(String(token || ""))]);
+    const row = rows[0];
+    if (!row || row.revoked || row.family_revoked || Number(row.exp_ms) < now || !subscriptionLive(await deps.getAccount(row.email), now)) return null;
+    return { familyId: row.family_id, email: row.email, jkt: row.key_thumbprint,
+      scopes: JSON.parse(row.scopes_json), exp: Number(row.exp_ms), device: normDevice(row) };
+  }
+
+  async function g2ListDevices(email) {
+    const { rows } = await pool.query("SELECT * FROM g2_device_families WHERE email=$1 ORDER BY created_at DESC", [normEmail(email)]);
+    return rows.map(normDevice);
+  }
+
+  async function g2RevokeDevice(email, familyId) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const row = (await client.query("SELECT 1 FROM g2_device_families WHERE family_id=$1 AND email=$2 FOR UPDATE", [String(familyId), normEmail(email)])).rows[0];
+      if (!row) { await client.query("ROLLBACK"); return false; }
+      await revokeFamily(client, String(familyId));
+      await client.query("DELETE FROM g2_preparations WHERE family_id=$1 AND email=$2", [String(familyId), normEmail(email)]);
+      await client.query("COMMIT"); return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2ReadConsent(email) {
+    const { rows } = await pool.query("SELECT * FROM g2_consent WHERE email=$1", [normEmail(email)]);
+    return publicG2Consent(rows[0]);
+  }
+
+  async function g2AuthorizeWith(queryable, binding, opts = {}, lock = false) {
+    const email = normEmail(binding.email);
+    const lockClause = lock ? " FOR UPDATE OF a, f, c" : "";
+    const row = (await queryable.query(`SELECT a.status, a.period_end, f.revoked,
+        c.revision, c.g2_disclosure_granted, c.g2_disclosure_version,
+        c.ask_mirror_granted, c.ask_mirror_version, c.ask_write_granted, c.ask_write_version
+      FROM accounts a
+      JOIN g2_device_families f ON f.email=a.email AND f.family_id=$2
+      JOIN g2_consent c ON c.email=a.email
+      WHERE a.email=$1${lockClause}`, [email, String(binding.familyId)])).rows[0];
+    const consent = publicG2Consent(row);
+    return Boolean(subscriptionLive(row ? { ...row, periodEnd: row.period_end } : null) && row && !row.revoked &&
+      consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.disclosureVersion || consent.g2Disclosure.version === opts.disclosureVersion) &&
+      (!opts.requireMirror || consent.askMirror.granted) &&
+      (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+  }
+
+  function g2Authorize(binding, opts = {}) {
+    return g2AuthorizeWith(pool, binding, opts);
+  }
+
+  async function g2SynchronizeConsent(email, update) {
+    const key = normEmail(email); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [key]);
+      const current = (await client.query("SELECT * FROM g2_consent WHERE email=$1 FOR UPDATE", [key])).rows[0];
+      const next = mergeG2Consent(current, update);
+      if (next.revision !== publicG2Consent(current).revision) {
+        await client.query(`INSERT INTO g2_consent VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT(email) DO UPDATE SET revision=excluded.revision,
+          g2_disclosure_granted=excluded.g2_disclosure_granted,
+          g2_disclosure_version=excluded.g2_disclosure_version,
+          ask_mirror_granted=excluded.ask_mirror_granted,
+          ask_mirror_version=excluded.ask_mirror_version,
+          ask_write_granted=excluded.ask_write_granted,
+          ask_write_version=excluded.ask_write_version`, [
+          key, next.revision, next.g2Disclosure.granted, next.g2Disclosure.version,
+          next.askMirror.granted, next.askMirror.version,
+          next.askWrite.granted, next.askWrite.version,
+        ]);
+        await client.query("DELETE FROM g2_transcription_tickets WHERE email=$1 AND generation<$2", [key, next.revision]);
+      }
+      if (!next.g2Disclosure.granted) await client.query("DELETE FROM g2_preparations WHERE email=$1", [key]);
+      await client.query("COMMIT"); return next;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2SynchronizeDisclosure(email, update) {
+    const key = normEmail(email); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [key]);
+      const current = (await client.query("SELECT * FROM g2_consent WHERE email=$1 FOR UPDATE", [key])).rows[0];
+      const next = mergeG2Disclosure(current, update);
+      if (next.revision !== publicG2Consent(current).revision) {
+        await client.query(`INSERT INTO g2_consent VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT(email) DO UPDATE SET revision=excluded.revision,
+          g2_disclosure_granted=excluded.g2_disclosure_granted,
+          g2_disclosure_version=excluded.g2_disclosure_version,
+          ask_mirror_granted=excluded.ask_mirror_granted,
+          ask_mirror_version=excluded.ask_mirror_version,
+          ask_write_granted=excluded.ask_write_granted,
+          ask_write_version=excluded.ask_write_version`, [
+          key, next.revision, next.g2Disclosure.granted, next.g2Disclosure.version,
+          next.askMirror.granted, next.askMirror.version,
+          next.askWrite.granted, next.askWrite.version,
+        ]);
+        await client.query("DELETE FROM g2_transcription_tickets WHERE email=$1 AND generation<$2", [key, next.revision]);
+      }
+      if (!next.g2Disclosure.granted) await client.query("DELETE FROM g2_preparations WHERE email=$1", [key]);
+      await client.query("COMMIT"); return next;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  function transcriptionRow(row) {
+    return row ? {
+      recordingId: row.recording_id, email: row.email, familyId: row.family_id,
+      generation: Number(row.generation), state: row.state, leaseOwner: row.lease_owner,
+      leaseUntil: Number(row.lease_until_ms), retainedUntil: Number(row.retained_until_ms || 0),
+      transcript: row.transcript_enc ? decryptG2ArtifactOrLegacy(row.transcript_enc, {
+        account: row.email, artifact: "transcript", row: row.recording_id,
+      }) : null,
+    } : null;
+  }
+
+  async function g2TranscriptionClaim(binding, recordingId, owner, now = Date.now(), leaseMs = 30_000) {
+    const idValue = String(recordingId); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = transcriptionRow((await client.query("SELECT * FROM g2_transcriptions WHERE recording_id=$1 FOR UPDATE", [idValue])).rows[0]);
+      if (current && (current.email !== normEmail(binding.email) || current.familyId !== binding.familyId || current.generation !== binding.generation)) {
+        await client.query("ROLLBACK"); return null;
+      }
+      if (current?.state === "completed" || (current?.state === "transcribing" && current.leaseUntil > now && current.leaseOwner !== owner)) {
+        await client.query("ROLLBACK"); return { ...current, acquired: false };
+      }
+      await client.query(`INSERT INTO g2_transcriptions
+        (recording_id,email,family_id,generation,state,lease_owner,lease_until_ms,transcript_enc)
+        VALUES ($1,$2,$3,$4,'transcribing',$5,$6,$7)
+        ON CONFLICT(recording_id) DO UPDATE SET state='transcribing', lease_owner=excluded.lease_owner,
+        lease_until_ms=excluded.lease_until_ms`, [
+        idValue, normEmail(binding.email), binding.familyId, binding.generation, owner,
+        now + leaseMs, current?.transcript ? encryptG2Artifact(current.transcript, {
+          account: normEmail(binding.email), artifact: "transcript", row: idValue,
+        }) : null,
+      ]);
+      await client.query("COMMIT");
+      return { ...(current ?? { recordingId: idValue, email: normEmail(binding.email), familyId: binding.familyId, generation: binding.generation, transcript: null }), state: "transcribing", leaseOwner: owner, leaseUntil: now + leaseMs, acquired: true };
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, {}, true)) { await client.query("ROLLBACK"); return false; }
+      const result = await client.query(`UPDATE g2_transcriptions SET state='completed', lease_owner=NULL,
+        lease_until_ms=0, transcript_enc=$1, retained_until_ms=$2 WHERE recording_id=$3 AND email=$4 AND family_id=$5
+        AND generation=$6 AND lease_owner=$7 AND state='transcribing'`, [
+        encryptG2Artifact(String(transcript), {
+          account: normEmail(binding.email), artifact: "transcript", row: String(recordingId),
+        }), Date.now() + config.g2TranscriptRetentionMs, String(recordingId), normEmail(binding.email),
+        binding.familyId, binding.generation, owner,
+      ]);
+      await client.query("COMMIT"); return result.rowCount > 0;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2TranscriptionFail(binding, recordingId, owner, state) {
+    const result = await pool.query(`UPDATE g2_transcriptions SET state=$1, lease_owner=NULL, lease_until_ms=0
+      WHERE recording_id=$2 AND email=$3 AND family_id=$4 AND generation=$5 AND lease_owner=$6`, [
+      String(state), String(recordingId), normEmail(binding.email), binding.familyId, binding.generation, owner,
+    ]);
+    return result.rowCount > 0;
+  }
+
+  async function g2TranscriptionGet(binding, recordingId) {
+    const { rows } = await pool.query(`SELECT * FROM g2_transcriptions WHERE recording_id=$1
+      AND email=$2 AND family_id=$3 AND generation=$4`, [
+      String(recordingId), normEmail(binding.email), binding.familyId, binding.generation,
+    ]);
+    return transcriptionRow(rows[0]);
+  }
+
+  async function g2ConsumeProof(jti, expMs, now = Date.now()) {
+    await pool.query("DELETE FROM g2_proof_replay WHERE exp_ms < $1", [now]);
+    return (await pool.query("INSERT INTO g2_proof_replay VALUES ($1,$2) ON CONFLICT DO NOTHING", [jti, expMs])).rowCount > 0;
+  }
+
+  async function g2ConsumeAttempt(key, opts = {}) {
+    const now = opts.now ?? Date.now(); const windowMs = opts.windowMs ?? 60_000; const limit = opts.limit ?? 12;
+    const { rows } = await pool.query(`INSERT INTO g2_attempt_budgets VALUES ($1,$2,1)
+      ON CONFLICT(attempt_key) DO UPDATE SET
+      window_start_ms=CASE WHEN g2_attempt_budgets.window_start_ms + $3 <= $2 THEN $2 ELSE g2_attempt_budgets.window_start_ms END,
+      attempts=CASE WHEN g2_attempt_budgets.window_start_ms + $3 <= $2 THEN 1 ELSE g2_attempt_budgets.attempts + 1 END
+      RETURNING attempts`, [key, now, windowMs]);
+    return rows[0].attempts <= limit;
+  }
+
+  async function g2TranscriptionTicketPut(ticketHash, binding, ticket) {
+    await pool.query(`INSERT INTO g2_transcription_tickets
+      (ticket_hash,email,family_id,key_thumbprint,origin,generation,recording_id,purpose,expires_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      ON CONFLICT (ticket_hash) DO UPDATE SET expires_at=EXCLUDED.expires_at`, [
+      String(ticketHash), normEmail(binding.email), String(binding.familyId), String(binding.jkt),
+      String(binding.origin), Number(binding.generation), String(ticket.recordingId), String(ticket.purpose), Number(ticket.expiresAt),
+    ]);
+    return true;
+  }
+
+  async function g2TranscriptionTicketConsume(ticketHash, binding, now = Date.now()) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query("SELECT * FROM g2_transcription_tickets WHERE ticket_hash=$1", [String(ticketHash)]);
+      const row = rows[0];
+      const valid = row && Number(row.expires_at) >= now && (!binding.email || row.email === normEmail(binding.email)) &&
+        (!binding.familyId || row.family_id === String(binding.familyId)) && (!binding.jkt || row.key_thumbprint === String(binding.jkt)) &&
+        (!binding.origin || row.origin === String(binding.origin)) &&
+        (binding.generation === undefined || Number(row.generation) === Number(binding.generation));
+      const deleted = await client.query("DELETE FROM g2_transcription_tickets WHERE ticket_hash=$1", [String(ticketHash)]);
+      const consumed = valid && deleted.rowCount > 0;
+      await client.query("COMMIT");
+      return valid && consumed ? { recordingId: row.recording_id, purpose: row.purpose, expiresAt: Number(row.expires_at),
+        binding: { email: row.email, familyId: row.family_id, jkt: row.key_thumbprint, origin: row.origin, generation: Number(row.generation) } } : null;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2TranscriptionTicketsInvalidate(email, familyId, generation) {
+    const result = familyId
+      ? await pool.query("DELETE FROM g2_transcription_tickets WHERE email=$1 AND family_id=$2 AND generation<$3", [normEmail(email), String(familyId), Number(generation)])
+      : await pool.query("DELETE FROM g2_transcription_tickets WHERE email=$1 AND generation<$2", [normEmail(email), Number(generation)]);
+    return result.rowCount;
+  }
+
+  async function g2SweepExpired(now = Date.now(), limit = 100) {
+    const cap = Math.max(1, Math.min(1000, Number(limit) || 100));
+    const remove = async (table, predicate) => (await pool.query(
+      `DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE ${predicate} LIMIT $2)`, [now, cap],
+    )).rowCount;
+    const counts = {
+      tickets: await remove("g2_transcription_tickets", "expires_at <= $1"),
+      preparations: await remove("g2_preparations", "expires_at <= $1"),
+      transcriptions: await remove("g2_transcriptions", "retained_until_ms IS NOT NULL AND retained_until_ms <= $1"),
+      receipts: 0,
+    };
+    counts.receipts = (await pool.query(`DELETE FROM ask_outbox WHERE ctid IN
+      (SELECT ctid FROM ask_outbox WHERE status='applied' AND g2_receipt_expires_at IS NOT NULL
+       AND g2_receipt_expires_at<=$1 LIMIT $2)`, [now, cap])).rowCount;
+    counts.receipts += (await pool.query(`UPDATE g2_capture_relay
+      SET status='tombstone', family_id='', captured_at='', digest=NULL, receipt_until_ms=NULL
+      WHERE ctid IN (SELECT ctid FROM g2_capture_relay
+        WHERE status='applied' AND receipt_until_ms IS NOT NULL AND receipt_until_ms<=$1 LIMIT $2)`, [now, cap])).rowCount;
+    return counts;
+  }
+
+  async function g2TranscriptionSlotAcquire(binding, recordingId, now = Date.now(), leaseMs = 300_000, max = 2) {
+    const email = normEmail(binding.email); const idValue = String(recordingId); const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [email]);
+      await client.query("DELETE FROM g2_transcription_slots WHERE expires_at<=$1", [now]);
+      const existing = (await client.query("SELECT * FROM g2_transcription_slots WHERE recording_id=$1 FOR UPDATE", [idValue])).rows[0];
+      if (existing) {
+        if (existing.email !== email) { await client.query("ROLLBACK"); return false; }
+        await client.query("UPDATE g2_transcription_slots SET expires_at=$1 WHERE recording_id=$2", [now + leaseMs, idValue]);
+        await client.query("COMMIT"); return true;
+      }
+      const count = Number((await client.query("SELECT COUNT(*) AS n FROM g2_transcription_slots WHERE email=$1", [email])).rows[0].n);
+      if (count >= max) { await client.query("ROLLBACK"); return false; }
+      await client.query("INSERT INTO g2_transcription_slots VALUES ($1,$2,$3,$4)", [idValue, email, String(binding.familyId), now + leaseMs]);
+      await client.query("COMMIT"); return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
+
+  async function g2TranscriptionSlotRelease(binding, recordingId) {
+    return (await pool.query("DELETE FROM g2_transcription_slots WHERE recording_id=$1 AND email=$2", [String(recordingId), normEmail(binding.email)])).rowCount > 0;
+  }
   async function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
@@ -258,6 +684,14 @@ export function createAskPostgresMethods(pool, deps) {
     return null;
   }
 
+  async function mirrorFetchById(email, atomId) {
+    const { rows } = await pool.query(
+      "SELECT * FROM atom_mirror WHERE email=$1 AND atom_id=$2 LIMIT 1",
+      [normEmail(email), String(atomId || "")],
+    );
+    return rows[0] ? rowToPublicAtom(rows[0], { includeBody: true }) : null;
+  }
+
   async function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const { rows } = await pool.query(
@@ -289,6 +723,7 @@ export function createAskPostgresMethods(pool, deps) {
     const e = normEmail(email);
     await pool.query("DELETE FROM atom_mirror WHERE email = $1", [e]);
     await pool.query("DELETE FROM ask_outbox WHERE email = $1", [e]);
+    await pool.query("DELETE FROM g2_preparations WHERE email = $1", [e]);
     await mcpRevokeForEmail(e);
     return { ok: true };
   }
@@ -344,14 +779,18 @@ export function createAskPostgresMethods(pool, deps) {
     return { deleted, ...st };
   }
 
-  async function outboxOpenCount(email) {
+  async function outboxOpenCountWith(queryable, email) {
     const e = normEmail(email);
-    const r = await pool.query(
+    const r = await queryable.query(
       `SELECT COUNT(*)::int AS n FROM ask_outbox
        WHERE email = $1 AND status IN ('pending','claimed')`,
       [e],
     );
     return r.rows[0]?.n ?? 0;
+  }
+
+  function outboxOpenCount(email) {
+    return outboxOpenCountWith(pool, email);
   }
 
   function outboxRowFromDb(r) {
@@ -372,10 +811,11 @@ export function createAskPostgresMethods(pool, deps) {
       applied_at: r.applied_at
         ? new Date(r.applied_at).toISOString()
         : null,
+      receipt: r.receipt_json || null,
     });
   }
 
-  async function outboxEnqueue(email, opts) {
+  async function outboxEnqueueWith(queryable, email, opts) {
     const e = normEmail(email);
     const kind =
       opts.kind === "continue"
@@ -387,11 +827,14 @@ export function createAskPostgresMethods(pool, deps) {
       ? String(opts.client_request_id).trim().slice(0, 128)
       : "";
     if (crid) {
-      const existing = await pool.query(
+      const existing = await queryable.query(
         `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
         [e, crid],
       );
       if (existing.rows[0]) {
+        if (opts.proposal_fingerprint && decryptOutboxPayload(existing.rows[0].payload_enc)?.proposal_fingerprint !== opts.proposal_fingerprint) {
+          return { ok: false, error: "idempotency_conflict" };
+        }
         return {
           ok: true,
           ...outboxRowFromDb(existing.rows[0]),
@@ -399,22 +842,70 @@ export function createAskPostgresMethods(pool, deps) {
         };
       }
     }
-    if ((await outboxOpenCount(e)) >= OUTBOX_MAX_OPEN) {
+    if ((await outboxOpenCountWith(queryable, e)) >= OUTBOX_MAX_OPEN) {
       return { ok: false, error: "outbox_full" };
     }
     const idRow = id("obx");
     const now = new Date().toISOString();
     const payload_enc = encryptOutboxPayload(opts.payload);
-    await pool.query(
+    const inserted = await queryable.query(
       `INSERT INTO ask_outbox
-       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at)
-       VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL)`,
+       (id, email, kind, payload_enc, status, client_request_id, error, created_at, claimed_at, applied_at, receipt_json)
+       VALUES ($1, $2, $3, $4, 'pending', $5, NULL, $6, NULL, NULL, NULL)
+       ON CONFLICT (email, client_request_id)
+       WHERE client_request_id IS NOT NULL AND client_request_id != ''
+       DO NOTHING
+       RETURNING *`,
       [idRow, e, kind, payload_enc, crid || null, now],
     );
-    const row = await pool.query(`SELECT * FROM ask_outbox WHERE id = $1`, [
-      idRow,
-    ]);
-    return { ok: true, ...outboxRowFromDb(row.rows[0]), duplicate: false };
+    if (inserted.rows[0]) {
+      return {
+        ok: true,
+        ...outboxRowFromDb(inserted.rows[0]),
+        duplicate: false,
+      };
+    }
+    if (crid) {
+      const existing = await queryable.query(
+        `SELECT * FROM ask_outbox WHERE email = $1 AND client_request_id = $2`,
+        [e, crid],
+      );
+      if (!existing.rows[0]) return { ok: false, error: "enqueue_conflict" };
+      if (
+        opts.proposal_fingerprint &&
+        decryptOutboxPayload(existing.rows[0].payload_enc)
+          ?.proposal_fingerprint !== opts.proposal_fingerprint
+      ) {
+        return { ok: false, error: "idempotency_conflict" };
+      }
+      return {
+        ok: true,
+        ...outboxRowFromDb(existing.rows[0]),
+        duplicate: true,
+      };
+    }
+    return { ok: false, error: "enqueue_conflict" };
+  }
+
+  function outboxEnqueue(email, opts) {
+    return outboxEnqueueWith(pool, email, opts);
+  }
+
+  async function g2OutboxEnqueue(binding, opts) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, { requireWrite: true }, true)) {
+        await client.query("ROLLBACK");
+        return { ok: false, error: "setup_required" };
+      }
+      const result = await outboxEnqueueWith(client, binding.email, opts);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
   }
 
   async function outboxReclaimStale(email) {
@@ -492,14 +983,28 @@ export function createAskPostgresMethods(pool, deps) {
     ) {
       return { ok: true, ...outboxRowFromDb(row.rows[0]), already: true };
     }
+    let receipt = null;
+    if (st === "applied" && row.rows[0].kind === "create") {
+      const payload = decryptOutboxPayload(row.rows[0].payload_enc);
+      if (payload?.origin === "g2") {
+        const targetPath = normalizeOutboxReceiptTarget(opts.target_path);
+        const mirrorRows = targetPath
+          ? await pool.query("SELECT * FROM atom_mirror WHERE email=$1 AND path=$2", [e, targetPath])
+          : { rows: [] };
+        receipt = g2MirrorReceipt(payload, mirrorRows.rows[0] ? rowToPublicAtom(mirrorRows.rows[0], { includeBody: true }) : null, targetPath);
+        if (!receipt) return { ok: false, error: "mirror_receipt_required" };
+      }
+    }
     const now = new Date().toISOString();
     await pool.query(
-      `UPDATE ask_outbox SET status = $1, error = $2, applied_at = $3
-       WHERE id = $4 AND email = $5`,
+      `UPDATE ask_outbox SET status = $1, error = $2, applied_at = $3, receipt_json = $4, g2_receipt_expires_at = $5
+       WHERE id = $6 AND email = $7`,
       [
         st,
         opts.error ? String(opts.error).slice(0, 500) : null,
         now,
+        receipt,
+        receipt ? Date.now() + G2_RECEIPT_RETENTION_MS : null,
         oid,
         e,
       ],
@@ -518,6 +1023,138 @@ export function createAskPostgresMethods(pool, deps) {
       [String(outboxId || ""), e],
     );
     return outboxRowFromDb(r.rows[0]);
+  }
+
+  async function g2PreparationPut(email, row) {
+    const e = normEmail(email);
+    await pool.query(`INSERT INTO g2_preparations (id,email,family_id,payload_enc,expires_at)
+      VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET payload_enc=EXCLUDED.payload_enc, expires_at=EXCLUDED.expires_at`,
+      [row.id, e, row.familyId, encryptG2Artifact(JSON.stringify(row.payload), {
+        account: e, artifact: "preparation", row: row.id,
+      }), row.expiresAt]);
+    return { ...row, email: e };
+  }
+
+  async function g2PreparationGet(email, preparationId, familyId) {
+    const { rows } = await pool.query(`SELECT * FROM g2_preparations WHERE id=$1 AND email=$2 AND family_id=$3`,
+      [String(preparationId || ""), normEmail(email), String(familyId || "")]);
+    const row = rows[0];
+    return row ? { id: row.id, email: row.email, familyId: row.family_id, expiresAt: Number(row.expires_at),
+      payload: JSON.parse(decryptG2ArtifactOrLegacy(row.payload_enc, {
+        account: row.email, artifact: "preparation", row: row.id,
+      })) } : null;
+  }
+
+  async function g2PreparationDelete(email, preparationId) {
+    const result = await pool.query(`DELETE FROM g2_preparations WHERE id=$1 AND email=$2`, [String(preparationId || ""), normEmail(email)]);
+    return result.rowCount > 0;
+  }
+
+  async function g2CaptureEnqueueWith(queryable, email, row, opts = {}) {
+    const account = normEmail(email);
+    const digest = g2CaptureDigest(row);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const bodyEnc = encryptG2Artifact(row.body, {
+      account, artifact: "capture", row: row.captureId,
+    });
+    const inserted = await queryable.query(`INSERT INTO g2_capture_relay
+      (email,capture_id,family_id,captured_at,body_enc,digest,status,created_at_ms)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)
+      ON CONFLICT (email,capture_id) DO NOTHING RETURNING status`,
+    [account, row.captureId, row.familyId, row.capturedAt, bodyEnc, digest, now]);
+    if (inserted.rowCount) return { captureId: row.captureId, state: "pending" };
+    const existing = await queryable.query(
+      "SELECT status,digest FROM g2_capture_relay WHERE email=$1 AND capture_id=$2",
+      [account, row.captureId],
+    );
+    return existing.rows[0]?.digest === digest
+      ? { captureId: row.captureId, state: existing.rows[0].status, already: true }
+      : { error: "capture_id_conflict" };
+  }
+
+  function g2CaptureEnqueue(email, row, opts = {}) {
+    return g2CaptureEnqueueWith(pool, email, row, opts);
+  }
+
+  async function g2CaptureEnqueueAuthorized(binding, row, opts = {}) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!await g2AuthorizeWith(client, binding, { disclosureVersion: opts.disclosureVersion }, true)) {
+        await client.query("ROLLBACK");
+        return { state: "setup_required" };
+      }
+      const result = await g2CaptureEnqueueWith(
+        client,
+        binding.email,
+        { ...row, familyId: binding.familyId },
+        opts,
+      );
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function g2CaptureClaim(email, opts = {}) {
+    const account = normEmail(email);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const leaseMs = Number.isFinite(opts.leaseMs) ? opts.leaseMs : 5 * 60 * 1000;
+    const limit = Math.max(1, Math.min(10, Number(opts.limit) || 10));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE g2_capture_relay
+        SET status='pending',claim_token_hash=NULL,claim_until_ms=NULL
+        WHERE email=$1 AND status='claimed' AND claim_until_ms<=$2`, [account, now]);
+      const { rows } = await client.query(`SELECT * FROM g2_capture_relay
+        WHERE email=$1 AND status='pending' ORDER BY created_at_ms ASC
+        FOR UPDATE SKIP LOCKED LIMIT $2`, [account, limit]);
+      const items = [];
+      for (const row of rows) {
+        const claimToken = id("g2c");
+        await client.query(`UPDATE g2_capture_relay
+          SET status='claimed',claim_token_hash=$1,claim_until_ms=$2
+          WHERE email=$3 AND capture_id=$4`,
+        [hashToken(claimToken), now + leaseMs, account, row.capture_id]);
+        items.push({ captureId: row.capture_id, capturedAt: row.captured_at,
+          body: decryptG2ArtifactOrLegacy(row.body_enc, {
+            account, artifact: "capture", row: row.capture_id,
+          }), claimToken });
+      }
+      await client.query("COMMIT");
+      return { items };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function g2CaptureAck(email, opts = {}) {
+    const account = normEmail(email);
+    const captureId = String(opts.captureId || "");
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const changed = await pool.query(`UPDATE g2_capture_relay
+      SET status='applied',body_enc=NULL,claim_token_hash=NULL,claim_until_ms=NULL,receipt_until_ms=$1
+      WHERE email=$2 AND capture_id=$3 AND status='claimed' AND claim_until_ms>$4 AND claim_token_hash=$5
+      RETURNING capture_id`, [
+      now + G2_RECEIPT_RETENTION_MS, account, captureId, now,
+      hashToken(String(opts.claimToken || "")),
+    ]);
+    if (changed.rowCount) return { captureId, state: "applied" };
+    const existing = await pool.query(
+      "SELECT status FROM g2_capture_relay WHERE email=$1 AND capture_id=$2",
+      [account, captureId],
+    );
+    return ["applied", "tombstone"].includes(existing.rows[0]?.status)
+      ? { captureId, state: existing.rows[0].status, already: true }
+      : { error: "not_found" };
   }
 
   async function outboxPendingCount(email) {
@@ -908,6 +1545,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorExpandCoverage,
     mirrorListMissingExpand,
     mirrorFetch,
+    mirrorFetchById,
     mirrorSearch,
     mirrorNeighbors,
     mirrorWipe,
@@ -916,6 +1554,7 @@ export function createAskPostgresMethods(pool, deps) {
     mirrorDelete,
     mirrorReconcileKeep,
     outboxEnqueue,
+    g2OutboxEnqueue,
     outboxPull,
     outboxAck,
     outboxGet,
@@ -923,6 +1562,13 @@ export function createAskPostgresMethods(pool, deps) {
     outboxCancel,
     outboxListOpen,
     outboxHasOpenTitle,
+    g2PreparationPut,
+    g2PreparationGet,
+    g2PreparationDelete,
+    g2CaptureEnqueue,
+    g2CaptureEnqueueAuthorized,
+    g2CaptureClaim,
+    g2CaptureAck,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,
@@ -941,5 +1587,11 @@ export function createAskPostgresMethods(pool, deps) {
     mcpRegisterClient,
     mcpGetClient,
     mintMcpTokensForTest: mintMcpTokens,
+    g2PairMint, g2PairRedeem, g2Refresh, g2AccessLookup, g2ListDevices,
+    g2RevokeDevice, g2ReadConsent, g2Authorize, g2SynchronizeConsent, g2SynchronizeDisclosure,
+    g2TranscriptionClaim, g2TranscriptionComplete, g2TranscriptionFail, g2TranscriptionGet,
+    g2TranscriptionTicketPut, g2TranscriptionTicketConsume, g2TranscriptionTicketsInvalidate, g2SweepExpired,
+    g2TranscriptionSlotAcquire, g2TranscriptionSlotRelease,
+    g2ConsumeProof, g2ConsumeAttempt,
   };
 }

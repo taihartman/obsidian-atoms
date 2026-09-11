@@ -1,0 +1,36 @@
+{
+  "name": "@atoms/even-g2",
+  "version": "0.1.19",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.0.0 || >=22.0.0"
+  },
+  "scripts": {
+    "assets:prepare": "node scripts/prepare-local-model.mjs",
+    "runtime:prepare": "node scripts/prepare-local-runtime.mjs",
+    "prebuild": "npm run runtime:prepare && npm run assets:prepare",
+    "build": "tsc --noEmit && vite build",
+    "pack": "evenhub pack app.json dist --output atoms-g2.ehpk --sdk-ver 0.0.15",
+    "package": "npm run pack",
+    "package:verify": "node scripts/verify-package.mjs",
+    "simulator": "node scripts/simulator-harness.mjs",
+    "simulator:contract": "node scripts/simulator-contract.mjs",
+    "simulator:services": "node scripts/simulator-harness.mjs --services-check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "0.0.15",
+    "@moonshine-ai/moonshine-wasm": "0.1.5"
+  },
+  "devDependencies": {
+    "@evenrealities/evenhub-cli": "0.1.14",
+    "@evenrealities/evenhub-simulator": "0.9.5",
+    "@types/node": "22.15.17",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.8.3",
+    "vite": "7.3.6",
+    "vitest": "3.2.7"
+  }
+}

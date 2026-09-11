@@ -87,6 +87,34 @@ export type PlusClientConfig = {
   request: RequestFn;
 };
 
+export const G2_V1_SCOPES = [
+  "g2:capture",
+  "g2:status",
+  "g2:recent",
+  "g2:fetch",
+] as const;
+
+export const G2_CAPTURE_DISCLOSURE_VERSION = "g2-capture-relay-v1";
+
+export type G2Device = {
+  id: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastSeenAt: string;
+  revoked: boolean;
+  pendingWrites: number;
+};
+
+export type G2ConsentDecision = { granted: boolean; version: string };
+export type G2ConsentState = {
+  revision: number;
+  g2Disclosure: G2ConsentDecision;
+  askMirror: G2ConsentDecision;
+  askWrite: G2ConsentDecision;
+  regrantRequired?: boolean;
+};
+
 export type PlusApiError = {
   ok: false;
   status: number;
@@ -171,6 +199,7 @@ function redact(msg: string): string {
     .replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[redacted]")
     .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
     .replace(/sess_[a-zA-Z0-9_-]+/g, "[redacted]")
+    .replace(/g2c_[a-zA-Z0-9_-]+/g, "[redacted]")
     .replace(/mt_[a-fA-F0-9]{8,}/g, "[redacted]")
     .replace(/[A-Za-z0-9_-]{43,}/g, "[redacted]")
     .slice(0, 200);
@@ -1169,6 +1198,143 @@ export async function askMcpPair(
   return { ok: true, code, expiresAt };
 }
 
+function parseG2Consent(value: Record<string, unknown>): G2ConsentState | null {
+  const parseDecision = (raw: unknown): G2ConsentDecision | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const decision = raw as Record<string, unknown>;
+    if (typeof decision.granted !== "boolean" || typeof decision.version !== "string") {
+      return null;
+    }
+    return { granted: decision.granted, version: decision.version };
+  };
+  const revision = value.revision;
+  const g2Disclosure = parseDecision(value.g2Disclosure);
+  const askMirror = parseDecision(value.askMirror);
+  const askWrite = parseDecision(value.askWrite);
+  if (!Number.isInteger(revision) || Number(revision) < 0 || !g2Disclosure || !askMirror || !askWrite) {
+    return null;
+  }
+  return {
+    revision: Number(revision),
+    g2Disclosure,
+    askMirror,
+    askWrite,
+    ...(value.regrantRequired === true ? { regrantRequired: true } : {}),
+  };
+}
+
+/** Mint one replaceable, short-lived code for a verified Plus session. */
+export async function g2CreatePairingCode(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true; code: string; expiresAt: string } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/pair/code",
+    method: "POST",
+    sessionToken,
+    body: { scopes: [...G2_V1_SCOPES] },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  const code = typeof res.json.code === "string" ? res.json.code : "";
+  const expiresAt = typeof res.json.expiresAt === "string" ? res.json.expiresAt : "";
+  return code && expiresAt
+    ? { ok: true, code, expiresAt }
+    : { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+}
+
+/** List only the G2 families owned by this verified Plus session. */
+export async function g2ListDevices(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true; devices: G2Device[] } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/devices",
+    method: "GET",
+    sessionToken,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  if (!Array.isArray(res.json.devices)) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  const devices = res.json.devices.flatMap((raw): G2Device[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const row = raw as Record<string, unknown>;
+    if (typeof row.id !== "string" || typeof row.name !== "string") return [];
+    return [{
+      id: row.id,
+      name: row.name,
+      scopes: Array.isArray(row.scopes) ? row.scopes.map(String) : [],
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
+      lastSeenAt: typeof row.lastSeenAt === "string" ? row.lastSeenAt : "",
+      revoked: row.revoked === true,
+      pendingWrites: typeof row.pendingWrites === "number" && row.pendingWrites > 0
+        ? Math.floor(row.pendingWrites)
+        : 0,
+    }];
+  });
+  return { ok: true, devices };
+}
+
+/** Revoke one selected G2 family without touching the mirror or other clients. */
+export async function g2RevokeDevice(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  deviceId: string,
+): Promise<{ ok: true } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: `/v1/g2/devices/${encodeURIComponent(deviceId)}/revoke`,
+    method: "POST",
+    sessionToken,
+    body: {},
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  return { ok: true };
+}
+
+export async function g2ReadConsent(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+): Promise<{ ok: true; consent: G2ConsentState } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/consent",
+    method: "GET",
+    sessionToken,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  const consent = parseG2Consent(res.json);
+  return consent
+    ? { ok: true, consent }
+    : { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+}
+
+export async function g2SynchronizeConsent(
+  cfg: PlusClientConfig,
+  sessionToken: string,
+  update: {
+    baseRevision: number;
+    freshGesture: boolean;
+    askMirror: G2ConsentDecision;
+    askWrite: G2ConsentDecision;
+  },
+): Promise<{ ok: true; consent: G2ConsentState } | PlusApiError> {
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/consent",
+    method: "POST",
+    sessionToken,
+    body: update,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  const consent = parseG2Consent(res.json);
+  return consent
+    ? { ok: true, consent }
+    : { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+}
+
 export async function askMirrorDelete(
   cfg: PlusMirrorConfig,
   sessionToken: string,
@@ -1250,8 +1416,82 @@ export type AskOutboxItem = {
     close_answer?: string;
     state?: string;
     client_request_id?: string;
+    origin?: "g2";
+    captured_at?: string;
+    captured_record_sha256?: string;
+    loop_inference?: false;
+    proposal_fingerprint?: string;
+    preparation_id?: string;
   } | null;
 };
+
+export type G2CaptureRelayItem = {
+  captureId: string;
+  capturedAt: string;
+  body: string;
+  claimToken: string;
+};
+
+function parseG2CaptureRelayItem(value: unknown): G2CaptureRelayItem | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.captureId !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(row.captureId) ||
+    typeof row.capturedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.capturedAt) || !Number.isFinite(Date.parse(row.capturedAt)) ||
+    typeof row.body !== "string" || !row.body ||
+    typeof row.claimToken !== "string" || !/^g2c_[A-Za-z0-9_-]+$/.test(row.claimToken)
+  ) return null;
+  return { captureId: row.captureId, capturedAt: row.capturedAt, body: row.body, claimToken: row.claimToken };
+}
+
+export async function g2CaptureClaim(
+  cfg: PlusMirrorConfig,
+  sessionToken: string,
+  limit = 10,
+): Promise<{ ok: true; items: G2CaptureRelayItem[] } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
+  const boundedLimit = Math.max(1, Math.min(10, Math.floor(limit)));
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/captures/claim",
+    method: "POST",
+    sessionToken,
+    body: { limit: boundedLimit },
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  if (!Array.isArray(res.json.items)) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  const items = res.json.items.map(parseG2CaptureRelayItem);
+  if (items.some((item) => item === null)) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  return { ok: true, items: items as G2CaptureRelayItem[] };
+}
+
+export async function g2CaptureAck(
+  cfg: PlusMirrorConfig,
+  sessionToken: string,
+  opts: { captureId: string; claimToken: string },
+): Promise<{ ok: true; captureId: string; state: "applied" | "tombstone" } | PlusApiError> {
+  const refusal = refuseUnverifiedBase(cfg);
+  if (refusal) return refusal;
+  const res = await plusRequest(cfg, {
+    path: "/v1/g2/captures/ack",
+    method: "POST",
+    sessionToken,
+    body: opts,
+  });
+  if (!res.ok) return res;
+  if (res.status < 200 || res.status >= 300) return mapError(res.status, res.json);
+  const captureId = typeof res.json.captureId === "string" ? res.json.captureId : "";
+  const state = res.json.state;
+  if (captureId !== opts.captureId || (state !== "applied" && state !== "tombstone")) {
+    return { ok: false, status: res.status, code: "unknown", message: UNREADABLE_RESPONSE_MESSAGE };
+  }
+  return { ok: true, captureId, state };
+}
 
 export async function askOutboxPull(
   cfg: PlusClientConfig,
@@ -1303,7 +1543,7 @@ export async function askOutboxPull(
 export async function askOutboxAck(
   cfg: PlusMirrorConfig,
   sessionToken: string,
-  opts: { id: string; status: "applied" | "rejected"; error?: string },
+  opts: { id: string; status: "applied" | "rejected"; error?: string; target_path?: string },
 ): Promise<{ ok: true; id: string; status: string } | PlusApiError> {
   const refusal = refuseUnverifiedBase(cfg);
   if (refusal) return refusal;
@@ -1315,6 +1555,7 @@ export async function askOutboxAck(
       id: opts.id,
       status: opts.status,
       error: opts.error,
+      target_path: opts.target_path,
     },
   });
   if (!res.ok) return res;

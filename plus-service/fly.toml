@@ -19,6 +19,8 @@ primary_region = "iad"
   ATOMS_PLUS_ENV = "production"
   DOGFOOD_AUTO_GRANT = "0"
   STRIPE_DOGFOOD_CHECKOUT = "0"
+  # Private G2 relay is enabled after dark migration and health verification.
+  G2_ENABLED = "1"
 
 [http_service]
   internal_port = 8787

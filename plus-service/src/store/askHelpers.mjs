@@ -78,6 +78,7 @@ export function normEmail(email) {
 /** Default atom folder (flat captures). */
 export const MIRROR_ATOM_FOLDER = "Atoms";
 const MIRROR_ATOM_PATH_RE = /^Atoms\/[^/\\]+\.md$/;
+const MIRROR_CONFIGURED_ATOM_PATH_RE = /^[^/\\]+\/[^/\\]+\.md$/;
 /** Hub notes: vault .md up to 4 segments (e.g. Social/People/Name.md). */
 const MIRROR_HUB_PATH_RE = /^(?!Atoms\/)(?:[^/\\]+\/){0,3}[^/\\]+\.md$/;
 
@@ -96,7 +97,10 @@ export function assertMirrorPath(path, opts = {}) {
     return { ok: false, error: "invalid path" };
   }
   if (p.includes("..")) return { ok: false, error: "invalid path" };
-  if (MIRROR_ATOM_PATH_RE.test(p)) {
+  if (opts.kind === "atom" && MIRROR_CONFIGURED_ATOM_PATH_RE.test(p)) {
+    return { ok: true, path: p, kind: "atom" };
+  }
+  if (opts.kind !== "hub" && MIRROR_ATOM_PATH_RE.test(p)) {
     return { ok: true, path: p, kind: "atom" };
   }
   if (MIRROR_HUB_PATH_RE.test(p)) {
@@ -510,9 +514,11 @@ export function paginateMirrorList(pubs, opts = {}) {
   const inboundIndex = buildInboundIndex(allPubs);
   const openNowFilter =
     typeof opts.open_now === "boolean" ? opts.open_now : undefined;
+  const kindFilter = opts.kind === "atom" || opts.kind === "hub" ? opts.kind : undefined;
 
   let missingCreated = 0;
   let filtered = allPubs.filter((p) => {
+    if (kindFilter && (p.kind === "hub" ? "hub" : "atom") !== kindFilter) return false;
     if (
       openNowFilter !== undefined &&
       derivedOpenNow(p, inboundIndex) !== openNowFilter
@@ -573,10 +579,13 @@ export function paginateMirrorList(pubs, opts = {}) {
   if (after || before) {
     out.excluded_missing_created = missingCreated;
   }
-  const withCreated = (pubs || []).filter((p) => p.created).length;
+  const coveragePubs = kindFilter
+    ? (pubs || []).filter((p) => (p.kind === "hub" ? "hub" : "atom") === kindFilter)
+    : (pubs || []);
+  const withCreated = coveragePubs.filter((p) => p.created).length;
   out.created_coverage = {
     with_created: withCreated,
-    total: (pubs || []).length,
+    total: coveragePubs.length,
   };
   return out;
 }
@@ -1531,6 +1540,28 @@ export function validateOutboxPayload(kind, raw) {
   }
 
   const open_loop = raw?.open_loop === true ? true : undefined;
+  if (raw?.origin === "g2") {
+    const captured_at = String(raw.captured_at || "");
+    const captured_record_sha256 = String(raw.captured_record_sha256 || "");
+    const proposal_fingerprint = String(raw.proposal_fingerprint || "");
+    const preparation_id = String(raw.preparation_id || "");
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(captured_at)) {
+      return { ok: false, error: "invalid captured_at" };
+    }
+    if (raw.loop_inference !== false) return { ok: false, error: "invalid loop_inference" };
+    if (!/^[a-f0-9]{64}$/.test(captured_record_sha256) ||
+        createHash("sha256").update(Buffer.from(body, "utf8")).digest("hex") !== captured_record_sha256) {
+      return { ok: false, error: "captured record hash mismatch" };
+    }
+    if (!/^[a-f0-9]{64}$/.test(proposal_fingerprint) || !/^g2p_[A-Za-z0-9]+$/.test(preparation_id)) {
+      return { ok: false, error: "invalid proposal" };
+    }
+    return { ok: true, payload: {
+      title, body, tags, links, client_request_id,
+      origin: "g2", captured_at, captured_record_sha256,
+      loop_inference: false, proposal_fingerprint, preparation_id,
+    } };
+  }
   return {
     ok: true,
     payload: {
@@ -1558,7 +1589,35 @@ export function publicOutboxRow(row) {
     created_at: row.created_at,
     claimed_at: row.claimed_at || null,
     applied_at: row.applied_at || null,
+    receipt: row.receipt || null,
   };
+}
+
+/**
+ * Mint the immutable G2 delivery receipt only when the mirrored target begins
+ * with the exact captured UTF-8 record committed by the companion.
+ */
+export function normalizeOutboxReceiptTarget(raw) {
+  if (typeof raw !== "string" || raw !== raw.trim() || raw.length > 512) return null;
+  if (!MIRROR_CONFIGURED_ATOM_PATH_RE.test(raw) || raw.includes("..") || raw.includes("\0") || raw.startsWith("/")) return null;
+  return raw;
+}
+
+export function g2MirrorReceipt(payload, mirror, targetPath) {
+  if (payload?.origin !== "g2" || !mirror || mirror.path !== targetPath) return null;
+  const body = String(payload.body ?? "");
+  const expected = String(payload.captured_record_sha256 || "");
+  const actual = createHash("sha256").update(Buffer.from(body, "utf8")).digest("hex");
+  if (!/^[a-f0-9]{64}$/.test(expected) || expected !== actual) return null;
+  if (mirror.title !== payload.title) return null;
+  if (!Buffer.from(String(mirror.text ?? ""), "utf8").subarray(0, Buffer.byteLength(body)).equals(Buffer.from(body, "utf8"))) return null;
+  return Object.freeze({
+    atom_id: mirror.id || mirror.path,
+    title: mirror.title,
+    path: mirror.path,
+    content_hash: mirror.contentHash,
+    captured_record_sha256: expected,
+  });
 }
 
 export function encryptOutboxPayload(payload) {

@@ -3,11 +3,22 @@
  */
 import { config } from "../config.mjs";
 import { encryptMirrorField } from "../mirror/crypto.mjs";
+import { decryptG2ArtifactOrLegacy, encryptG2Artifact } from "../g2/crypto.mjs";
 import {
   applyStatusRules,
   CHECKOUT_BINDING_TTL_MS,
   hashToken,
   id,
+  G2_ACCESS_TTL_MS,
+  G2_PAIR_CODE_TTL_MS,
+  G2_REFRESH_TTL_MS,
+  G2_RECEIPT_RETENTION_MS,
+  g2CaptureDigest,
+  normalizeG2Scopes,
+  mergeG2Consent,
+  mergeG2Disclosure,
+  publicG2Consent,
+  publicG2Device,
   accountHasUsedTrial,
   isEntitledAccount,
   MAGIC_EXCHANGE_REFUSED,
@@ -34,6 +45,8 @@ import {
   encryptOutboxPayload,
   decryptOutboxPayload,
   publicOutboxRow,
+  g2MirrorReceipt,
+  normalizeOutboxReceiptTarget,
   assertMirrorPath,
   generatePairCode,
   normalizePairCodeInput,
@@ -58,8 +71,14 @@ export function createMemoryStore() {
   const usageByKey = new Map();
   /** email → Map<path, row> */
   const atomMirror = new Map();
+  /** email → Map<atom id, path>; selected query sources never scan/decrypt an account. */
+  const atomMirrorById = new Map();
   /** email → Map<id, outbox row> */
   const askOutbox = new Map();
+  /** Applied G2 receipt expiry index; avoids unbounded scans of normal Ask rows. */
+  const g2ReceiptExpiries = new Map();
+  /** account + capture id -> encrypted confirmed capture relay row */
+  const g2Captures = new Map();
   /** pending_id → pending oauth */
   const mcpPending = new Map();
   /** code_hash → auth code row */
@@ -74,6 +93,23 @@ export function createMemoryStore() {
   const mcpBrowserSessions = new Map();
   /** email → { codeHash, expMs, consumedMs } */
   const mcpPairCodes = new Map();
+  /** code hash -> pairing row; deliberately separate from MCP codes. */
+  const g2PairCodes = new Map();
+  /** family id -> device family */
+  const g2Families = new Map();
+  const g2Access = new Map();
+  const g2Refresh = new Map();
+  const g2Proofs = new Map();
+  const g2Attempts = new Map();
+  /** SHA-256 ticket hash -> short-lived bound ticket. */
+  const g2TranscriptionTickets = new Map();
+  const g2TranscriptionSlots = new Map();
+  /** email -> account-scoped consent revision */
+  const g2Consents = new Map();
+  /** recording id -> leased provider ownership and terminal transcript */
+  const g2Transcriptions = new Map();
+  /** preparation id -> encrypted account/device-bound proposal */
+  const g2Preparations = new Map();
 
   const sessionTtlMs = () => config.sessionTtlDays * 24 * 60 * 60 * 1000;
 
@@ -520,6 +556,16 @@ export function createMemoryStore() {
     return m;
   }
 
+  function mirrorIdBucket(email) {
+    const e = normEmail(email);
+    let m = atomMirrorById.get(e);
+    if (!m) {
+      m = new Map();
+      atomMirrorById.set(e, m);
+    }
+    return m;
+  }
+
   function mirrorUpsert(email, atoms) {
     const list = Array.isArray(atoms) ? atoms : [];
     let upserted = 0;
@@ -551,7 +597,9 @@ export function createMemoryStore() {
         row.created = prev.created;
       }
       row.expandEnc = null;
+      if (prev?.atomId && prev.atomId !== row.atomId) mirrorIdBucket(row.email).delete(prev.atomId);
       bucket.set(row.path, row);
+      mirrorIdBucket(row.email).set(row.atomId, row.path);
       upserted += 1;
       needExpand.push({
         email: row.email,
@@ -630,6 +678,13 @@ export function createMemoryStore() {
     return null;
   }
 
+  function mirrorFetchById(email, atomId) {
+    const e = normEmail(email);
+    const path = atomMirrorById.get(e)?.get(String(atomId || ""));
+    const row = path ? atomMirror.get(e)?.get(path) : null;
+    return row ? rowToPublicAtom(row, { includeBody: true }) : null;
+  }
+
   function mirrorSearch(email, query, limit = 8, opts = {}) {
     const e = normEmail(email);
     const bucket = atomMirror.get(e);
@@ -656,7 +711,14 @@ export function createMemoryStore() {
   function mirrorWipe(email) {
     const e = normEmail(email);
     atomMirror.delete(e);
+    atomMirrorById.delete(e);
     askOutbox.delete(e);
+    for (const [outboxId, row] of g2ReceiptExpiries) {
+      if (row.email === e) g2ReceiptExpiries.delete(outboxId);
+    }
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.email === e) g2Preparations.delete(preparationId);
+    }
     mcpRevokeForEmail(e);
     return { ok: true };
   }
@@ -674,7 +736,9 @@ export function createMemoryStore() {
         missing += 1;
         continue;
       }
+      const row = bucket.get(checked.path);
       bucket.delete(checked.path);
+      if (row?.atomId) atomMirrorById.get(e)?.delete(row.atomId);
       deleted += 1;
     }
     const st = mirrorStatus(e);
@@ -693,7 +757,9 @@ export function createMemoryStore() {
     if (bucket) {
       for (const path of [...bucket.keys()]) {
         if (!keep.has(path)) {
+          const row = bucket.get(path);
           bucket.delete(path);
+          if (row?.atomId) atomMirrorById.get(e)?.delete(row.atomId);
           deleted += 1;
         }
       }
@@ -734,6 +800,7 @@ export function createMemoryStore() {
       created_at: r.created_at,
       claimed_at: r.claimed_at,
       applied_at: r.applied_at,
+      receipt: r.receipt,
     });
   }
 
@@ -752,6 +819,9 @@ export function createMemoryStore() {
     if (crid) {
       for (const r of bucket.values()) {
         if (r.client_request_id === crid) {
+          if (opts.proposal_fingerprint && decryptOutboxPayload(r.payload_enc)?.proposal_fingerprint !== opts.proposal_fingerprint) {
+            return { ok: false, error: "idempotency_conflict" };
+          }
           return { ok: true, ...outboxPublic(r), duplicate: true };
         }
       }
@@ -770,6 +840,7 @@ export function createMemoryStore() {
       created_at: new Date().toISOString(),
       claimed_at: null,
       applied_at: null,
+      receipt: null,
     };
     bucket.set(row.id, row);
     return { ok: true, ...outboxPublic(row), duplicate: false };
@@ -827,6 +898,18 @@ export function createMemoryStore() {
     if (row.status === "applied" || row.status === "rejected") {
       return { ok: true, ...outboxPublic(row), already: true };
     }
+    if (st === "applied" && row.kind === "create") {
+      const payload = decryptOutboxPayload(row.payload_enc);
+      if (payload?.origin === "g2") {
+        const targetPath = normalizeOutboxReceiptTarget(opts.target_path);
+        const mirrorRow = targetPath ? atomMirror.get(e)?.get(targetPath) : null;
+        const mirror = mirrorRow ? rowToPublicAtom(mirrorRow, { includeBody: true }) : null;
+        const receipt = g2MirrorReceipt(payload, mirror, targetPath);
+        if (!receipt) return { ok: false, error: "mirror_receipt_required" };
+        row.receipt = receipt;
+        g2ReceiptExpiries.set(row.id, { email: e, expiresAt: Date.now() + G2_RECEIPT_RETENTION_MS });
+      }
+    }
     row.status = st;
     row.error = opts.error ? String(opts.error).slice(0, 500) : null;
     row.applied_at = new Date().toISOString();
@@ -837,6 +920,109 @@ export function createMemoryStore() {
     const e = normEmail(email);
     const row = askOutbox.get(e)?.get(String(outboxId || ""));
     return outboxPublic(row);
+  }
+
+  function g2PreparationPut(email, row) {
+    const account = normEmail(email);
+    const stored = { ...row, email: account, payload_enc: encryptG2Artifact(JSON.stringify(row.payload), {
+      account, artifact: "preparation", row: row.id,
+    }) };
+    delete stored.payload;
+    g2Preparations.set(row.id, stored);
+    return { ...row, email: stored.email };
+  }
+
+  function g2PreparationGet(email, preparationId, familyId) {
+    const row = g2Preparations.get(String(preparationId || ""));
+    if (!row || row.email !== normEmail(email) || row.familyId !== familyId) return null;
+    return { ...row, payload: JSON.parse(decryptG2ArtifactOrLegacy(row.payload_enc, {
+      account: row.email, artifact: "preparation", row: row.id,
+    })) };
+  }
+
+  function g2PreparationDelete(email, preparationId) {
+    const row = g2Preparations.get(String(preparationId || ""));
+    if (!row || row.email !== normEmail(email)) return false;
+    return g2Preparations.delete(row.id);
+  }
+
+  function g2CaptureEnqueue(email, row, opts = {}) {
+    const account = normEmail(email);
+    const key = `${account}\0${row.captureId}`;
+    const digest = g2CaptureDigest(row);
+    const existing = g2Captures.get(key);
+    if (existing) {
+      if (existing.digest !== digest) return { error: "capture_id_conflict" };
+      return { captureId: row.captureId, state: existing.status, already: true };
+    }
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    g2Captures.set(key, {
+      email: account,
+      captureId: row.captureId,
+      familyId: row.familyId,
+      capturedAt: row.capturedAt,
+      bodyEnc: encryptG2Artifact(row.body, { account, artifact: "capture", row: row.captureId }),
+      digest,
+      status: "pending",
+      claimTokenHash: null,
+      claimUntilMs: null,
+      receiptUntilMs: null,
+      createdAtMs: now,
+    });
+    return { captureId: row.captureId, state: "pending" };
+  }
+
+  function g2CaptureEnqueueAuthorized(binding, row, opts = {}) {
+    if (!g2Authorize(binding, { disclosureVersion: opts.disclosureVersion })) {
+      return { state: "setup_required" };
+    }
+    return g2CaptureEnqueue(binding.email, { ...row, familyId: binding.familyId }, opts);
+  }
+
+  function g2CaptureClaim(email, opts = {}) {
+    const account = normEmail(email);
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    const leaseMs = Number.isFinite(opts.leaseMs) ? opts.leaseMs : 5 * 60 * 1000;
+    const limit = Math.max(1, Math.min(10, Number(opts.limit) || 10));
+    const candidates = [...g2Captures.values()]
+      .filter((row) => row.email === account && (row.status === "pending" ||
+        (row.status === "claimed" && Number(row.claimUntilMs) <= now)))
+      .sort((a, b) => a.createdAtMs - b.createdAtMs)
+      .slice(0, limit);
+    return { items: candidates.map((row) => {
+      const claimToken = id("g2c");
+      row.status = "claimed";
+      row.claimTokenHash = hashToken(claimToken);
+      row.claimUntilMs = now + leaseMs;
+      return {
+        captureId: row.captureId,
+        capturedAt: row.capturedAt,
+        body: decryptG2ArtifactOrLegacy(row.bodyEnc, {
+          account, artifact: "capture", row: row.captureId,
+        }),
+        claimToken,
+      };
+    }) };
+  }
+
+  function g2CaptureAck(email, opts = {}) {
+    const account = normEmail(email);
+    const row = g2Captures.get(`${account}\0${String(opts.captureId || "")}`);
+    if (!row) return { error: "not_found" };
+    if (row.status === "applied" || row.status === "tombstone") {
+      return { captureId: row.captureId, state: row.status, already: true };
+    }
+    const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+    if (row.status !== "claimed" || row.claimUntilMs <= now ||
+        row.claimTokenHash !== hashToken(String(opts.claimToken || ""))) {
+      return { error: "not_found" };
+    }
+    row.status = "applied";
+    row.bodyEnc = null;
+    row.claimTokenHash = null;
+    row.claimUntilMs = null;
+    row.receiptUntilMs = now + G2_RECEIPT_RETENTION_MS;
+    return { captureId: row.captureId, state: "applied" };
   }
 
   function outboxPendingCount(email) {
@@ -1127,6 +1313,302 @@ export function createMemoryStore() {
     return mcpClients.get(clientId) || null;
   }
 
+  function g2PairMint(email, opts = {}) {
+    const e = normEmail(email);
+    for (const [key, row] of g2PairCodes) {
+      if (row.email === e && !row.used) g2PairCodes.delete(key);
+    }
+    const code = generatePairCode();
+    const now = opts.now ?? Date.now();
+    g2PairCodes.set(hashToken(code), {
+      email: e,
+      scopes: normalizeG2Scopes(opts.scopes),
+      exp: now + G2_PAIR_CODE_TTL_MS,
+      used: false,
+    });
+    return { code, expiresAt: new Date(now + G2_PAIR_CODE_TTL_MS).toISOString() };
+  }
+
+  function issueG2Tokens(family, now = Date.now()) {
+    const accessToken = id("g2a");
+    const refreshToken = id("g2r");
+    g2Access.set(hashToken(accessToken), {
+      familyId: family.familyId, email: family.email, jkt: family.jkt,
+      scopes: family.scopes, exp: now + G2_ACCESS_TTL_MS, revoked: false,
+    });
+    g2Refresh.set(hashToken(refreshToken), {
+      familyId: family.familyId, email: family.email, jkt: family.jkt,
+      scopes: family.scopes, exp: now + G2_REFRESH_TTL_MS, revoked: false, used: false,
+    });
+    return { accessToken, refreshToken, expiresIn: G2_ACCESS_TTL_MS / 1000 };
+  }
+
+  function g2PairRedeem(code, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2PairCodes.get(hashToken(normalizePairCodeInput(code)));
+    if (!row || row.used || row.exp < now || !opts.jkt) return null;
+    const account = getAccount(row.email);
+    if (!subscriptionLive(account, now)) return null;
+    row.used = true;
+    const family = {
+      familyId: id("g2d"), email: row.email, jkt: opts.jkt,
+      scopes: row.scopes, name: String(opts.name || "Even G2").slice(0, 80),
+      createdAt: new Date(now).toISOString(), lastSeenAt: new Date(now).toISOString(), revoked: false,
+    };
+    g2Families.set(family.familyId, family);
+    return { ...issueG2Tokens(family, now), scopes: [...family.scopes], device: publicG2Device(family) };
+  }
+
+  function revokeG2Family(familyId) {
+    const family = g2Families.get(familyId);
+    if (family) family.revoked = true;
+    for (const row of g2Access.values()) if (row.familyId === familyId) row.revoked = true;
+    for (const row of g2Refresh.values()) if (row.familyId === familyId) row.revoked = true;
+    for (const row of g2Transcriptions.values()) {
+      if (row.familyId === familyId) Object.assign(row, { state: "revoked", transcript: null, leaseOwner: null, leaseUntil: 0 });
+    }
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.familyId === familyId) g2Preparations.delete(preparationId);
+    }
+    for (const [ticketHash, row] of g2TranscriptionTickets) {
+      if (row.familyId === familyId) g2TranscriptionTickets.delete(ticketHash);
+    }
+    for (const [recordingId, row] of g2TranscriptionSlots) {
+      if (row.familyId === familyId) g2TranscriptionSlots.delete(recordingId);
+    }
+  }
+
+  function g2RefreshTokens(token, jkt, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2Refresh.get(hashToken(String(token || "")));
+    if (!row) return null;
+    if (row.used) { revokeG2Family(row.familyId); return null; }
+    const family = g2Families.get(row.familyId);
+    if (row.revoked || row.exp < now || !family || family.revoked || row.jkt !== jkt) return null;
+    if (!subscriptionLive(getAccount(row.email), now)) return null;
+    row.used = true;
+    family.lastSeenAt = new Date(now).toISOString();
+    return { ...issueG2Tokens(family, now), scopes: [...family.scopes], device: publicG2Device(family) };
+  }
+
+  function g2AccessLookup(token, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const row = g2Access.get(hashToken(String(token || "")));
+    const family = row && g2Families.get(row.familyId);
+    if (!row || row.revoked || row.exp < now || !family || family.revoked) return null;
+    if (!subscriptionLive(getAccount(row.email), now)) return null;
+    return { ...row, device: publicG2Device(family) };
+  }
+
+  function g2ListDevices(email) {
+    const e = normEmail(email);
+    return [...g2Families.values()].filter((row) => row.email === e).map(publicG2Device);
+  }
+
+  function g2RevokeDevice(email, familyId) {
+    const family = g2Families.get(String(familyId));
+    if (!family || family.email !== normEmail(email)) return false;
+    revokeG2Family(family.familyId);
+    for (const [preparationId, row] of g2Preparations) {
+      if (row.email === family.email && row.familyId === family.familyId) {
+        g2Preparations.delete(preparationId);
+      }
+    }
+    return true;
+  }
+
+  function g2ReadConsent(email) {
+    return publicG2Consent(g2Consents.get(normEmail(email)));
+  }
+
+  function g2Authorize(binding, opts = {}) {
+    const email = normEmail(binding.email);
+    const account = getAccount(email);
+    const consent = g2ReadConsent(email);
+    const family = g2Families.get(String(binding.familyId));
+    return Boolean(subscriptionLive(account) && family && family.email === email && !family.revoked &&
+      consent.revision === Number(binding.generation) && consent.g2Disclosure.granted &&
+      (!opts.disclosureVersion || consent.g2Disclosure.version === opts.disclosureVersion) &&
+      (!opts.requireMirror || consent.askMirror.granted) &&
+      (!opts.requireWrite || (consent.askMirror.granted && consent.askWrite.granted)));
+  }
+
+  function g2OutboxEnqueue(binding, opts) {
+    if (!g2Authorize(binding, { requireWrite: true })) return { ok: false, error: "setup_required" };
+    return outboxEnqueue(binding.email, opts);
+  }
+
+  function g2SynchronizeConsent(email, update) {
+    const key = normEmail(email);
+    const before = publicG2Consent(g2Consents.get(key));
+    const next = mergeG2Consent(g2Consents.get(key), update);
+    if (next.revision > 0) g2Consents.set(key, next);
+    if (next.revision > before.revision) g2TranscriptionTicketsInvalidate(key, null, next.revision);
+    return publicG2Consent(next).revision === next.revision && next.regrantRequired
+      ? { ...publicG2Consent(next), regrantRequired: true }
+      : publicG2Consent(next);
+  }
+
+  function g2SynchronizeDisclosure(email, update) {
+    const key = normEmail(email);
+    const before = publicG2Consent(g2Consents.get(key));
+    const next = mergeG2Disclosure(g2Consents.get(key), update);
+    if (next.revision > 0) g2Consents.set(key, next);
+    if (next.revision > before.revision) g2TranscriptionTicketsInvalidate(key, null, next.revision);
+    if (!next.g2Disclosure.granted) {
+      for (const [preparationId, row] of g2Preparations) {
+        if (row.email === key) g2Preparations.delete(preparationId);
+      }
+    }
+    return next;
+  }
+
+  function sameTranscriptionBinding(row, binding) {
+    return row?.email === normEmail(binding.email) && row.familyId === binding.familyId && row.generation === binding.generation;
+  }
+
+  function g2TranscriptionClaim(binding, recordingId, owner, now = Date.now(), leaseMs = 30_000) {
+    let row = g2Transcriptions.get(String(recordingId));
+    if (row && !sameTranscriptionBinding(row, binding)) return null;
+    if (row?.state === "completed") return { ...row, acquired: false };
+    if (row?.state === "transcribing" && row.leaseUntil > now && row.leaseOwner !== owner) {
+      return { ...row, acquired: false };
+    }
+    row = {
+      recordingId: String(recordingId), email: normEmail(binding.email), familyId: binding.familyId,
+      generation: binding.generation, state: "transcribing", leaseOwner: owner,
+      leaseUntil: now + leaseMs, transcript: row?.transcript ?? null,
+    };
+    g2Transcriptions.set(row.recordingId, row);
+    return { ...row, acquired: true };
+  }
+
+  function g2TranscriptionComplete(binding, recordingId, owner, transcript) {
+    const row = g2Transcriptions.get(String(recordingId));
+    if (!g2Authorize(binding) || !sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner || row.state !== "transcribing") return false;
+    Object.assign(row, { state: "completed", transcript: String(transcript), leaseOwner: null, leaseUntil: 0,
+      retainedUntil: Date.now() + config.g2TranscriptRetentionMs });
+    return true;
+  }
+
+  function g2TranscriptionFail(binding, recordingId, owner, state) {
+    const row = g2Transcriptions.get(String(recordingId));
+    if (!sameTranscriptionBinding(row, binding) || row.leaseOwner !== owner) return false;
+    Object.assign(row, { state, leaseOwner: null, leaseUntil: 0 });
+    return true;
+  }
+
+  function g2TranscriptionGet(binding, recordingId) {
+    const row = g2Transcriptions.get(String(recordingId));
+    return sameTranscriptionBinding(row, binding) ? { ...row } : null;
+  }
+
+  function g2ConsumeProof(jti, expMs, now = Date.now()) {
+    for (const [key, exp] of g2Proofs) if (exp < now) g2Proofs.delete(key);
+    if (g2Proofs.has(jti)) return false;
+    g2Proofs.set(jti, expMs);
+    return true;
+  }
+
+  function g2ConsumeAttempt(key, opts = {}) {
+    const now = opts.now ?? Date.now();
+    const windowMs = opts.windowMs ?? 60_000;
+    const limit = opts.limit ?? 12;
+    let row = g2Attempts.get(key);
+    if (!row || row.start + windowMs <= now) row = { start: now, count: 0 };
+    row.count += 1;
+    g2Attempts.set(key, row);
+    return row.count <= limit;
+  }
+
+  function g2TranscriptionTicketPut(ticketHash, binding, ticket) {
+    g2TranscriptionTickets.set(String(ticketHash), {
+      email: normEmail(binding.email), familyId: String(binding.familyId), jkt: String(binding.jkt),
+      origin: String(binding.origin), generation: Number(binding.generation),
+      recordingId: String(ticket.recordingId), purpose: String(ticket.purpose), expiresAt: Number(ticket.expiresAt),
+    });
+    return true;
+  }
+
+  function g2TranscriptionTicketConsume(ticketHash, binding, now = Date.now()) {
+    const key = String(ticketHash); const row = g2TranscriptionTickets.get(key);
+    g2TranscriptionTickets.delete(key);
+    if (!row || row.expiresAt < now || (binding.email && row.email !== normEmail(binding.email)) ||
+      (binding.familyId && row.familyId !== String(binding.familyId)) || (binding.jkt && row.jkt !== String(binding.jkt)) ||
+      (binding.origin && row.origin !== String(binding.origin)) ||
+      (binding.generation !== undefined && row.generation !== Number(binding.generation))) return null;
+    return { recordingId: row.recordingId, purpose: row.purpose, expiresAt: row.expiresAt,
+      binding: { email: row.email, familyId: row.familyId, jkt: row.jkt, origin: row.origin, generation: row.generation } };
+  }
+
+  function g2TranscriptionTicketsInvalidate(email, familyId, generation) {
+    const target = normEmail(email);
+    let removed = 0;
+    for (const [key, row] of g2TranscriptionTickets) {
+      if (row.email === target && (!familyId || row.familyId === String(familyId)) && row.generation < Number(generation)) {
+        g2TranscriptionTickets.delete(key); removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  function g2SweepExpired(now = Date.now(), limit = 100) {
+    const counts = { tickets: 0, transcriptions: 0, preparations: 0, receipts: 0 };
+    const sweep = (map, field, key) => {
+      for (const [idValue, row] of map) {
+        if (counts.tickets + counts.transcriptions + counts.preparations >= limit) break;
+        if (Number(row[field] || Infinity) <= now) { map.delete(idValue); counts[key] += 1; }
+      }
+    };
+    sweep(g2TranscriptionTickets, "expiresAt", "tickets");
+    sweep(g2Preparations, "expiresAt", "preparations");
+    sweep(g2Transcriptions, "retainedUntil", "transcriptions");
+    let receiptsInspected = 0;
+    for (const [outboxId, indexed] of g2ReceiptExpiries) {
+      if (receiptsInspected >= limit) break;
+      receiptsInspected += 1;
+      if (indexed.expiresAt > now) continue;
+      const bucket = askOutbox.get(indexed.email); const row = bucket?.get(outboxId);
+      if (row?.receipt && decryptOutboxPayload(row.payload_enc)?.origin === "g2") {
+        bucket.delete(outboxId); counts.receipts += 1;
+      }
+      g2ReceiptExpiries.delete(outboxId);
+    }
+    let captureReceipts = 0;
+    for (const row of g2Captures.values()) {
+      if (captureReceipts >= limit) break;
+      if (row.status !== "applied" || Number(row.receiptUntilMs || Infinity) > now) continue;
+      row.status = "tombstone";
+      row.familyId = "";
+      row.capturedAt = "";
+      row.digest = null;
+      row.receiptUntilMs = null;
+      counts.receipts += 1;
+      captureReceipts += 1;
+    }
+    for (const [key, row] of g2TranscriptionSlots) if (row.expiresAt <= now) g2TranscriptionSlots.delete(key);
+    return counts;
+  }
+
+  function g2TranscriptionSlotAcquire(binding, recordingId, now = Date.now(), leaseMs = 300_000, max = 2) {
+    for (const [key, row] of g2TranscriptionSlots) if (row.expiresAt <= now) g2TranscriptionSlots.delete(key);
+    const email = normEmail(binding.email); const idValue = String(recordingId);
+    const existing = g2TranscriptionSlots.get(idValue);
+    if (existing) {
+      if (existing.email !== email) return false;
+      existing.expiresAt = now + leaseMs; return true;
+    }
+    if ([...g2TranscriptionSlots.values()].filter((row) => row.email === email).length >= max) return false;
+    g2TranscriptionSlots.set(idValue, { email, familyId: String(binding.familyId), expiresAt: now + leaseMs });
+    return true;
+  }
+
+  function g2TranscriptionSlotRelease(binding, recordingId) {
+    const row = g2TranscriptionSlots.get(String(recordingId));
+    if (!row || row.email !== normEmail(binding.email)) return false;
+    return g2TranscriptionSlots.delete(String(recordingId));
+  }
+
   return {
     kind: "memory",
     createMagicToken,
@@ -1161,6 +1643,7 @@ export function createMemoryStore() {
     mirrorExpandCoverage,
     mirrorListMissingExpand,
     mirrorFetch,
+    mirrorFetchById,
     mirrorSearch,
     mirrorNeighbors,
     mirrorWipe,
@@ -1176,6 +1659,13 @@ export function createMemoryStore() {
     outboxCancel,
     outboxListOpen,
     outboxHasOpenTitle,
+    g2PreparationPut,
+    g2PreparationGet,
+    g2PreparationDelete,
+    g2CaptureEnqueue,
+    g2CaptureEnqueueAuthorized,
+    g2CaptureClaim,
+    g2CaptureAck,
     mirrorList,
     _forceOutboxClaimedAt,
     mcpCreatePending,
@@ -1193,6 +1683,29 @@ export function createMemoryStore() {
     mcpRevokeForEmail,
     mcpRegisterClient,
     mcpGetClient,
+    g2PairMint,
+    g2PairRedeem,
+    g2Refresh: g2RefreshTokens,
+    g2AccessLookup,
+    g2ListDevices,
+    g2RevokeDevice,
+    g2ReadConsent,
+    g2Authorize,
+    g2OutboxEnqueue,
+    g2SynchronizeConsent,
+    g2SynchronizeDisclosure,
+    g2TranscriptionClaim,
+    g2TranscriptionComplete,
+    g2TranscriptionFail,
+    g2TranscriptionGet,
+    g2TranscriptionTicketPut,
+    g2TranscriptionTicketConsume,
+    g2TranscriptionTicketsInvalidate,
+    g2SweepExpired,
+    g2TranscriptionSlotAcquire,
+    g2TranscriptionSlotRelease,
+    g2ConsumeProof,
+    g2ConsumeAttempt,
     mintMcpTokensForTest: mintMcpTokens,
     hasProcessedEvent: (id) => processedEvents.has(id),
     claimEvent(id) {

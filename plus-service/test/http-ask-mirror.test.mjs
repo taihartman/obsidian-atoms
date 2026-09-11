@@ -228,12 +228,12 @@ describe("HTTP ask mirror", () => {
     });
     assert.equal(r.status, 400);
 
-    // upsert rejects daily without kind=hub
+    // Configured atom folders stay flat: nested paths require kind=hub.
     r = await fetch(`${BASE}/v1/ask/mirror/upsert`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        atoms: [{ path: "Daily/foo.md", title: "F", body: "x" }],
+        atoms: [{ path: "Daily/nested/foo.md", title: "F", body: "x" }],
       }),
     });
     assert.equal(r.status, 400);

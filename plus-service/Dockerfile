@@ -8,6 +8,7 @@ RUN npm ci --omit=dev
 COPY plus-service/src ./src
 COPY plus-pricing.json /repo/plus-pricing.json
 ENV ATOMS_PLUS_STORE=postgres
+ENV G2_ENABLED=0
 ENV PORT=8787
 EXPOSE 8787
 CMD ["node", "src/server.mjs"]

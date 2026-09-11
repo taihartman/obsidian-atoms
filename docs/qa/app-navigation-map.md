@@ -24,6 +24,18 @@ Living map for driving Atoms during QA. Update when commands, home cards, or set
 
 ## Key Surfaces
 
+### Even G2 companion simulator
+
+- **Entrypoint:** `cd companion/even-g2 && npm run simulator`.
+- **Supporting-services check:** `npm run simulator:services` verifies the loopback provider, memory Plus service, public-route bootstrap, and Vite entry. It does not launch or drive the glasses simulator.
+- **Phone setup:** the simulator entry submits the generated pairing code and accepts the disclosure through the real DOM handlers.
+- **Glasses flow:** root `New atom` / `Ask atoms` / `Recent atoms`; use the pinned simulator automation API on `127.0.0.1:9898` for taps and framebuffer capture.
+- **Expected Create path:** root -> recording -> generated-title confirmation -> queued -> receipt-backed Saved.
+- **Expected Ask path:** root -> Ask selected -> recording -> grounded answer -> cited source body.
+- **Expected Recent path:** root -> Recent selected -> atom list -> verbatim body -> Return restores the list.
+- **Evidence:** `docs/qa/screenshots/even-g2-simulator/`. Framebuffers contain transparency; composite them onto black before judging pixels.
+- **Reset rule:** restart the pinned simulator after companion code changes and before final evidence. Vite hot reload can leave native page state out of sync with the JavaScript renderer.
+
 ### Atoms home
 
 - **Entrypoint:** Ribbon library icon, or command `atoms:open-home`, or open leaf type `atoms-home`.

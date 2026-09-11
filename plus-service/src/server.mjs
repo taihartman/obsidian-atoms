@@ -38,6 +38,12 @@ import {
 } from "./ratelimit.mjs";
 import { handleMirrorRoutes } from "./mirror/http.mjs";
 import { handleMcpRequest } from "./mcp/handler.mjs";
+import { handleG2Routes, handleG2WebSocketUpgrade } from "./g2/http.mjs";
+import {
+  createG2TranscriptionService,
+  createOpenAiBatchTranscriptionProvider,
+} from "./g2/transcription.mjs";
+import { createG2Metrics } from "./g2/telemetry.mjs";
 import {
   handleOauthRoutes,
   maybeFinishOauthAfterExchange,
@@ -56,6 +62,50 @@ try {
 }
 
 const store = await createStore();
+const g2Metrics = createG2Metrics((metric) => console.info("[g2-metric]", JSON.stringify(metric)));
+const g2Transcription = createG2TranscriptionService({
+  provider: createOpenAiBatchTranscriptionProvider({
+    apiKey: config.g2Enabled && config.g2TranscriptionEnabled ? config.g2OpenAiApiKey : "",
+    url: config.openAiTranscriptionUrl,
+    model: config.openAiTranscriptionModel,
+    timeoutMs: config.g2TranscriptionTimeoutMs,
+  }),
+  maxConcurrentPerAccount: config.g2MaxConcurrentPerAccount,
+  repository: {
+    authorize: (binding) => store.g2Authorize(binding),
+    ticketPut: (ticketHash, binding, ticket) =>
+      store.g2TranscriptionTicketPut(ticketHash, binding, ticket),
+    ticketConsume: (ticketHash, binding, now) =>
+      store.g2TranscriptionTicketConsume(ticketHash, binding, now),
+    acquireSlot: (binding, recordingId, now, leaseMs, max) =>
+      store.g2TranscriptionSlotAcquire(binding, recordingId, now, leaseMs, max),
+    releaseSlot: (binding, recordingId) =>
+      store.g2TranscriptionSlotRelease(binding, recordingId),
+    claim: (binding, recordingId, owner, leaseMs) =>
+      store.g2TranscriptionClaim(binding, recordingId, owner, Date.now(), leaseMs),
+    complete: (binding, recordingId, owner, transcript) =>
+      store.g2TranscriptionComplete(binding, recordingId, owner, transcript),
+    fail: (binding, recordingId, owner, state) =>
+      store.g2TranscriptionFail(binding, recordingId, owner, state),
+    get: (binding, recordingId) => store.g2TranscriptionGet(binding, recordingId),
+  },
+  logger: (row) => console.info("[g2-transcription]", JSON.stringify(row)),
+  metrics: (row) => g2Metrics.record(row),
+});
+
+if (config.g2Enabled) {
+  const sweep = async () => {
+    const started = Date.now();
+    try {
+      const counts = await store.g2SweepExpired(Date.now(), 100);
+      console.info("[g2-maintenance]", JSON.stringify({ event: "retention_sweep", ...counts, latencyMs: Date.now() - started, status: "ok" }));
+    } catch {
+      console.warn("[g2-maintenance]", JSON.stringify({ event: "retention_sweep", latencyMs: Date.now() - started, status: "failed" }));
+    }
+  };
+  const timer = setInterval(() => void sweep(), config.g2SweepIntervalMs);
+  timer.unref?.();
+}
 
 /** Browser (Obsidian fetch) CORS — must allow Idempotency-Key or POST preflight fails. */
 const CORS_HEADERS = {
@@ -363,16 +413,18 @@ async function handler(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      ...CORS_HEADERS,
-      "access-control-max-age": "86400",
-    });
-    res.end();
-    return;
-  }
-
   try {
+    if (await handleG2Routes({ req, res, path, store, bearer, json, readBody, clientIp, transcription: g2Transcription, metrics: g2Metrics })) return;
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        ...CORS_HEADERS,
+        "access-control-max-age": "86400",
+      });
+      res.end();
+      return;
+    }
+
     // Health — minimal in production (less recon)
     if (req.method === "GET" && (path === "/" || path === "/health")) {
       if (isProduction()) {
@@ -1189,8 +1241,20 @@ const server = createServer((req, res) => {
   void handler(req, res);
 });
 
-server.listen(config.port, () => {
+server.on("upgrade", (req, socket, head) => {
+  void handleG2WebSocketUpgrade({
+    req,
+    socket,
+    head,
+    transcription: g2Transcription,
+    idleTimeoutMs: config.g2SocketIdleTimeoutMs,
+  });
+});
+
+server.listen(config.port, config.bindHost || undefined, () => {
+  const address = server.address();
+  const bindAddress = typeof address === "object" && address ? address.address : "unknown";
   console.log(
-    `[plus] listening on http://127.0.0.1:${config.port} publicBase=${config.publicBaseUrl} env=${isProduction() ? "production" : "dev"} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
+    `[plus] listening bind=${bindAddress} port=${config.port} publicBase=${config.publicBaseUrl} env=${isProduction() ? "production" : "dev"} dogfoodAutoGrant=${config.dogfoodAutoGrant} stripe=${stripeConfigured()} anthropic=${Boolean(config.anthropicApiKey)}`,
   );
 });
