@@ -29,8 +29,8 @@ describe("production companion entry", () => {
   it("exposes explicit simulator and supporting-services commands", () => {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
     const manifest = JSON.parse(readFileSync(join(root, "app.json"), "utf8"));
-    expect(pkg.version).toBe("0.1.17");
-    expect(manifest.version).toBe("0.1.17");
+    expect(pkg.version).toBe("0.1.18");
+    expect(manifest.version).toBe("0.1.18");
     expect(pkg.scripts["runtime:prepare"]).toBe("node scripts/prepare-local-runtime.mjs");
     expect(pkg.scripts.simulator).toBe("node scripts/simulator-harness.mjs");
     expect(pkg.scripts["simulator:services"]).toBe("node scripts/simulator-harness.mjs --services-check");

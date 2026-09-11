@@ -6,6 +6,62 @@ import { G2CredentialVault } from "../src/auth/credentials";
 import { renderPhone } from "../src/ui/phone";
 
 describe("G2 pairing", () => {
+  it("replaces a legacy proof key that WebKit can reload but cannot use for signing", async () => {
+    const indexedDB = new IDBFactory();
+    const crypto = webcrypto as unknown as Crypto;
+    const legacy = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign", "verify"],
+    );
+    const legacyJwk = await crypto.subtle.exportKey("jwk", legacy.publicKey);
+    const opening = indexedDB.open("pairing-legacy-webkit", 1);
+    opening.onupgradeneeded = () => {
+      opening.result.createObjectStore("keys");
+      opening.result.createObjectStore("tokens");
+    };
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    const write = database.transaction("keys", "readwrite");
+    write.objectStore("keys").put(legacy, "proof");
+    await new Promise<void>((resolve, reject) => {
+      write.oncomplete = () => resolve();
+      write.onerror = () => reject(write.error);
+      write.onabort = () => reject(write.error);
+    });
+    database.close();
+
+    let rejectNextSign = true;
+    const subtle = new Proxy(crypto.subtle, {
+      get(target, property) {
+        if (property === "sign") {
+          return async (algorithm: AlgorithmIdentifier | EcdsaParams, key: CryptoKey, data: BufferSource) => {
+            if (rejectNextSign) {
+              rejectNextSign = false;
+              throw new DOMException("legacy key unavailable", "OperationError");
+            }
+            return target.sign(algorithm, key, data);
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const webkitCrypto = {
+      subtle,
+      getRandomValues: crypto.getRandomValues.bind(crypto),
+      randomUUID: crypto.randomUUID.bind(crypto),
+    } as Crypto;
+    const vault = new G2CredentialVault({ indexedDB, crypto: webkitCrypto, databaseName: "pairing-legacy-webkit" });
+
+    const replacementJwk = await vault.createOrLoadProofKey();
+
+    expect(replacementJwk).not.toEqual(legacyJwk);
+    expect(new Uint8Array(await vault.sign(new TextEncoder().encode("pair")))).toHaveLength(64);
+  });
+
   it("reuses the live proof key while pairing instead of reloading it through WebKit", async () => {
     const vault = new G2CredentialVault({
       indexedDB: new IDBFactory(),

@@ -57,6 +57,34 @@ export class G2CredentialVault {
     return this.database;
   }
 
+  private async proofKeyIsUsable(pair: CryptoKeyPair): Promise<boolean> {
+    const probe = new TextEncoder().encode("atoms-g2-proof-key");
+    try {
+      const signature = await this.crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        pair.privateKey,
+        probe,
+      );
+      return this.crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        pair.publicKey,
+        signature,
+        probe,
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async storeProofKey(database: IDBDatabase, pair: CryptoKeyPair): Promise<void> {
+    const write = database.transaction(KEYS, "readwrite");
+    const keyStore = write.objectStore(KEYS);
+    keyStore.put(pair.privateKey, PROOF_PRIVATE);
+    keyStore.put(pair.publicKey, PROOF_PUBLIC);
+    keyStore.delete(PROOF_LEGACY);
+    await complete(write);
+  }
+
   async createOrLoadProofKey(): Promise<JsonWebKey> {
     if (this.proofKey) return this.crypto.subtle.exportKey("jwk", this.proofKey.publicKey);
     const database = await this.ready();
@@ -68,15 +96,17 @@ export class G2CredentialVault {
       request(store.get(PROOF_LEGACY)) as Promise<CryptoKeyPair | undefined>,
     ]);
     await complete(transaction);
-    if (privateKey && publicKey) this.proofKey = { privateKey, publicKey };
-    else if (legacy?.privateKey && legacy.publicKey) this.proofKey = legacy;
-    else {
+    const stored = privateKey && publicKey
+      ? { privateKey, publicKey }
+      : legacy?.privateKey && legacy.publicKey
+        ? legacy
+        : null;
+    if (stored && await this.proofKeyIsUsable(stored)) {
+      this.proofKey = stored;
+      if ((!privateKey || !publicKey) && legacy) await this.storeProofKey(database, stored);
+    } else {
       this.proofKey = await this.crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
-      const write = database.transaction(KEYS, "readwrite");
-      const keyStore = write.objectStore(KEYS);
-      keyStore.put(this.proofKey.privateKey, PROOF_PRIVATE);
-      keyStore.put(this.proofKey.publicKey, PROOF_PUBLIC);
-      await complete(write);
+      await this.storeProofKey(database, this.proofKey);
     }
     return this.crypto.subtle.exportKey("jwk", this.proofKey.publicKey);
   }
