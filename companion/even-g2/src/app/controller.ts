@@ -160,8 +160,7 @@ export class G2AppController {
       return;
     }
     if (this.state.screen === "queued") {
-      const result = await this.dependencies.create.refresh?.();
-      if (result) this.applyCreateView(result);
+      await this.startFreshCreate();
       return;
     }
     if (this.state.screen === "recovery") {

@@ -36,7 +36,7 @@ export function renderGlasses(state: AppState): GlassesView {
       return page(labels[state.operation]);
     }
     case "confirmation": return page(`${state.transcript || state.title}${state.message ? `\n${state.message}` : ""}`, [G2_COPY.save, G2_COPY.tryAgain], state.selectedIndex);
-    case "queued": return page(state.stillQueued ? `${G2_COPY.stillQueued}${state.acceptedAt ? ` · ${state.acceptedAt}` : ""}` : G2_COPY.queued, [G2_COPY.actions.wait]);
+    case "queued": return page(state.stillQueued ? `${G2_COPY.stillQueued}${state.acceptedAt ? ` · ${state.acceptedAt}` : ""}` : G2_COPY.queued, [G2_COPY.actions.newCapture]);
     case "saved": return page(state.title ? `${G2_COPY.saved}\n${state.title}` : G2_COPY.saved, [G2_COPY.actions.return]);
     case "answer": return page(state.answer, [...state.sources.map((source) => source.title), G2_COPY.actions.return], state.selectedIndex);
     case "closest-matches": return page(G2_COPY.weakEvidence, [...state.matches.map((match) => match.title), G2_COPY.actions.return], state.selectedIndex);

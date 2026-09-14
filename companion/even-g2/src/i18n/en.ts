@@ -61,6 +61,7 @@ export const G2_COPY = Object.freeze({
     "limit-reached": "You have reached today’s G2 query limit",
   },
   actions: {
+    newCapture: "New capture",
     retry: "Try again",
     reconnect: "Reconnect",
     return: "Return",
