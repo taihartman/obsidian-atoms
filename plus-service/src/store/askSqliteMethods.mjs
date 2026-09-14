@@ -199,7 +199,7 @@ export function createAskSqliteMethods(db, deps) {
   function g2PairMint(email, opts = {}) {
     const e = normEmail(email); const now = opts.now ?? Date.now();
     const code = generatePairCode();
-    db.prepare("DELETE FROM g2_pair_codes WHERE email = ? AND used = 0").run(e);
+    db.prepare("DELETE FROM g2_pair_codes WHERE email = ?").run(e);
     db.prepare("INSERT INTO g2_pair_codes VALUES (?, ?, ?, ?, 0)").run(
       hashToken(code), e, JSON.stringify(normalizeG2Scopes(opts.scopes)), now + G2_PAIR_CODE_TTL_MS,
     );

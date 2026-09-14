@@ -1316,7 +1316,7 @@ export function createMemoryStore() {
   function g2PairMint(email, opts = {}) {
     const e = normEmail(email);
     for (const [key, row] of g2PairCodes) {
-      if (row.email === e && !row.used) g2PairCodes.delete(key);
+      if (row.email === e) g2PairCodes.delete(key);
     }
     const code = generatePairCode();
     const now = opts.now ?? Date.now();

@@ -165,6 +165,21 @@ describe("G2 device store contract", () => {
       });
     });
 
+    it(`${mode}: minting a new pairing code after redemption replaces the used code`, async () => {
+      await withStore(mode, async (store) => {
+        const email = `remint-${mode}@atoms.test`;
+        store.ensureAccount(email);
+        await store.grantPeriod(email, { status: "active" });
+        const first = await store.g2PairMint(email, { scopes: ["g2:query"] });
+        assert.ok(await store.g2PairRedeem(first.code, { jkt: `jkt-${mode}` }));
+
+        const second = await store.g2PairMint(email, { scopes: ["g2:query"] });
+
+        assert.notEqual(second.code, first.code);
+        assert.ok(await store.g2PairRedeem(second.code, { jkt: `jkt-2-${mode}` }));
+      });
+    });
+
     it(`${mode}: G2_REFRESH_005 replay revokes the family atomically`, async () => {
       await withStore(mode, async (store) => {
         store.ensureAccount("refresh@atoms.test");

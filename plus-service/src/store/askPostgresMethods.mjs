@@ -202,7 +202,7 @@ export function createAskPostgresMethods(pool, deps) {
       // Serialize replacement codes for one account even when no prior code
       // row exists yet. The account is guaranteed to exist before mint.
       await client.query("SELECT 1 FROM accounts WHERE email=$1 FOR UPDATE", [e]);
-      await client.query("DELETE FROM g2_pair_codes WHERE email=$1 AND used=FALSE", [e]);
+      await client.query("DELETE FROM g2_pair_codes WHERE email=$1", [e]);
       await client.query("INSERT INTO g2_pair_codes VALUES ($1,$2,$3,$4,FALSE)",
         [hashToken(code), e, JSON.stringify(normalizeG2Scopes(opts.scopes)), now + G2_PAIR_CODE_TTL_MS]);
       await client.query("COMMIT");
