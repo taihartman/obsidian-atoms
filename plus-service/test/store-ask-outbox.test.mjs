@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { askStoreModes, withStore } from "./helpers/askStore.mjs";
 import { OUTBOX_MAX_OPEN, OUTBOX_STALE_MS } from "../src/store/askHelpers.mjs";
 
@@ -103,6 +104,77 @@ describe("ask outbox store", () => {
           assert.equal(a.id, b.id);
           assert.equal(b.duplicate, true);
           assert.equal(b.payload.title, "A");
+        });
+      });
+
+      it("atomically converges concurrent G2 commits on one outbox item", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "concurrent-g2@ex.co");
+          const enqueue = () => store.outboxEnqueue("concurrent-g2@ex.co", {
+            kind: "create",
+            payload: {
+              title: "One capture",
+              body: "sacred record\n",
+              origin: "g2",
+              proposal_fingerprint: "fp-same",
+            },
+            client_request_id: "g2-commit-key",
+            proposal_fingerprint: "fp-same",
+          });
+          const [first, second] = await Promise.all([enqueue(), enqueue()]);
+          assert.equal(first.ok, true);
+          assert.equal(second.ok, true);
+          assert.equal(first.id, second.id);
+          assert.equal(Number(first.duplicate) + Number(second.duplicate), 1);
+
+          const changed = await store.outboxEnqueue("concurrent-g2@ex.co", {
+            kind: "create",
+            payload: {
+              title: "Changed capture",
+              body: "different record\n",
+              origin: "g2",
+              proposal_fingerprint: "fp-changed",
+            },
+            client_request_id: "g2-commit-key",
+            proposal_fingerprint: "fp-changed",
+          });
+          assert.deepEqual(changed, {
+            ok: false,
+            error: "idempotency_conflict",
+          });
+          assert.equal(
+            (await store.outboxPull("concurrent-g2@ex.co", { limit: 10 }))
+              .items.length,
+            1,
+          );
+        });
+      });
+
+      it("mints a G2 saved receipt only from the matching mirrored target", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "receipt@ex.co");
+          const body = "exact G2 record\n";
+          const hash = "6f039b24b715fb27e0a4ca9353092625d705978d5d80ccccd72478e0ce414b65";
+          const enq = await store.outboxEnqueue("receipt@ex.co", {
+            kind: "create",
+            payload: { title: "Receipt target", body, origin: "g2", captured_record_sha256: hash },
+            client_request_id: "receipt-key",
+            proposal_fingerprint: "fp-one",
+          });
+          await store.outboxPull("receipt@ex.co");
+          const before = await store.outboxAck("receipt@ex.co", { id: enq.id, status: "applied" });
+          assert.equal(before.ok, false);
+          assert.equal(before.error, "mirror_receipt_required");
+          await store.mirrorUpsert("receipt@ex.co", [{
+            path: "Memory Shelf/Receipt target.md", title: "Receipt target", body,
+          }]);
+          const ack = await store.outboxAck("receipt@ex.co", {
+            id: enq.id, status: "applied", target_path: "Memory Shelf/Receipt target.md",
+          });
+          assert.equal(ack.status, "applied");
+          assert.equal(ack.receipt.path, "Memory Shelf/Receipt target.md");
+          assert.equal(ack.receipt.captured_record_sha256, hash);
+          assert.deepEqual((await store.outboxGet("receipt@ex.co", enq.id)).receipt, ack.receipt);
         });
       });
 
@@ -245,6 +317,25 @@ describe("ask outbox store", () => {
         });
       });
 
+      it("filters atom kind before recent pagination and coverage", async () => {
+        await withStore(mode, async (store) => {
+          await seed(store, "recent@ex.co");
+          await store.mirrorUpsert("recent@ex.co", [
+            { path: "People/Hub.md", title: "Hub", body: "hub", kind: "hub", created: "2026-09-09" },
+            { path: "Atoms/New.md", title: "New", body: "new", created: "2026-09-08" },
+            { path: "Atoms/Old.md", title: "Old", body: "old", created: "2026-01-01" },
+            { path: "Atoms/No date.md", title: "No date", body: "unknown" },
+          ]);
+          const page = await store.mirrorList("recent@ex.co", {
+            kind: "atom", sort_by: "created", order: "desc", limit: 2, offset: 0,
+          });
+          assert.deepEqual(page.items.map((item) => item.title), ["New", "Old"]);
+          assert.equal(page.total, 3);
+          assert.equal(page.next_offset, 2);
+          assert.deepEqual(page.created_coverage, { with_created: 2, total: 3 });
+        });
+      });
+
       it("mirrorList items expose synced_at + kind; status has last update", async () => {
         await withStore(mode, async (store) => {
           await seed(store, "s@ex.co");
@@ -283,4 +374,9 @@ describe("ask outbox store", () => {
       });
     });
   }
+
+  it("Postgres resolves concurrent idempotency through the unique insert", () => {
+    const source = readFileSync(new URL("../src/store/askPostgresMethods.mjs", import.meta.url), "utf8");
+    assert.match(source, /INSERT INTO ask_outbox[\s\S]+ON CONFLICT \(email, client_request_id\)[\s\S]+DO NOTHING[\s\S]+RETURNING/);
+  });
 });

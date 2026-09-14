@@ -1,7 +1,7 @@
 /**
  * Shared store helpers (memory / sqlite / postgres).
  */
-import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+import { randomBytes, createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pkceChallengeS256 } from "./askHelpers.mjs";
 
 export function id(prefix) {
@@ -16,6 +16,149 @@ export function periodEndFromNow(days) {
 
 export function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export const G2_PAIR_CODE_TTL_MS = 5 * 60 * 1000;
+export const G2_ACCESS_TTL_MS = 10 * 60 * 1000;
+export const G2_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const G2_RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const G2_CAPTURE_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+export function g2CaptureDigest(row) {
+  const key = process.env.G2_DATA_KEY_CURRENT || "atoms-g2-capture-test-key";
+  return createHmac("sha256", key).update(JSON.stringify({
+    version: 1,
+    captureId: row.captureId,
+    familyId: row.familyId,
+    capturedAt: row.capturedAt,
+    body: row.body,
+  }), "utf8").digest("hex");
+}
+export const G2_ALLOWED_SCOPES = Object.freeze([
+  "g2:capture",
+  "g2:transcribe",
+  "g2:prepare",
+  "g2:commit",
+  "g2:status",
+  "g2:query",
+  "g2:recent",
+  "g2:fetch",
+]);
+
+export function normalizeG2Scopes(scopes) {
+  if (!Array.isArray(scopes)) return [];
+  const allowed = new Set(G2_ALLOWED_SCOPES);
+  return [...new Set(scopes.map(String).filter((scope) => allowed.has(scope)))].sort();
+}
+
+export function publicG2Device(row) {
+  if (!row) return null;
+  const iso = (value) => value instanceof Date ? value.toISOString() : String(value);
+  return {
+    id: row.familyId ?? row.family_id,
+    name: row.name || "Even G2",
+    scopes: Array.isArray(row.scopes)
+      ? [...row.scopes]
+      : JSON.parse(row.scopes_json || "[]"),
+    createdAt: iso(row.createdAt ?? row.created_at),
+    lastSeenAt: iso(row.lastSeenAt ?? row.last_seen_at),
+    revoked: Boolean(row.revoked),
+  };
+}
+
+const EMPTY_G2_CONSENT = Object.freeze({
+  revision: 0,
+  g2Disclosure: Object.freeze({ granted: false, version: "" }),
+  askMirror: Object.freeze({ granted: false, version: "" }),
+  askWrite: Object.freeze({ granted: false, version: "" }),
+});
+
+function consentDecision(value) {
+  if (!value || typeof value !== "object" || typeof value.granted !== "boolean") return null;
+  return {
+    granted: value.granted,
+    version: value.granted && typeof value.version === "string"
+      ? value.version.trim().slice(0, 80)
+      : "",
+  };
+}
+
+/** Public, shape-stable consent state for one Plus account. */
+export function publicG2Consent(row) {
+  if (!row) return structuredClone(EMPTY_G2_CONSENT);
+  const decision = (prefix, snake) => {
+    const nested = row[prefix];
+    if (nested && typeof nested === "object") {
+      return { granted: Boolean(nested.granted), version: String(nested.version ?? "") };
+    }
+    return {
+      granted: Boolean(row[`${prefix}Granted`] ?? row[`${snake}_granted`]),
+      version: String(row[`${prefix}Version`] ?? row[`${snake}_version`] ?? ""),
+    };
+  };
+  return {
+    revision: Math.max(0, Number(row.revision) || 0),
+    g2Disclosure: decision("g2Disclosure", "g2_disclosure"),
+    askMirror: decision("askMirror", "ask_mirror"),
+    askWrite: decision("askWrite", "ask_write"),
+  };
+}
+
+/**
+ * Merge a plugin consent update without allowing stale or gesture-free grants.
+ * Withdrawals are monotonic and always win a concurrent grant.
+ */
+export function mergeG2Consent(currentValue, update = {}) {
+  const current = publicG2Consent(currentValue);
+  const next = structuredClone(current);
+  const baseRevision = Number.isInteger(update.baseRevision) && update.baseRevision >= 0
+    ? update.baseRevision
+    : -1;
+  const stale = baseRevision !== current.revision;
+  const freshGesture = update.freshGesture === true;
+  let regrantRequired = false;
+
+  for (const key of ["askMirror", "askWrite"]) {
+    const wanted = consentDecision(update[key]);
+    if (!wanted) continue;
+    if (!wanted.granted) {
+      next[key] = wanted;
+      continue;
+    }
+    if (stale || !freshGesture) {
+      if (!current[key].granted || current[key].version !== wanted.version) {
+        regrantRequired = true;
+      }
+      continue;
+    }
+    next[key] = wanted;
+  }
+
+  // Write consent is narrower than mirror consent and cannot outlive it.
+  if (!next.askMirror.granted) next.askWrite = { granted: false, version: "" };
+  const changed = JSON.stringify({ askMirror: current.askMirror, askWrite: current.askWrite }) !==
+    JSON.stringify({ askMirror: next.askMirror, askWrite: next.askWrite });
+  if (changed) next.revision = current.revision + 1;
+  return regrantRequired ? { ...next, regrantRequired: true } : next;
+}
+
+/** Merge the companion-owned voice/model disclosure without widening plugin authority. */
+export function mergeG2Disclosure(currentValue, update = {}) {
+  const current = publicG2Consent(currentValue);
+  const next = structuredClone(current);
+  const wanted = consentDecision(update.disclosure);
+  if (!wanted) return current;
+  const stale = update.baseRevision !== current.revision;
+  if (wanted.granted && (stale || update.freshGesture !== true)) {
+    return { ...current, regrantRequired: true };
+  }
+  if (
+    current.g2Disclosure.granted === wanted.granted &&
+    current.g2Disclosure.version === wanted.version
+  ) return current;
+  next.g2Disclosure = wanted;
+  next.revision = current.revision + 1;
+  return next;
 }
 
 /**

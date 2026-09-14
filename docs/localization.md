@@ -10,7 +10,7 @@ This is a shipping rule, not a suggestion. Agents follow it on every UI, toast, 
 |---|---|---|
 | Android companion | `companion/android/app/src/main/res/values/strings.xml` | `values/` is English |
 | iOS companion | `Localizable.xcstrings` (add with the first second language) | English |
-| Plugin (`src/**`) | not catalogued yet | English in source until a claim opens one |
+| Plugin (`src/**`) | Scoped catalogs under `src/i18n/`; Even G2 uses `src/i18n/g2.ts` | English |
 | tryatoms (`www/`) | page templates | English until a claim opens one |
 
 A second Android language is `companion/android/app/src/main/res/values-<lang>/strings.xml` with the same keys. Do not fork copy by `if (locale)`.
@@ -31,7 +31,7 @@ A second Android language is `companion/android/app/src/main/res/values-<lang>/s
 
 ## Plugin and www
 
-Those trees still have English in source. Do not grow that. New user-facing sentences there need a catalog in the same change, or they wait for the claim that adds one. Do not “just this once” a Notice.
+Existing plugin and www surfaces still have English in source. Do not grow that. New plugin copy belongs in a scoped catalog under `src/i18n/`; do not turn one feature claim into a full-catalog migration. New www sentences need a catalog in the same change, or they wait for the claim that adds one. Do not “just this once” a Notice.
 
 ## Review
 

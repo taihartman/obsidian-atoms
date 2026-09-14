@@ -68,6 +68,30 @@ describe("askOutbox", () => {
     expect(stamped.content).toMatch(/^created: 2026-07-27T10:29:05$/m);
   });
 
+  it("preserves the exact G2 captured record and stamps its provenance", () => {
+    const captured = "  First line.\r\nSecond line with emoji 🧠  \r\n";
+    const { content } = buildAskAtomMarkdown({
+      title: "Exact G2 record",
+      body: captured,
+      origin: "g2",
+      capturedAt: "2026-09-08T17:14:03-04:00",
+      capturedRecordSha256:
+        "83b79046e55d3acfb535e143fda1f41a62f31a1e7a2529d3a8abe0ef77257405",
+      loopInference: false,
+      links: [{ note: "Known atom", reason: "adds context to the captured thought" }],
+    });
+    expect(content).toContain("origin: g2");
+    expect(content).toContain(
+      'captured-at: "2026-09-08T17:14:03-04:00"',
+    );
+    expect(content).toContain("loop-inference: false");
+    const body = bodyAfterFrontmatter(content);
+    expect(new TextEncoder().encode(body.slice(0, captured.length))).toEqual(
+      new TextEncoder().encode(captured),
+    );
+    expect(content).not.toContain("atoms-loop: active");
+  });
+
   it("plans create when path free", () => {
     const plan = planAskOutboxApply(
       { title: "New thought", body: "hello" },

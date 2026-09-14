@@ -42,6 +42,9 @@ export function inboxInferredDateMarker(date: string): string {
 const INBOX_INFERRED_DATE_RE =
   /^\s*<!--atoms:inferred-date:(\d{4}-\d{2}-\d{2})-->\s*$/;
 
+const INBOX_G2_CAPTURE_RE =
+  /^<!--atoms:g2-capture:[A-Za-z0-9_-]{8,128}-->$/;
+
 /** The date an inferred-date marker line records, or null for any other line. */
 export function inboxInferredDateFromLine(line: string): string | null {
   return line.match(INBOX_INFERRED_DATE_RE)?.[1] ?? null;
@@ -55,7 +58,7 @@ const TOP_LEVEL_BULLET_RE = /^- (.*)$/;
  * Shortcut at capture time. Seconds optional; `Z` accepted.
  */
 const STAMP_RE =
-  /^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-]\d{2}:\d{2}))(?:\s+(.*))?$/;
+  /^((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2}))(?:\s+(.*))?$/;
 
 /**
  * A leading token that is *shaped* like a routing stamp but does not read as
@@ -162,7 +165,8 @@ function isNoiseLine(line: string): boolean {
 /** Either of the inbox's own sentinels, which never fold into a body. */
 function isInboxMarkerLine(line: string): boolean {
   return (
-    isInboxFiledMarkerLine(line) || inboxInferredDateFromLine(line) !== null
+    isInboxFiledMarkerLine(line) || inboxInferredDateFromLine(line) !== null ||
+    INBOX_G2_CAPTURE_RE.test(line)
   );
 }
 

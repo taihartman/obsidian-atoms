@@ -184,6 +184,7 @@ import {
   DEFAULT_PLUS_BASE_URL,
   type PlusClientConfig,
 } from "../platform/plusClient";
+import { syncG2CaptureRelay } from "../platform/g2CaptureRelay";
 import { refreshPlusEntitlementRecord } from "../platform/plusRefresh";
 import {
   listLinkerAtoms,
@@ -286,6 +287,8 @@ export default class AtomsPlugin extends Plugin {
    * duplicate append.
    */
   private drainInFlight: Promise<InboxDrainResult> | null = null;
+  /** New G2 captures remain editable until the next manual pass or app launch. */
+  private g2ReviewPending = false;
   /** Set true only after waitForVaultIndexReady (U9 cold-start gate). */
   private vaultIndexReady = false;
   /** Resume catch-up coalescing / cooldown state (in-memory). */
@@ -414,6 +417,12 @@ export default class AtomsPlugin extends Plugin {
       });
     }
     try {
+      const relay = await this.syncG2Captures();
+      if (relay.imported > 0) {
+        this.holdG2CapturesForReview(relay.imported);
+        await this.refreshAtomsHomeLeaves();
+        return;
+      }
       const r = await this.drainInboxOnce();
       devLog("[atoms] inbox bootstrap drain", {
         filed: r.filed,
@@ -444,6 +453,28 @@ export default class AtomsPlugin extends Plugin {
     });
     this.drainInFlight = pass;
     return pass;
+  }
+
+  private async syncG2Captures(): Promise<{ imported: number; acknowledged: number }> {
+    const session = readPlusSession(this.app);
+    if (!session?.sessionToken || !session.verifiedBase) return { imported: 0, acknowledged: 0 };
+    try {
+      return await syncG2CaptureRelay(this.app, {
+        ...this.plusClientConfig(),
+        verifiedBase: session.verifiedBase,
+      }, session.sessionToken);
+    } catch (error) {
+      devLog("[atoms] G2 capture relay failed", error);
+      return { imported: 0, acknowledged: 0 };
+    }
+  }
+
+  private holdG2CapturesForReview(count: number): void {
+    this.g2ReviewPending = true;
+    new Notice(
+      `Atoms: ${count} G2 ${count === 1 ? "capture is" : "captures are"} ready to review in ${INBOX_NOTE_PATH}`,
+      10000,
+    );
   }
 
   /**
@@ -825,11 +856,14 @@ export default class AtomsPlugin extends Plugin {
     // releases it, so the early returns between here and there stay correct.
     this.catchUpInFlight = true;
     this.plusBaseVerdicts = createPlusBaseVerifyCache();
+    if (opts.manual && this.g2ReviewPending) this.g2ReviewPending = false;
     let drained = 0;
     let outbox = 0;
     let mirrored = 0;
     let filed = 0;
     try {
+      const relay = await this.syncG2Captures();
+      if (relay.imported > 0) this.holdG2CapturesForReview(relay.imported);
       try {
         const { countInboxPending } = await import("../pipeline/inbox");
         this.lastInboxPendingCount = await countInboxPending(this.app);
@@ -845,6 +879,7 @@ export default class AtomsPlugin extends Plugin {
         !decision.stages.mirror.run &&
         !decision.stages.filing.run
       ) {
+        if (relay.imported > 0) return { ran: true, reason: "g2_review" };
         const reason =
           (!decision.stages.drain.run &&
             "reason" in decision.stages.drain &&
@@ -856,7 +891,7 @@ export default class AtomsPlugin extends Plugin {
         return { ran: false, reason: String(reason) };
       }
 
-      if (decision.stages.drain.run) {
+      if (decision.stages.drain.run && !this.g2ReviewPending) {
         try {
           const r = await this.drainInboxOnce();
           drained = r.filed;
@@ -903,7 +938,7 @@ export default class AtomsPlugin extends Plugin {
         }
       }
 
-      if (afterDrain.stages.filing.run) {
+      if (afterDrain.stages.filing.run && !this.g2ReviewPending) {
         if (afterDrain.grantWaiver) {
           this.waiverUsedThisSignal = true;
           this.waivedFilingStamps = [

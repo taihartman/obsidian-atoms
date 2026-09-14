@@ -1,0 +1,22 @@
+{
+  "package": "@moonshine-ai/moonshine-wasm",
+  "packageVersion": "0.1.5",
+  "source": "https://github.com/moonshine-ai/moonshine",
+  "sourceTag": "v0.1.5",
+  "sourceCommit": "234f60faa0eb388b01cdf7e60aca232af37aefda",
+  "onnxRuntimeVersion": "1.23.2",
+  "emscriptenVersion": "4.0.8",
+  "buildMode": "single-thread-simd",
+  "artifacts": [
+    {
+      "name": "moonshine.mjs",
+      "bytes": 138055,
+      "sha256": "59f8405f95e4764aae8999a23a8d684c55aa37417f883b8feafa6105d09cb2f9"
+    },
+    {
+      "name": "moonshine.wasm",
+      "bytes": 13255489,
+      "sha256": "ee0948e8c5163dd93ff276fbe5170fdb10a110387a1a949e3bba269ff42cacb9"
+    }
+  ]
+}

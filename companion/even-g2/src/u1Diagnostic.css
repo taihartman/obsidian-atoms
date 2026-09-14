@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light dark;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: Canvas;
+  color: CanvasText;
+}
+
+main {
+  box-sizing: border-box;
+  max-width: 48rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+h1,
+h2 {
+  line-height: 1.2;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: 1.5rem;
+}
+
+h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1rem;
+}
+
+output,
+pre {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+output {
+  min-height: 9rem;
+  line-height: 1.5;
+}
+
+pre {
+  max-height: 24rem;
+  margin: 0;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}

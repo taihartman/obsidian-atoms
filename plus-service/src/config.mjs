@@ -5,12 +5,20 @@
  */
 
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 function env(name, fallback = "") {
   const v = process.env[name];
   return v === undefined || v === "" ? fallback : v;
+}
+
+export function parseBindHost(raw) {
+  const host = String(raw || "").trim();
+  if (!host) return "";
+  if (isIP(host) === 0) throw new Error("invalid_bind_host");
+  return host;
 }
 
 function loadPricingSsot() {
@@ -48,6 +56,9 @@ export const config = {
     const port = Number(env("PORT", "8787"));
     return Number.isFinite(port) && port > 0 ? port : 8787;
   },
+  get bindHost() {
+    return parseBindHost(env("ATOMS_PLUS_BIND_HOST"));
+  },
   get anthropicApiKey() {
     return env("ANTHROPIC_API_KEY");
   },
@@ -69,6 +80,78 @@ export const config = {
   },
   get anthropicVersion() {
     return env("ANTHROPIC_VERSION", "2023-06-01");
+  },
+  get g2MetadataModel() {
+    return env("G2_METADATA_MODEL", this.anthropicModel);
+  },
+  /** Entire private G2 surface is disabled unless explicitly enabled. */
+  get g2Enabled() {
+    return env("G2_ENABLED", "0") === "1";
+  },
+  get g2AppOrigin() {
+    return env("G2_APP_ORIGIN");
+  },
+  get g2AnthropicApiKey() {
+    return env("G2_ANTHROPIC_API_KEY");
+  },
+  get g2OpenAiApiKey() {
+    return env("G2_OPENAI_API_KEY");
+  },
+  get g2RetentionDisclosureVersion() {
+    return env("G2_RETENTION_DISCLOSURE_VERSION");
+  },
+  get g2DataKeyCurrent() {
+    return env("G2_DATA_KEY_CURRENT");
+  },
+  get g2DataKeyCurrentVersion() {
+    return env("G2_DATA_KEY_CURRENT_VERSION", "k1");
+  },
+  get g2DataKeyPrevious() {
+    return env("G2_DATA_KEY_PREVIOUS");
+  },
+  get g2DataKeyPreviousVersion() {
+    return env("G2_DATA_KEY_PREVIOUS_VERSION");
+  },
+  get g2TranscriptRetentionMs() {
+    const hours = Number(env("G2_TRANSCRIPT_RETENTION_HOURS", "24"));
+    return Number.isFinite(hours) && hours >= 0 && hours <= 24 ? hours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  },
+  get g2SweepIntervalMs() {
+    const value = Number(env("G2_SWEEP_INTERVAL_MS", "60000"));
+    return Number.isInteger(value) && value >= 10_000 && value <= 3_600_000 ? value : 60_000;
+  },
+  get g2MetadataTimeoutMs() {
+    const value = Number(env("G2_METADATA_TIMEOUT_MS", "12000"));
+    return Number.isInteger(value) && value >= 1000 && value <= 60_000 ? value : 12_000;
+  },
+  get g2TranscriptionTimeoutMs() {
+    const value = Number(env("G2_TRANSCRIPTION_TIMEOUT_MS", "30000"));
+    return Number.isInteger(value) && value >= 1000 && value <= 120_000 ? value : 30_000;
+  },
+  /** Private-Beta G2 transcription stays inert until explicitly enabled. */
+  get g2TranscriptionEnabled() {
+    return env("G2_TRANSCRIPTION_ENABLED", "0") === "1";
+  },
+  get openAiApiKey() {
+    return env("OPENAI_API_KEY");
+  },
+  get openAiTranscriptionUrl() {
+    return env("OPENAI_TRANSCRIPTION_URL", "https://api.openai.com/v1/audio/transcriptions");
+  },
+  get openAiTranscriptionModel() {
+    return env("OPENAI_TRANSCRIPTION_MODEL", "gpt-4o-transcribe");
+  },
+  /** Operator attestation that current provider retention/disclosure was reviewed. */
+  get g2ProviderControlsAccepted() {
+    return env("G2_PROVIDER_CONTROLS_ACCEPTED", "") === "2026-09-09";
+  },
+  get g2MaxConcurrentPerAccount() {
+    const value = Number(env("G2_MAX_CONCURRENT_PER_ACCOUNT", "2"));
+    return Number.isInteger(value) && value >= 1 && value <= 4 ? value : 2;
+  },
+  get g2SocketIdleTimeoutMs() {
+    const value = Number(env("G2_SOCKET_IDLE_TIMEOUT_MS", "30000"));
+    return Number.isInteger(value) && value >= 50 && value <= 120_000 ? value : 30_000;
   },
   /**
    * Ask search: index-time expand on mirror upsert (0 disables).

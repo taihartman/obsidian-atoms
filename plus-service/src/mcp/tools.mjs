@@ -4,12 +4,11 @@
 import { z } from "zod";
 import { hasWriteScope } from "../oauth/constants.mjs";
 import { checkRateLimit } from "../ratelimit.mjs";
-import { retrievalModeForCoverage } from "../ask/expandSearch.mjs";
+import { createAskDomain } from "../ask/domain.mjs";
 import {
   validateOutboxPayload,
   OUTBOX_RELATIONS,
   absenceMeta,
-  shapeFetchAtom,
 } from "../store/askHelpers.mjs";
 
 const EMPTY_HINT =
@@ -99,6 +98,7 @@ function formatLastSynced(updatedAt) {
  */
 export function registerAskTools(mcp, ctx) {
   const { email, store, scopes = ["atoms:read"] } = ctx;
+  const domain = createAskDomain({ store, email });
 
   function writeRateOk() {
     return checkRateLimit(`ask-write:${email}`, 30);
@@ -216,21 +216,24 @@ export function registerAskTools(mcp, ctx) {
       },
     },
     async ({ query, limit, tags, snippets }) => {
-      const st = await store.mirrorStatus(email);
-      const ranked = unpackSearch(
-        await store.mirrorSearch(email, query, limit ?? 8, {
-          tags,
-          snippets,
-        }),
-      );
+      const search = await domain.search({
+        query,
+        limit: limit ?? 8,
+        tags,
+        snippets,
+      });
+      const st = { count: search.mirror_count, updatedAt: search.last_synced_at };
+      const ranked = unpackSearch({
+        hits: search.results,
+        omitted_below_threshold: search.omitted_below_threshold,
+        omitted_by_limit: search.omitted_by_limit,
+        tag_pool: search.tag_pool,
+      });
       const { hits, omitted_below_threshold, omitted_by_limit, tag_pool } =
         ranked;
       const scope = absenceMeta();
-      let expand_coverage = 0;
-      if (typeof store.mirrorExpandCoverage === "function") {
-        expand_coverage = Number(await store.mirrorExpandCoverage(email)) || 0;
-      }
-      const retrieval = retrievalModeForCoverage(expand_coverage);
+      const expand_coverage = search.expand_coverage;
+      const retrieval = search.retrieval;
       const modeNote =
         retrieval === "lexical_expanded"
           ? "no confident match under lexical+expansion scoring"
@@ -260,6 +263,8 @@ export function registerAskTools(mcp, ctx) {
                 limit: limit ?? 8,
                 retrieval,
                 expand_coverage,
+                last_synced_at: search.last_synced_at,
+                created_coverage: search.created_coverage,
                 ...trunc,
                 ...scope,
                 hint: emptyHint,
@@ -287,6 +292,8 @@ export function registerAskTools(mcp, ctx) {
                 limit: limit ?? 8,
                 retrieval,
                 expand_coverage,
+                last_synced_at: search.last_synced_at,
+                created_coverage: search.created_coverage,
                 ...trunc,
                 ...scope,
                 hint,
@@ -314,7 +321,7 @@ export function registerAskTools(mcp, ctx) {
       },
     },
     async ({ id_or_title }) => {
-      const atom = await store.mirrorFetch(email, id_or_title);
+      const atom = await domain.fetchByReference(id_or_title);
       if (!atom) {
         const st = await store.mirrorStatus(email);
         const graph =
@@ -356,15 +363,11 @@ export function registerAskTools(mcp, ctx) {
           isError: true,
         };
       }
-      const graph =
-        typeof store.mirrorNeighbors === "function"
-          ? await store.mirrorNeighbors(email, atom.title)
-          : null;
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(shapeFetchAtom(atom, graph), null, 2),
+            text: JSON.stringify(atom, null, 2),
           },
         ],
       };
@@ -829,7 +832,7 @@ export function registerAskTools(mcp, ctx) {
           true,
         );
       }
-      const page = await store.mirrorList(email, {
+      const page = await domain.list({
         limit: limit ?? 25,
         offset: offset ?? 0,
         sort_by,
@@ -839,7 +842,6 @@ export function registerAskTools(mcp, ctx) {
         tags,
         open_now,
       });
-      const st = await store.mirrorStatus(email);
       const cov = page.created_coverage;
       const lowCoverage =
         cov &&
@@ -849,8 +851,8 @@ export function registerAskTools(mcp, ctx) {
       return jsonTool({
         ...page,
         account: email,
-        server_count: st?.count ?? page.total,
-        last_synced_at: formatLastSynced(st?.updatedAt),
+        server_count: page.mirror_count ?? page.total,
+        last_synced_at: page.last_synced_at,
         ...absenceMeta({ searched_fields: ["title", "path", "tags", "created"] }),
         hint:
           page.next_offset != null

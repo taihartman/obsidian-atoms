@@ -15,7 +15,7 @@ describe("assertMirrorPath", () => {
   it("allows flat Atoms/*.md and hub paths", () => {
     assert.equal(assertMirrorPath("Atoms/Tea.md").ok, true);
     assert.equal(assertMirrorPath("Atoms/Tea.md", { kind: "atom" }).ok, true);
-    assert.equal(assertMirrorPath("Daily/foo.md", { kind: "atom" }).ok, false);
+    assert.equal(assertMirrorPath("Memory Shelf/Tea.md", { kind: "atom" }).ok, true);
     assert.equal(assertMirrorPath("Daily/foo.md", { kind: "hub" }).ok, true);
     assert.equal(assertMirrorPath("Social/People/N.md", { kind: "hub" }).ok, true);
     assert.equal(assertMirrorPath("Atoms/sub/x.md").ok, false);
@@ -82,15 +82,15 @@ describe("mirror delete + reconcile", () => {
         });
       });
 
-      it("upsert rejects non-Atoms path", async () => {
+      it("upsert rejects a nested configured-atom path", async () => {
         await withStore(mode, async (store) => {
           await seed(store, "x@ex.co");
           await assert.rejects(
             async () =>
               store.mirrorUpsert("x@ex.co", [
-                { path: "Daily/foo.md", title: "F", body: "x" },
+                { path: "Memory Shelf/nested/foo.md", title: "F", body: "x" },
               ]),
-            /Atoms/,
+            /flat/,
           );
         });
       });
