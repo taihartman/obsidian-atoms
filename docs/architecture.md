@@ -133,6 +133,7 @@ processInbox(dryRun)
 | Markers | under captures in daily notes | yes (vault) |
 | Ask cloud mirror / outbox | Plus host (encrypted at rest v1) | n/a — wipeable copy |
 | G2 transcript and preparation | Plus host, AES-256-GCM with account/artifact/row binding | no; bounded retention |
+| G2 device pairing | Even Hub app-scoped native storage; P-256 proof key plus rotating refresh member | no; cleared by Disconnect or definitive revocation |
 | G2 in-session audio and proposal | Even Hub WebView IndexedDB, encrypted and device-bound | no; deleted after receipt or expiry, and lost when the iPhone host restarts |
 
 Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus quality stamps `atoms-quality` (int) and `quality-updated` (YYYY-MM-DD) on Process-created and Update-refreshed atoms. Optional `aliases` when sanitization changes the title (KTD8) or title rename needs a back-compat alias.
@@ -175,7 +176,9 @@ Atom frontmatter: `created`, `source` (wikilink), `generated-by`, `tags`, plus q
 
 G2 credentials are distinct from plugin sessions and MCP tokens. Transcription tickets are stored as hashes, expire quickly, are consumed atomically before a WebSocket upgrade, and are bound to the account, device family, DPoP key, exact Origin, consent generation, recording, and purpose. Provider workload slots are durable per account so multiple service instances share the same ceiling.
 
-The iPhone Even Hub host does not preserve the companion's IndexedDB reliably across process restarts. The private v1 therefore runs session-only on iPhone: it proves encrypted, non-extractable-key storage within each launch, keeps access tokens in memory, and returns to pairing when the host loses its credential key. A host restart also discards local audio and proposal recovery, so interrupted recordings cannot be resumed. There is no bearer-token fallback.
+The iPhone Even Hub host does not preserve the companion's WebView IndexedDB reliably across process restarts. Companion 0.1.21+ keeps its P-256 device proof key and rotating refresh member together in Even Hub's app-scoped native storage, then imports the private key into Web Crypto as non-extractable for use. This lets the same phone restore its sender-constrained device family after normal closes, iOS host restarts, and private-build updates. Access tokens remain memory-only. Disconnect or a definitive server revocation clears the native credential. A copied complete native record could act as that device, so the OS and Even Hub app sandbox are the at-rest boundary and device revocation is the recovery control.
+
+A host restart can still discard local audio and proposal recovery because those larger artifacts remain encrypted in WebView IndexedDB. Pairing persistence does not resume or automatically commit an interrupted recording.
 
 Retained transcripts and preparations use versioned AES-256-GCM. Associated data binds the account, artifact type, and row ID. Deployments write with the current key and may read one previous key during rotation. G2 has no production plaintext fallback.
 

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product-engineering
-last_verified: 2026-09-08
+last_verified: 2026-09-14
 canonical_for: [security-change-workflow]
 supersedes: []
 superseded_by: null
@@ -21,6 +21,8 @@ Run `python3 scripts/security/validate_contract.py validate` after changes and `
 | new plugin / G2 client | G2 routes unavailable; client remains unpaired | Target behavior |
 
 The server must deploy before a G2-capable client is enabled. Reversing that order produces an explicit unavailable/unpaired state, not a credential fallback. G2 tables and routes are additive; existing `sess_` and `mcp_` semantics remain unchanged.
+
+The 0.1.21 companion persistence change is client-only: old and new companions use the same server rules, and either client works with the unchanged server. The first 0.1.21 launch intentionally requires one final pairing because older builds did not place a proof key in Even Hub native storage. After that pairing, normal closes, iOS host restarts, and private-build updates restore the same sender-constrained device family. Rolling back to an older companion loses this native recovery path and may require pairing again; it does not widen server access.
 
 ## Review stops
 

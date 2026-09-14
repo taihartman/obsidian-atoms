@@ -215,13 +215,15 @@ Private `0.1.19` moves companion HTTP requests from WKWebView `fetch` to its nat
 
 Private `0.1.20` fixes the false preparation failure seen after a successful capture reached Obsidian. Save still clears the encrypted local draft after the relay accepts it, while the session retains only the acceptance timestamp so **Wait** remains on the queued result. The packaged artifact is `46,659,819` bytes with SHA-256 `50ab3a45cf68846c289fb866a21f0e87a1f7fe471d055b58e00c42719bb19d3f`.
 
+Private `0.1.21` makes pairing persistent across normal closes, iOS host restarts, and private-build updates by retaining the sender-constrained device credential in Even Hub app-scoped native storage. Install 0.1.21, pair once more to establish the durable record, close and reopen Atoms, then update or restart the host and confirm it returns directly to Ready. Access tokens remain memory-only; Disconnect and definitive revocation clear the durable credential. The packaged artifact is `46,660,403` bytes with SHA-256 `3576c44ee1a4f47848620f7e57f27750954192225b7f7e241b561ab66f175bf9`.
+
 The paired Obsidian plugin claims a bounded batch with its verified Plus session, appends each capture idempotently to `Atoms System/Inbox.md`, re-reads the exact durable block, and only then acknowledges it. Acknowledgment immediately removes transcript ciphertext from the service. Newly imported captures are held in the editable Inbox for the rest of that automatic pass. The user can correct the text before the existing Inbox and filing pipeline processes it on a later manual pass or app launch. The companion says **Queued for Obsidian**, never **Saved to Atoms**.
 
 This path uses no G2 OpenAI or Anthropic credential and consumes no filing credit. G2 pairing no longer depends on Ask mirror or connected-app write consent, and the private companion exposes only **New capture**. Normal Atoms classification still uses whichever engine the user already configured when the reviewed Inbox capture is processed.
 
-Automated evidence: 20 companion Vitest files and 173 tests pass; the companion production build and package verification pass. The 24 focused G2 HTTP authorization and device-store contract tests pass. All 720 Plus service tests pass. All 2,380 Obsidian tests pass. Plugin production build and lint pass. The security contract validates, including atomic current-authorization enqueue, confirmed-only payloads, tenant-scoped claim, durable marker-backed acknowledgment after user edits, ciphertext purge, and seven-day receipt reduction to a tombstone.
+Automated evidence: 20 companion Vitest files and 176 tests pass; the companion production build and package verification pass. The 24 focused G2 HTTP authorization and device-store contract tests pass. All 720 Plus service tests pass. All 2,380 Obsidian tests pass. Plugin production build and lint pass. The security contract validates, including atomic current-authorization enqueue, confirmed-only payloads, tenant-scoped claim, durable marker-backed acknowledgment after user edits, ciphertext purge, and seven-day receipt reduction to a tombstone.
 
-Production release 77 runs image `atoms-plus:deployment-01M26BNV4VW4TGSMM35AMNFXW9`. The relay table was created under the dark release first. After health and schema verification, relay-only encryption, DPoP nonce, retention, and dynamic iPhone loopback-origin secrets were configured and G2 was enabled. `/health` passed, a canonical loopback request reached the live G2 auth boundary with 401, a wrong Origin returned 403, and unauthenticated MCP POST remained 401. Private `0.1.20` supersedes `0.1.19` with the post-enqueue Wait-state repair.
+Production release 77 runs image `atoms-plus:deployment-01M26BNV4VW4TGSMM35AMNFXW9`. The relay table was created under the dark release first. After health and schema verification, relay-only encryption, DPoP nonce, retention, and dynamic iPhone loopback-origin secrets were configured and G2 was enabled. `/health` passed, a canonical loopback request reached the live G2 auth boundary with 401, a wrong Origin returned 403, and unauthenticated MCP POST remained 401. Private `0.1.21` supersedes `0.1.20` with the phone-persistent device credential; no server rollout is required.
 
 Record both installed devices, OS versions, Even App versions, WebView capability JSON, readiness and final-latency values, attached-process memory measurements, 20-cycle result, accuracy-corpus result, offline restart, network trace, storage/log inspection, and portal acceptance here. A missing value fails the gate. A no-go stops this plan for a local-engine decision and must not restore cloud transcription.
 
@@ -277,7 +279,7 @@ Use `--plus-port`, `--provider-port`, `--vite-port`, or `--automation-port` afte
 - [ ] Five-minute foreground resume while the iPhone host remains alive, plus Android cold-start recovery
 - [ ] Root exit confirmation stops microphone, socket, and subscriptions
 
-The private iPhone v1 is intentionally session-only. If iOS terminates the Even Hub host, open Atoms and pair again. Audio and proposals interrupted by that process restart cannot be recovered; confirm this fails safely without sending or committing stale content.
+Pairing should survive iOS termination of the Even Hub host after the one-time 0.1.21 migration pairing. Audio and proposals interrupted by that process restart still cannot be recovered; confirm this fails safely without sending or committing stale content.
 
 ## Private package and Beta evidence
 
@@ -287,7 +289,7 @@ The private iPhone v1 is intentionally session-only. If iOS terminates the Even 
 - [ ] Run create, mirror receipt, query, source, and recent flows against a throwaway vault
 - [ ] Lock the phone during recording, query, and queued states
 - [ ] Leave the app idle for two minutes, then reconnect without duplicate provider work
-- [ ] Interrupt the iPhone process, confirm Atoms returns to pairing without an automatic commit, and verify the next pairing starts cleanly
+- [ ] Interrupt the iPhone process, confirm Atoms restores the saved pairing without an automatic commit, and verify Disconnect returns it to pairing
 
 ## Public submission
 

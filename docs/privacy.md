@@ -10,7 +10,9 @@ Captured words stay verbatim when an atom is created. Model output is limited to
 
 G2 tickets expire after seconds and can be used once. Completed transcripts are encrypted with account and record binding and retained for no more than 24 hours. Atom preparations expire after 15 minutes. Successful local recovery data is deleted after the confirmed receipt. Expired service and local recovery data is removed by bounded sweepers.
 
-On iPhone, the private v1 is session-only because the Even Hub host may discard IndexedDB when its process restarts. Access tokens remain memory-only, and a restart that loses the device credential requires pairing again. Local audio and proposal recovery are also lost, so an interrupted recording cannot be resumed after that restart. Atoms does not replace this protection with a bearer-token fallback.
+On iPhone, Even Hub may discard the companion's WebView IndexedDB when its process restarts. Atoms therefore keeps the phone's P-256 device proof key and rotating refresh credential in Even Hub's app-scoped native storage so one pairing survives normal closes, host restarts, and app updates. The private key is imported into Web Crypto as non-extractable while in use, and access tokens remain memory-only. Disconnecting or a definitive server revocation clears the saved credential. The phone's OS and Even Hub app sandbox protect that native record; someone who copied the complete record could act as the paired device, so the device can be revoked from Obsidian.
+
+Local audio and proposal recovery remain in encrypted WebView IndexedDB and may still be lost after a host restart. An interrupted recording is never resumed or committed automatically from the persistent pairing credential.
 
 Operators record counts, durations, status classes, and latency. Logs and metrics do not contain microphone audio, transcripts, questions, atom bodies, raw tokens, account emails, device identifiers, or provider credentials.
 

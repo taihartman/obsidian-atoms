@@ -120,6 +120,63 @@ describe("G2 pairing", () => {
     await expect(cold.exportPrivateKey()).rejects.toThrow("key_not_extractable");
   });
 
+  it("G2_LOCAL_CREDENTIAL_019 restores one pairing after WebView storage is replaced", async () => {
+    const crypto = webcrypto as unknown as Crypto;
+    let nativeRecord = "";
+    const persistentStorage = {
+      load: async () => nativeRecord,
+      save: async (value: string) => { nativeRecord = value; return true; },
+    };
+    const first = new G2CredentialVault({
+      indexedDB: new IDBFactory(),
+      crypto,
+      databaseName: "pairing-native-first",
+      persistentStorage,
+    });
+    const publicJwk = await first.createOrLoadProofKey();
+    await first.saveRefresh({ accountId: "acct-one", deviceFamilyId: "fam-one", refreshToken: "g2r_rotating" });
+    first.close();
+
+    const cold = new G2CredentialVault({
+      indexedDB: new IDBFactory(),
+      crypto,
+      databaseName: "pairing-native-replaced-webview",
+      persistentStorage,
+    });
+
+    expect(await cold.createOrLoadProofKey()).toEqual(publicJwk);
+    expect(await cold.loadRefresh("acct-one", "fam-one")).toEqual({
+      accountId: "acct-one",
+      deviceFamilyId: "fam-one",
+      refreshToken: "g2r_rotating",
+    });
+    expect(new Uint8Array(await cold.sign(new TextEncoder().encode("restore")))).toHaveLength(64);
+    await expect(cold.exportPrivateKey()).rejects.toThrow("key_not_extractable");
+  });
+
+  it("G2_LOCAL_CREDENTIAL_019 removes the durable refresh member on purge", async () => {
+    const crypto = webcrypto as unknown as Crypto;
+    let nativeRecord = "";
+    const persistentStorage = {
+      load: async () => nativeRecord,
+      save: async (value: string) => { nativeRecord = value; return true; },
+    };
+    const first = new G2CredentialVault({
+      indexedDB: new IDBFactory(), crypto, databaseName: "pairing-native-purge", persistentStorage,
+    });
+    await first.createOrLoadProofKey();
+    await first.saveRefresh({ accountId: "acct-one", deviceFamilyId: "fam-one", refreshToken: "g2r_rotating" });
+    await first.purge();
+    first.close();
+
+    const cold = new G2CredentialVault({
+      indexedDB: new IDBFactory(), crypto, databaseName: "pairing-native-after-purge", persistentStorage,
+    });
+    await cold.createOrLoadProofKey();
+    expect(await cold.loadRefresh("acct-one", "fam-one")).toBeNull();
+    expect(nativeRecord).not.toContain("g2r_rotating");
+  });
+
   it("renders code, disclosure, setup, loading, failures, success, and reconnect through one phone surface", () => {
     for (const state of [
       { screen: "unpaired" as const, origin: "evenhub://app.tryatoms.g2" },

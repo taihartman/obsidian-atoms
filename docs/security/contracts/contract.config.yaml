@@ -3,7 +3,7 @@ matrix: docs/security/contracts/access-matrix.yaml
 schema: docs/security/contracts/access-matrix.schema.yaml
 generated_view: docs/security/contracts/access-matrix.md
 docs_dir: docs/security/contracts/
-test_globs: [plus-service/test/**/*.test.mjs]
+test_globs: [plus-service/test/**/*.test.mjs, companion/even-g2/test/**/*.test.ts]
 doc_frontmatter:
   required_keys: [status, owner, last_verified, canonical_for, supersedes, superseded_by]
   doc_status_values: [canonical, draft, historical, needs-update, superseded]
@@ -15,3 +15,5 @@ enforcement_layer_files:
   - plus-service/src/store/memory.mjs
   - plus-service/src/store/askSqliteMethods.mjs
   - plus-service/src/store/askPostgresMethods.mjs
+  - companion/even-g2/src/auth/credentials.ts
+  - companion/even-g2/src/bootstrap.ts

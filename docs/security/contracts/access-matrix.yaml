@@ -103,7 +103,20 @@ rows:
     status: verified
     owner: product-engineering
     lastVerified: 2026-09-09
-    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. The exact validated request Origin remains the DPoP/CORS boundary.
+    notes: The packaged-app boundary accepts the one configured exact HTTPS origin or, only under the explicit http://127.0.0.1:* private-iPhone sentinel, a canonical loopback request Origin with an explicit valid numeric port. The exact validated request Origin remains the DPoP/CORS boundary. Companion 0.1.21+ persists the rotating refresh member and its P-256 proof key together in Even Hub app-scoped native storage so the same phone can refresh after its WebView IndexedDB is replaced. Access tokens remain memory-only.
+  - id: G2_LOCAL_CREDENTIAL_019
+    path: Even Hub app-scoped native local storage
+    operation: write
+    allowedActors: [packaged companion origin]
+    deniedActors: [other Even Hub apps, web origins outside the packaged companion]
+    identityType: g2-refresh-dpop
+    dataShape: One versioned device credential containing the P-256 private and public JWK plus, after pairing, the current rotating refresh token and its account and device-family binding. Access tokens, capture bodies, audio, and atom content are never stored here.
+    tests: [companion/even-g2/test/pairing-ui.test.ts]
+    threatsCovered: [repeat pairing after WebView replacement, refresh token use without its paired proof key, stale credential retention after revocation]
+    status: verified
+    owner: product-engineering
+    lastVerified: 2026-09-14
+    notes: G2_LOCAL_CREDENTIAL_019. The native record is accepted only when its version and complete P-256 JWK shape validate and a sign/verify probe succeeds. Invalid records fail closed and are replaced. A definitive refresh refusal or Disconnect clears the complete native credential; the surviving non-secret pointer cannot authorize. The OS and Even Hub app sandbox are the at-rest boundary; copying the complete native record would copy the device credential, so device revocation remains the recovery control.
   - id: G2_SETUP_STATUS_015
     path: /v1/g2/setup/status
     operation: read

@@ -20,6 +20,7 @@ import { renderPhone, type PhoneState } from "./ui/phone";
 import { EvenGlassesRenderer } from "./ui/render";
 
 const BINDING_POINTER = "atoms-g2-binding";
+const PERSISTENT_CREDENTIAL = "atoms-g2-device-credential-v1";
 
 function canQueueCaptures(session: G2Session): boolean {
   return session.scopes.includes("g2:capture");
@@ -86,7 +87,12 @@ export async function startG2Companion(
     throw error;
   }
   const renderer = new EvenGlassesRenderer(bridge);
-  const vault = new G2CredentialVault();
+  const vault = new G2CredentialVault({
+    persistentStorage: {
+      load: () => bridge.getLocalStorage(PERSISTENT_CREDENTIAL),
+      save: (value) => bridge.setLocalStorage(PERSISTENT_CREDENTIAL, value),
+    },
+  });
   await vault.createOrLoadProofKey();
   const auth = new G2AuthClient(baseUrl, vault);
   const http = new G2HttpClient(auth);

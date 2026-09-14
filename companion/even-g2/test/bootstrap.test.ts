@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   removeEvents: vi.fn(),
   eventHandler: undefined as ((event: unknown) => void) | undefined,
   audioAccept: vi.fn(),
+  vaultDependencies: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock("@evenrealities/even_hub_sdk", async (importOriginal) => ({
@@ -25,7 +26,10 @@ vi.mock("@evenrealities/even_hub_sdk", async (importOriginal) => ({
   waitForEvenAppBridge: vi.fn(async () => mocks.bridge),
 }));
 vi.mock("../src/auth/credentials", () => ({
-  G2CredentialVault: class { async createOrLoadProofKey() {} },
+  G2CredentialVault: class {
+    constructor(dependencies: Record<string, unknown>) { mocks.vaultDependencies = dependencies; }
+    async createOrLoadProofKey() {}
+  },
 }));
 vi.mock("../src/auth/client", () => ({
   G2AuthClient: class {
@@ -106,6 +110,8 @@ describe("G2 companion bootstrap", () => {
     mocks.controllerDependencies = undefined;
     mocks.createApi = undefined;
     mocks.eventHandler = undefined;
+    mocks.vaultDependencies = undefined;
+    mocks.bridge.setLocalStorage.mockResolvedValue(true);
     mocks.bridge.getLocalStorage.mockImplementation(async (key: string) => key === "atoms-g2-binding" ? "" : "");
     mocks.bridge.onEvenHubEvent.mockImplementation((handler: (event: unknown) => void) => {
       mocks.eventHandler = handler;
@@ -147,6 +153,21 @@ describe("G2 companion bootstrap", () => {
       screen: "unpaired",
       origin: "evenhub://app.tryatoms.g2",
     }, expect.any(Object));
+  });
+
+  it("G2_LOCAL_CREDENTIAL_019 wires the credential vault to Even Hub native storage", async () => {
+    await startG2Companion("https://plus.tryatoms.app", async () => ({
+      state: "ready", blobPersistence: "encrypted", keyPersistence: "non-extractable", reservedBytes: 1, purged: true,
+    }));
+
+    const persistentStorage = mocks.vaultDependencies?.persistentStorage as {
+      load(): Promise<string>;
+      save(value: string): Promise<boolean>;
+    };
+    await expect(persistentStorage.load()).resolves.toBe("");
+    await expect(persistentStorage.save("device-credential")).resolves.toBe(true);
+    expect(mocks.bridge.getLocalStorage).toHaveBeenCalledWith("atoms-g2-device-credential-v1");
+    expect(mocks.bridge.setLocalStorage).toHaveBeenCalledWith("atoms-g2-device-credential-v1", "device-credential");
   });
 
   it("returns to pairing when a host restart keeps the pointer but loses the credential key", async () => {
