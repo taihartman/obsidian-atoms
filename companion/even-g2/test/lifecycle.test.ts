@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { G2AppController } from "../src/app/controller";
+import { CreateFlow, type CreateRecoveryRecord } from "../src/app/createFlow";
 import { ticketFromResponse } from "../src/platform/audio";
 
 describe("G2 lifecycle controller", () => {
@@ -117,6 +118,31 @@ describe("G2 lifecycle controller", () => {
     expect(app.snapshot()).toMatchObject({ screen: "error", reason: "stale", primaryAction: "return" });
     await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
     expect(app.snapshot().screen).toBe("closest-matches");
+  });
+
+  it("keeps Wait queued after a successful relay enqueue clears the local draft", async () => {
+    let saved: CreateRecoveryRecord | null = null;
+    const create = new CreateFlow({
+      enqueue: async (request) => ({ state: "pending", captureId: request.captureId }),
+    }, {
+      load: async () => saved,
+      save: async (record) => { saved = record; },
+      clear: async () => { saved = null; },
+    }, undefined, () => 1_700_000_000_000);
+    await create.prepare("rec_wait_bug", "2026-09-14T09:31:00-04:00", "exact transcript");
+    const app = new G2AppController({
+      render: vi.fn(), stopAudio: vi.fn(), closeSockets: vi.fn(), unsubscribe: vi.fn(),
+      create,
+      query: { ask: async () => ({ state: "unavailable" }), openSource: () => null },
+      read: { loadRecent: async () => ({ items: [], selectedIndex: 0, coverageComplete: true }), openById: async () => ({ text: "", position: { offset: 0, next_offset: null } }) },
+    });
+
+    await app.start({ paired: true, setupReady: true });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+    expect(app.snapshot()).toMatchObject({ screen: "queued", acceptedAt: "2023-11-14T22:13:20.000Z" });
+    await app.handle({ kind: "click", envelope: "list", selectedIndex: 0 });
+
+    expect(app.snapshot()).toMatchObject({ screen: "queued", stillQueued: true, acceptedAt: "2023-11-14T22:13:20.000Z" });
   });
 
   it("returns from source bodies to the retained answer list and then returns to root", async () => {

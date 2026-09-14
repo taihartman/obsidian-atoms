@@ -35,6 +35,7 @@ export type CreateView = {
   transcript?: string;
   message?: string;
   acceptedAt?: string;
+  stillQueued?: boolean;
 };
 
 function canonicalTranscript(value: string | undefined): string {
@@ -43,6 +44,7 @@ function canonicalTranscript(value: string | undefined): string {
 
 export class CreateFlow {
   private record: CreateRecoveryRecord | null = null;
+  private acceptedAt: string | null = null;
 
   constructor(
     private readonly api: CreateApi,
@@ -72,6 +74,7 @@ export class CreateFlow {
       body,
       expiresAt: new Date(this.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     };
+    this.acceptedAt = null;
     await this.recovery.save(this.record);
     return this.view();
   }
@@ -83,6 +86,7 @@ export class CreateFlow {
 
   async cancel(): Promise<CreateView> {
     this.record = null;
+    this.acceptedAt = null;
     await this.recovery.clear();
     return { state: "idle" };
   }
@@ -100,6 +104,7 @@ export class CreateFlow {
       }
       const acceptedAt = new Date(this.now()).toISOString();
       this.record = null;
+      this.acceptedAt = acceptedAt;
       await this.recovery.clear();
       return { state: "queued", message: CREATE_COPY.queued, acceptedAt };
     } catch {
@@ -108,6 +113,8 @@ export class CreateFlow {
   }
 
   async refresh(): Promise<CreateView> {
-    return this.view();
+    return this.acceptedAt
+      ? { state: "queued", acceptedAt: this.acceptedAt, stillQueued: true }
+      : this.view();
   }
 }
