@@ -46,14 +46,26 @@ export async function onRequestPost(context) {
     return json(503, { ok: false, code: CODES.killed });
   }
 
-  const apiKey = env.RESEND_API_KEY;
-  const from = env.ATOMS_NOTES_FROM;
-  const segmentId = env.RESEND_MARKETING_SEGMENT_ID;
-  const postal = env.ATOMS_NOTES_POSTAL_ADDRESS;
+  // Pages injects secrets on context.env (and sometimes process.env in local dev).
+  const e = env || {};
+  const apiKey = e.RESEND_API_KEY || globalThis?.RESEND_API_KEY;
+  const from = e.ATOMS_NOTES_FROM;
+  const segmentId = e.RESEND_MARKETING_SEGMENT_ID;
+  const postal = e.ATOMS_NOTES_POSTAL_ADDRESS;
 
   if (!apiKey || !from || !segmentId || !postal) {
-    console.error("[atoms-notes] missing env");
-    return json(503, { ok: false, code: CODES.upstream_error });
+    const missing = [
+      !apiKey && "RESEND_API_KEY",
+      !from && "ATOMS_NOTES_FROM",
+      !segmentId && "RESEND_MARKETING_SEGMENT_ID",
+      !postal && "ATOMS_NOTES_POSTAL_ADDRESS",
+    ].filter(Boolean);
+    console.error("[atoms-notes] missing env", missing.join(","), "keys", Object.keys(e || {}));
+    return json(503, {
+      ok: false,
+      code: CODES.upstream_error,
+      missing,
+    });
   }
 
   let body;
