@@ -56,6 +56,10 @@ function appendIss(u) {
  * @param {Record<string, string>} params
  */
 function redirectToClient(res, redirectUri, params) {
+  if (!isAllowedRedirectUri(redirectUri)) {
+    writeHtml(res, 400, simpleMessage("Error", "redirect_uri not allowed"));
+    return;
+  }
   const u = new URL(redirectUri);
   for (const [k, v] of Object.entries(params)) {
     if (v != null && v !== "") u.searchParams.set(k, v);

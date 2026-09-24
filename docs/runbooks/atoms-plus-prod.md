@@ -172,12 +172,15 @@ cd plus-service && npm test
 | Directory pack | [`atoms-ask-connectors-directory.md`](atoms-ask-connectors-directory.md) |
 | Claude callback | `https://claude.ai/api/mcp/auth_callback` |
 | ChatGPT callbacks | `https://chatgpt.com/connector/oauth/{id}` + legacy `https://chatgpt.com/connector_platform_oauth_redirect` |
+| Native loopback callbacks | `/callback` (Claude Code) and `/oauth/callback` (OpenClaw), on `127.0.0.1`, `localhost`, or `[::1]`, any port, no query or fragment |
 | Secret | `ATOMS_ASK_MIRROR_KEY` (AES-GCM at rest; rotate = re-encrypt not automated) |
 | SDK | `@modelcontextprotocol/server` + `@modelcontextprotocol/node` v2 |
 
 **Claude:** Settings → Connectors → Add custom connector → paste MCP URL → complete magic-link OAuth in browser.
 
 **ChatGPT:** Enable Developer mode → Apps & connectors → add the same MCP URL → complete OAuth (Plus email magic link + Allow). Re-check OpenAI redirect docs if authorize fails on `redirect_uri`.
+
+**OpenClaw:** Same public MCP URL, `transport: streamable-http`, `auth: oauth`, then `openclaw mcp login`. The page says an app on this computer is connecting. If nothing is listening on `127.0.0.1:8989`, copy the `code` query from the address bar into `openclaw mcp login <name> --code`. Do not use a public Gateway callback. Full steps: `docs/ask-self-host.md`.
 
 Dogfood: `docs/qa/2026-07-27-ask-chatgpt-connector-dogfood.md`
 
