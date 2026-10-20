@@ -176,4 +176,10 @@ No evaluation-harness implementation or billable comparative run was authorized 
 
 ### Phone verification boundary at 15:42 EDT
 
-Luna acquired and released the shared lease for Tai's iPhone (`D22B2BD4-0A1C-580C-8262-C1BED379B335`). Mirroring showed a daily note; its body was not captured/quoted. Navigation failed with `noWindowsAvailableWindow`, so no current Home count or completion claim is available. A repeated connector status check at 19:42:53 UTC still showed 204 mirrored notes with the October 16 last-sync timestamp. Server/model recovery is verified; fresh phone filing/mirror convergence remains unverified.
+Luna acquired and released the shared lease for the owner's iPhone. Mirroring showed a daily note; its body was not captured/quoted. Navigation failed with `noWindowsAvailableWindow`, so no current Home count or completion claim is available. A repeated connector status check at 19:42:53 UTC still showed 204 mirrored notes with the October 16 last-sync timestamp. Server/model recovery is verified; fresh phone filing/mirror convergence remains unverified.
+
+## Shipping follow-up, 17:08 EDT
+
+The owner authorized commit, push and plugin release. [PR #631](https://github.com/taihartman/obsidian-atoms/pull/631) isolates the client fixes, model defaults and evaluation artifacts from the separate OpenClaw branch. The first clean-checkout CI passed the root test/lint/build job, all 816 service tests with PostgreSQL, and the companion check. The final candidate must retain passing checks before merge.
+
+The completed evaluations and final Sonnet 5.5 low selection are recorded in [the comparison note](2026-10-20-sonnet-haiku-effort-comparison.md); the earlier unfunded recommendation above is historical. Production already has the selected model and effort. The plugin release targets **0.8.20-beta.2** on the owner's existing beta channel, from a separate beta version commit. Master remains on published stable **0.8.19**. A released asset is not proof that the phone has installed it or that fresh phone filing/mirror convergence has occurred.
