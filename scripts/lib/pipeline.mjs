@@ -18,7 +18,10 @@ export async function loadRepoPipeline() {
     stdin: {
       contents: [
         `export { buildMessagesRequest, SYSTEM_PROMPT, CLASSIFICATION_SCHEMA, classifyCapture } from "./src/pipeline/classify";`,
-        `export { buildVaultContext } from "./src/pipeline/context";`,
+        `export { buildVaultContext, ContextRun } from "./src/pipeline/context";`,
+        `export { CandidateCorpus } from "./src/pipeline/candidates";`,
+        `export { buildLinkGraph } from "./src/pipeline/expand";`,
+        `export { extractCaptureBody } from "./src/pipeline/refreshAtoms";`,
         `export { DEFAULT_ACTIVE_VOCABULARY } from "./src/pipeline/vocabulary";`,
         `export { ASSUMED_OUTPUT_TOKENS, DEFAULT_BACKFILL_MODEL } from "./src/pipeline/backfill";`,
       ].join("\n"),

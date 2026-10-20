@@ -17,6 +17,14 @@ import type {
 
 export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>;
 
+/** A stalled connection must release callers' filing and mirror locks. */
+export class PlusRequestTimeoutError extends Error {
+  constructor() {
+    super(PLUS_UNREACHABLE_MESSAGE);
+    this.name = "TimeoutError";
+  }
+}
+
 /**
  * Fetch-backed request matching the subset of requestUrl we use (status/json/text).
  * Does not throw on HTTP 4xx/5xx (like requestUrl with throw:false).
@@ -27,45 +35,65 @@ export type RequestFn = (params: RequestUrlParam) => Promise<RequestUrlResponse>
 export async function plusFetchRequest(
   params: RequestUrlParam,
 ): Promise<RequestUrlResponse> {
-  // `window.fetch` (not bare `fetch`): community lint forbids disabling
-  // no-restricted-globals, and desktop requestUrl fails to localhost.
-  const res = await window.fetch(params.url, {
-    method: params.method ?? "GET",
-    headers: params.headers,
-    body:
-      params.body === undefined || params.body === null
-        ? undefined
-        : typeof params.body === "string"
-          ? params.body
-          : params.body instanceof ArrayBuffer || ArrayBuffer.isView(params.body)
-            ? (params.body as BodyInit)
-            : undefined,
+  const controller = new AbortController();
+  let timer: number | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = window.setTimeout(() => {
+      reject(new PlusRequestTimeoutError());
+      controller.abort();
+    }, 60_000);
   });
-  const text = await res.text();
-  // Unparseable body stays `undefined` (not `{}`) so plusRequest can tell a
-  // gateway's HTML apart from a real empty 2xx and never invents fields.
-  let json: unknown = {};
   try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    json = undefined;
+    // Cover both response headers and body. Racing also settles callers when
+    // a suspended mobile transport does not promptly reject after abort().
+    return await Promise.race([
+      (async () => {
+        // `window.fetch` (not bare `fetch`): community lint forbids disabling
+        // no-restricted-globals, and desktop requestUrl fails to localhost.
+        const res = await window.fetch(params.url, {
+          signal: controller.signal,
+          method: params.method ?? "GET",
+          headers: params.headers,
+          body:
+            params.body === undefined || params.body === null
+              ? undefined
+              : typeof params.body === "string"
+                ? params.body
+                : params.body instanceof ArrayBuffer || ArrayBuffer.isView(params.body)
+                  ? (params.body as BodyInit)
+                  : undefined,
+        });
+        const text = await res.text();
+        // Unparseable body stays `undefined` (not `{}`) so plusRequest can tell a
+        // gateway's HTML apart from a real empty 2xx and never invents fields.
+        let json: unknown = {};
+        try {
+          json = text ? JSON.parse(text) : {};
+        } catch {
+          json = undefined;
+        }
+        const bytes = new TextEncoder().encode(text);
+        const headers: Record<string, string> = {};
+        res.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        const out: RequestUrlResponse = {
+          status: res.status,
+          headers,
+          text,
+          json,
+          arrayBuffer: bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength,
+          ),
+        };
+        return out;
+      })(),
+      deadline,
+    ]);
+  } finally {
+    if (timer !== undefined) window.clearTimeout(timer);
   }
-  const bytes = new TextEncoder().encode(text);
-  const headers: Record<string, string> = {};
-  res.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
-  const out: RequestUrlResponse = {
-    status: res.status,
-    headers,
-    text,
-    json,
-    arrayBuffer: bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ),
-  };
-  return out;
 }
 
 export type PlusCheckoutKind =

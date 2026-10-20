@@ -8,7 +8,10 @@ import {
   stubDailyNotes,
 } from "./helpers/pipelineVault";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 describe("runWritePath — in-run visibility (R4)", () => {
   it("shows a later capture the atom an earlier capture in the same run created", async () => {
@@ -534,6 +537,29 @@ describe("runWritePath — meter exhaustion abort", () => {
     expect(report.failed).toBe(1);
     expect(report.stoppedReason).toBe("exhausted");
     expect(report.failures[0]?.reason).toBe("quota");
+  });
+
+  it("stops after a stalled Plus request and leaves every capture unmarked", async () => {
+    vi.useFakeTimers();
+    const v = threeCaptures();
+    const original = v.read("Daily/2026-07-01.md");
+    const fetch = vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    let report: Awaited<ReturnType<typeof runWritePath>> | undefined;
+    const pending = runWritePath({
+      app: v.app,
+      contextProvider: provider(v.app),
+      apiKey: "",
+      model: "claude-sonnet-5-5",
+      activeVocabulary: ["idea"],
+      atomFolder: "Atoms",
+      classifyDeps: { plus: plusDeps(undefined).plus },
+    }).then((result) => { report = result; });
+    await vi.advanceTimersByTimeAsync(60_001);
+    expect(report).toMatchObject({ failed: 1, markersAppended: 0, atomsCreated: 0, stoppedReason: "timeout" });
+    expect(report?.failures[0]?.reason).toBe("timeout");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(v.read("Daily/2026-07-01.md")).toBe(original);
+    await pending;
   });
 
   it("distinguishes exhaustion from an ordinary failure", async () => {

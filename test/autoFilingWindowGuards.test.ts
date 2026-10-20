@@ -341,6 +341,25 @@ describe("a refused pass claims nothing and files nothing", () => {
     expect(vault.read(`Daily/${dayBack(20)}.md`)).toContain("<!--linker-->");
   });
 
+  it("refreshes Home after a failed filing pass has released its running flag", async () => {
+    const day = dayBack(1);
+    const { self } = filingSelf({
+      store: {
+        [LS_AUTO_RUN_ENABLED]: true,
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        [LS_AUTO_RUN_START_DAY]: day,
+      },
+      files: { [`Daily/${day}.md`]: "- a past thought about sleep\n" },
+      dailies: [{ path: `Daily/${day}.md`, date: day }],
+    });
+    classifyTransport.handler = async () => { throw new Error("network down"); };
+    const snapshots: boolean[] = [];
+    self.refreshAtomsHomeLeaves = async () => { snapshots.push(self.autoRunInFlight); };
+    await unattendedPass(self);
+    expect(self.autoRunInFlight).toBe(false);
+    expect(snapshots.at(-1)).toBe(false);
+  });
+
   it("a refused pass never reports itself as filing", async () => {
     // Enabled, but no privacy ack — the gate refuses after the count, which is exactly when
     // `filingStartedAt` used to already be set. `decideResumeStages` and home's filing card

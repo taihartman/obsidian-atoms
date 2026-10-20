@@ -63,7 +63,7 @@ export const config = {
     return env("ANTHROPIC_API_KEY");
   },
   get anthropicModel() {
-    return env("ATOMS_PLUS_MODEL", "claude-sonnet-5");
+    return env("ATOMS_PLUS_MODEL", "claude-sonnet-5-5");
   },
   /**
    * Optional Messages API output_config.effort (low|medium|high|xhigh|max).

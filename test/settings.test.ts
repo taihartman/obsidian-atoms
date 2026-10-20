@@ -5306,3 +5306,18 @@ describe("Capture and File groups (U3)", () => {
   });
   });
 });
+
+describe("Sonnet 5.5 model setting", () => {
+  it("renders the current default and restores it when the field is cleared", () => {
+    const { tab, plugin } = settingTab();
+    openAdvanced(tab);
+    const input = row(tab, "Model").querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("claude-sonnet-5-5");
+    expect(input.placeholder).toBe("claude-sonnet-5-5");
+    expect(row(tab, "Model").textContent).toContain("Default: claude-sonnet-5-5.");
+    fill(tab, "Model", "claude-sonnet-5");
+    expect(plugin.settings.model).toBe("claude-sonnet-5");
+    fill(tab, "Model", "");
+    expect(plugin.settings.model).toBe("claude-sonnet-5-5");
+  });
+});

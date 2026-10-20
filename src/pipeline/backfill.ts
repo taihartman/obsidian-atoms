@@ -41,7 +41,8 @@ export const DEFAULT_BACKFILL_MODEL = "claude-haiku-4-5-20251001";
 
 /**
  * List prices USD per million tokens (standard, pre-batch).
- * Conservative mid-2026 public rates — estimate only, not a quote.
+ * Public list rates, including Sonnet 5.5 checked 2026-10-20.
+ * Legacy rates remain for explicitly selected older models. Estimates are not quotes.
  */
 export const MODEL_RATES_USD_PER_MTOK: Record<
   string,
@@ -49,7 +50,8 @@ export const MODEL_RATES_USD_PER_MTOK: Record<
 > = {
   "claude-haiku-4-5-20251001": { input: 1, output: 5 },
   "claude-haiku-4-5": { input: 1, output: 5 },
-  "claude-sonnet-5": { input: 3, output: 15 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
+  "claude-sonnet-5": { input: 2, output: 10 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4-5-20250929": { input: 3, output: 15 },
 };

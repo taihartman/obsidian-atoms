@@ -1377,6 +1377,12 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
+    // onFiled runs before the cycle releases its lock. Refresh once more after
+    // release, including all-failed passes that have no land peak to redraw Home.
+    if (outcome.ran || outcome.reason === "error") {
+      await this.refreshAtomsHomeLeaves();
+    }
+
     if (outcome.reason === "empty") {
       devLog("[atoms] auto-run empty success", { source, since: outcome.since });
     } else if (outcome.reason === "ok") {

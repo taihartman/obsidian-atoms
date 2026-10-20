@@ -95,6 +95,7 @@ import {
 } from "./rows";
 import {
   API_KEY_SECRET_ID_DEFAULT,
+  DEFAULT_CLASSIFY_MODEL,
   LOCAL_STORAGE_API_KEY,
   type LinkerSettings,
 } from "../shared/types";
@@ -1913,17 +1914,17 @@ export class AtomsSettingTab extends PluginSettingTab {
       render: (groupEl) => {
         settingRow(groupEl, {
           name: "Model",
-          desc: "Anthropic model id. Default: claude-sonnet-5.",
+          desc: `Anthropic model id. Default: ${DEFAULT_CLASSIFY_MODEL}.`,
           control: {
             kind: "text",
             configure: (text) => {
               // Block body: Obsidian components are thenable; returning the chain trips
               // misused-promises.
               text
-                .setPlaceholder("claude-sonnet-5")
+                .setPlaceholder(DEFAULT_CLASSIFY_MODEL)
                 .setValue(this.plugin.settings.model)
                 .onChange((value) => {
-                  this.plugin.settings.model = value.trim() || "claude-sonnet-5";
+                  this.plugin.settings.model = value.trim() || DEFAULT_CLASSIFY_MODEL;
                   void this.plugin.saveSettings();
                 });
             },

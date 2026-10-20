@@ -2,6 +2,29 @@
 
 `scripts/model-bakeoff.mjs`
 
+Current-version follow-up: [2026-10-20 phone sync and model audit](2026-10-20-phone-sync-and-model-audit.md)
+records newer provider candidates and the distinction between repository defaults and
+unverified production overrides. The results below describe the July candidates.
+
+For the current Sonnet/Haiku effort comparison, use
+[`scripts/model-effort-bakeoff.mjs`](../../scripts/model-effort-bakeoff.mjs) and its
+[2026-10-20 protocol/results](2026-10-20-sonnet-haiku-effort-comparison.md). It reuses
+production classification/shortlisting, sets Anthropic effort explicitly, caps spend,
+and keeps private evaluation data outside Git. The July harness below remains available
+for reproducing the historical study.
+
+The current harness defaults to the plugin/BYOK payload. Use `--payload plus` for
+the server-owned prompt and its 2,048-token default; these are distinct experiments.
+`--haiku-extra-effort xhigh --max-tokens 8192` extends an existing matching pilot
+with a separately scored configuration. Start without `--confirm` to prepare inputs
+and inspect the estimate. Use an output directory outside this repository; a real
+vault, when explicitly authorized, is read only and its raw cases stay there.
+
+`--payload plus --incumbent-compare` runs Sonnet 5 low against Sonnet 5.5 low on
+all prepared cases, without effort selection. Use a fresh private run directory
+for fresh timing measurements and set the authorized follow-up `--budget`
+explicitly. The October report records the matching 300-case/20-private-case run.
+
 ## The question it answers
 
 Do OpenAI's GPT-5.6 tiers file captures as well as Sonnet 5, and at what price?

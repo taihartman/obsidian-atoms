@@ -1,0 +1,319 @@
+{
+  "date": "2026-10-20",
+  "finishedAt": "2026-10-20T20:51:44.615Z",
+  "scope": "Owner-requested fresh paired incumbent comparison. Same 300 synthetic and 20 read-only private inputs per model. No production writes or configuration changes.",
+  "protocol": {
+    "payloadMode": "plus",
+    "effort": "low",
+    "maxTokens": 2048,
+    "concurrency": 4,
+    "synthetic": 300,
+    "private": 20,
+    "allFresh": true,
+    "smokeReusedWithinThisRun": true,
+    "pricesSource": "https://platform.claude.com/docs/en/models/sonnet-5/overview"
+  },
+  "counts": {
+    "records": 640,
+    "requests": 640,
+    "errors": 0,
+    "truncated": 0,
+    "rawBodyFields": 0
+  },
+  "budget": {
+    "capUsd": 10,
+    "spentUsd": 7.692603700000001,
+    "priorStudyUsd": 10.966847304999986,
+    "cumulativeUsd": 18.659451004999987,
+    "unsettled": 0
+  },
+  "provenance": {
+    "createdAt": "2026-10-20T20:44:09.503Z",
+    "scope": "Owner-requested fresh incumbent comparison; no production writes/settings changes",
+    "sourceCasesSha256": "647c78abb3e58e700094f6b04a7203df49241de15e1c4cda03a42215378e6faa",
+    "sourceHashes": {
+      "scripts/model-effort-bakeoff.mjs": "b5d8e85782731256f008193a5bb628d859899af816fb9bba047f79e3d67a570f",
+      "scripts/lib/effort-eval.mjs": "63fd0d597a25a304e4a43a7dc3f7249a0e70e80061e895843d41dc42c099bc1f",
+      "scripts/lib/pipeline.mjs": "b1dd2c2ffa3b9edc2732e28b5e1d247ccf035980fddfe157a7eaa2aefa6eb8d2",
+      "node_modules/.cache/atoms-measure/pipeline.mjs": "c5978a568c204e2c79abb6dd208c8dd06cd23c231e63f7b7408ee2d9aea1094c",
+      "plus-service/src/anthropic.mjs": "b4228d2aff5cc46b9edcad76c0cedf5027b57f30cfa7d7651793a707ae1ee573",
+      "plus-service/src/classifyTemplate.mjs": "6ca9d50d4993062800a301567513d34bac0153bf53510be0eb3309fee27ea18b"
+    },
+    "maxTokens": 2048,
+    "concurrency": 4,
+    "effort": "low",
+    "budgetCapUsd": 10,
+    "earlierStudyUsd": 10.966847304999986,
+    "estimate": [
+      {
+        "model": "claude-sonnet-5",
+        "proxyEstimatedUsd": 3.9803592999999977
+      },
+      {
+        "model": "claude-sonnet-5-5",
+        "proxyEstimatedUsd": 3.824974399999998
+      }
+    ],
+    "pricesSource": "https://platform.claude.com/docs/en/models/sonnet-5/overview",
+    "fullRunStartedAt": "2026-10-20T20:45:05.761Z",
+    "fullRunScriptSha256": "4d19e5969d412adb8227fcd49f88e861addf25956acb8313e8ffdbaf776e8e2e",
+    "responseModelRecorded": true
+  },
+  "providerModels": {
+    "claude-sonnet-5-plus-low": {
+      "claude-sonnet-5": 319,
+      "unrecorded-smoke": 1
+    },
+    "claude-sonnet-5-5-plus-low": {
+      "claude-sonnet-5-5": 319,
+      "unrecorded-smoke": 1
+    }
+  },
+  "synthetic": [
+    {
+      "arm": {
+        "model": "claude-sonnet-5",
+        "effort": "low",
+        "id": "claude-sonnet-5-plus-low"
+      },
+      "score": {
+        "captures": 300,
+        "labeled": 300,
+        "errors": 0,
+        "truncated": 0,
+        "rawBodyFields": 0,
+        "verdictAccuracy": 0.96,
+        "goldLinks": 535,
+        "retrievedGoldLinks": 319,
+        "proposedLinks": 208,
+        "trueLinks": 138,
+        "precision": 0.6634615384615384,
+        "recall": 0.25794392523364484,
+        "f1": 0.3714670255720054,
+        "retrievalRecall": 0.5962616822429907,
+        "recallGivenRetrieval": 0.43260188087774293,
+        "atomGold": 269,
+        "atomRetrieved": 191,
+        "atomTrue": 51,
+        "atomProposed": 111,
+        "atomPrecision": 0.4594594594594595,
+        "atomRecall": 0.1895910780669145,
+        "atomF1": 0.26842105263157895,
+        "atomRecallGivenRetrieval": 0.2670157068062827,
+        "hubGold": 266,
+        "hubTrue": 87,
+        "hubRecall": 0.32706766917293234,
+        "unknownLinks": 16,
+        "medianMs": 2761,
+        "p95Ms": 4304,
+        "usd": 3.7948012999999965,
+        "inputTokens": 3038909,
+        "outputTokens": 33612,
+        "thinkingTokens": 2704
+      }
+    },
+    {
+      "arm": {
+        "model": "claude-sonnet-5-5",
+        "effort": "low",
+        "id": "claude-sonnet-5-5-plus-low"
+      },
+      "score": {
+        "captures": 300,
+        "labeled": 300,
+        "errors": 0,
+        "truncated": 0,
+        "rawBodyFields": 0,
+        "verdictAccuracy": 0.9566666666666667,
+        "goldLinks": 535,
+        "retrievedGoldLinks": 319,
+        "proposedLinks": 349,
+        "trueLinks": 202,
+        "precision": 0.5787965616045845,
+        "recall": 0.3775700934579439,
+        "f1": 0.45701357466063347,
+        "retrievalRecall": 0.5962616822429907,
+        "recallGivenRetrieval": 0.6332288401253918,
+        "atomGold": 269,
+        "atomRetrieved": 191,
+        "atomTrue": 85,
+        "atomProposed": 215,
+        "atomPrecision": 0.3953488372093023,
+        "atomRecall": 0.3159851301115242,
+        "atomF1": 0.3512396694214876,
+        "atomRecallGivenRetrieval": 0.44502617801047123,
+        "hubGold": 266,
+        "hubTrue": 117,
+        "hubRecall": 0.4398496240601504,
+        "unknownLinks": 5,
+        "medianMs": 2155,
+        "p95Ms": 3654,
+        "usd": 3.7365384000000006,
+        "inputTokens": 3039509,
+        "outputTokens": 42230,
+        "thinkingTokens": 0
+      }
+    }
+  ],
+  "private": [
+    {
+      "arm": {
+        "model": "claude-sonnet-5",
+        "effort": "low",
+        "id": "claude-sonnet-5-plus-low"
+      },
+      "score": {
+        "captures": 20,
+        "labeled": 0,
+        "errors": 0,
+        "truncated": 0,
+        "rawBodyFields": 0,
+        "verdictAccuracy": null,
+        "goldLinks": 0,
+        "retrievedGoldLinks": 0,
+        "proposedLinks": 12,
+        "trueLinks": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "retrievalRecall": null,
+        "recallGivenRetrieval": null,
+        "atomGold": 0,
+        "atomRetrieved": 0,
+        "atomTrue": 0,
+        "atomProposed": 12,
+        "atomPrecision": null,
+        "atomRecall": null,
+        "atomF1": null,
+        "atomRecallGivenRetrieval": null,
+        "hubGold": 0,
+        "hubTrue": 0,
+        "hubRecall": null,
+        "unknownLinks": 0,
+        "medianMs": 2663,
+        "p95Ms": 3721,
+        "usd": 0.08163799999999997,
+        "inputTokens": 117487,
+        "outputTokens": 2202,
+        "thinkingTokens": 63
+      }
+    },
+    {
+      "arm": {
+        "model": "claude-sonnet-5-5",
+        "effort": "low",
+        "id": "claude-sonnet-5-5-plus-low"
+      },
+      "score": {
+        "captures": 20,
+        "labeled": 0,
+        "errors": 0,
+        "truncated": 0,
+        "rawBodyFields": 0,
+        "verdictAccuracy": null,
+        "goldLinks": 0,
+        "retrievedGoldLinks": 0,
+        "proposedLinks": 22,
+        "trueLinks": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "retrievalRecall": null,
+        "recallGivenRetrieval": null,
+        "atomGold": 0,
+        "atomRetrieved": 0,
+        "atomTrue": 0,
+        "atomProposed": 22,
+        "atomPrecision": null,
+        "atomRecall": null,
+        "atomF1": null,
+        "atomRecallGivenRetrieval": null,
+        "hubGold": 0,
+        "hubTrue": 0,
+        "hubRecall": null,
+        "unknownLinks": 0,
+        "medianMs": 1699,
+        "p95Ms": 2656,
+        "usd": 0.079626,
+        "inputTokens": 117527,
+        "outputTokens": 2967,
+        "thinkingTokens": 0
+      }
+    }
+  ],
+  "verdictConfusion": [
+    {
+      "arm": "claude-sonnet-5-plus-low",
+      "atomCorrect": 239,
+      "atomRejected": 2,
+      "noiseKept": 10,
+      "noiseCorrect": 49
+    },
+    {
+      "arm": "claude-sonnet-5-5-plus-low",
+      "atomCorrect": 239,
+      "atomRejected": 2,
+      "noiseKept": 11,
+      "noiseCorrect": 48
+    }
+  ],
+  "pairedAnalysis": {
+    "createdAt": "2026-10-20T20:51:57.292Z",
+    "pairedComparisons": [
+      {
+        "first": "claude-sonnet-5-5-plus-low",
+        "second": "claude-sonnet-5-plus-low",
+        "n": 300,
+        "seed": 20261020,
+        "iterations": 10000,
+        "differences": {
+          "atomRecall": {
+            "difference": 0.12639405204460968,
+            "lower95": 0.07865168539325845,
+            "upper95": 0.17567567567567569
+          },
+          "atomF1": {
+            "difference": 0.08281861678990865,
+            "lower95": 0.028693800752624288,
+            "upper95": 0.13935336451192687
+          },
+          "verdictAccuracy": {
+            "difference": -0.0033333333333332993,
+            "lower95": -0.026666666666666616,
+            "upper95": 0.01666666666666672
+          }
+        }
+      }
+    ],
+    "tokenLimits": [
+      {
+        "arm": "claude-sonnet-5-plus-low",
+        "n": 320,
+        "over1024": 0,
+        "over2048": 0,
+        "p95Output": 213,
+        "maxOutput": 359
+      },
+      {
+        "arm": "claude-sonnet-5-5-plus-low",
+        "n": 320,
+        "over1024": 0,
+        "over2048": 0,
+        "p95Output": 265,
+        "maxOutput": 350
+      }
+    ]
+  },
+  "qualitative": {
+    "reviewer": "Main assistant; single qualitative reviewer, not independent human gold",
+    "n": 20,
+    "randomizedLabels": true,
+    "judgmentsSavedBeforeUnblinding": true,
+    "preferences": {
+      "tie": 7,
+      "claude-sonnet-5-5-plus-low": 10,
+      "claude-sonnet-5-plus-low": 3
+    },
+    "limits": "Single-assistant subjective preferences over selected already-filed captures. Not independently adjudicated gold, unbiased verdict accuracy or measured precision."
+  }
+}
