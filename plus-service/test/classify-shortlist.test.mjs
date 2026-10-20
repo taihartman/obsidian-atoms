@@ -6,6 +6,7 @@
  */
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { config } from "../src/config.mjs";
 import { boundContext, buildClassifyPayload } from "../src/anthropic.mjs";
 
 /** Titles whose received (ranked) order is deliberately the reverse of alphabetical. */
@@ -205,5 +206,31 @@ describe("U7 shortlist + expansion + cache split", () => {
     assert.match(captureMsg, /Title: Sleep debt is real/);
     assert.match(captureMsg, /Path: Atoms\/Sleep debt is real\.md/);
     assert.match(built.payload.system, /Continue parent \(when present\)/);
+  });
+});
+
+describe("Sonnet 5.5 defaults", () => {
+  it("uses Sonnet 5.5 for classification, Ask expansion and G2 while preserving overrides", () => {
+    const keys = ["ATOMS_PLUS_MODEL", "ASK_EXPAND_MODEL", "G2_METADATA_MODEL"];
+    const previous = keys.map((key) => process.env[key]);
+    try {
+      for (const key of keys) delete process.env[key];
+      assert.equal(buildClassifyPayload({ capture: "An observation about sleep" }).payload.model, "claude-sonnet-5-5");
+      assert.equal(config.askExpandModel, "claude-sonnet-5-5");
+      assert.equal(config.g2MetadataModel, "claude-sonnet-5-5");
+      process.env.ATOMS_PLUS_MODEL = "operator-classify-model";
+      assert.equal(config.anthropicModel, "operator-classify-model");
+      assert.equal(config.askExpandModel, "operator-classify-model");
+      assert.equal(config.g2MetadataModel, "operator-classify-model");
+      process.env.ASK_EXPAND_MODEL = "operator-expand-model";
+      process.env.G2_METADATA_MODEL = "operator-g2-model";
+      assert.equal(config.askExpandModel, "operator-expand-model");
+      assert.equal(config.g2MetadataModel, "operator-g2-model");
+    } finally {
+      keys.forEach((key, i) => {
+        if (previous[i] === undefined) delete process.env[key];
+        else process.env[key] = previous[i];
+      });
+    }
   });
 });

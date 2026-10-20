@@ -1377,6 +1377,13 @@ export default class AtomsPlugin extends Plugin {
       },
     });
 
+    // onFiled runs before the cycle releases its lock. Refresh after every
+    // claimed cycle, including a failed pre-filing check that never reaches onFiled.
+    // An in-flight refusal belongs to another pass whose lock is still held.
+    if (outcome.reason !== "in_flight") {
+      await this.refreshAtomsHomeLeaves();
+    }
+
     if (outcome.reason === "empty") {
       devLog("[atoms] auto-run empty success", { source, since: outcome.since });
     } else if (outcome.reason === "ok") {

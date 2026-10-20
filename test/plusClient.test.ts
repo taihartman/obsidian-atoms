@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RequestUrlParam, RequestUrlResponse } from "obsidian";
 import {
+  plusFetchRequest,
   askMirrorDelete,
   askMirrorReconcile,
   askMirrorUpsert,
@@ -1050,5 +1051,47 @@ describe("plusClient", () => {
 
       expect(r.ok).toBe(true);
     });
+  });
+});
+
+describe("Plus request deadlines", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it.each(["headers", "body"])("settles a stalled %s request within one minute", async (stage) => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    vi.spyOn(window, "fetch").mockImplementation(async (_url, init) => {
+      signal = init?.signal ?? undefined;
+      if (stage === "headers") return new Promise<Response>(() => {});
+      return { text: () => new Promise<string>(() => {}) } as Response;
+    });
+    let failure: unknown;
+    void plusFetchRequest({ url: "https://plus.test/v1/me" }).catch((error: unknown) => {
+      failure = error;
+    });
+    await vi.advanceTimersByTimeAsync(60_001);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).name).toBe("TimeoutError");
+    expect(signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("preserves successful replies and cancels their deadline", async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    vi.spyOn(window, "fetch").mockImplementation(async (_url, init) => {
+      signal = init?.signal ?? undefined;
+      return new Response(JSON.stringify({ remaining: 150 }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    });
+    const reply = await plusFetchRequest({ url: "https://plus.test/v1/me" });
+    expect(reply.json).toEqual({ remaining: 150 });
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_001);
+    expect(signal?.aborted).toBe(false);
   });
 });

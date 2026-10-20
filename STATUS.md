@@ -28,6 +28,7 @@ States: `Queued` · `In progress` · `Blocked` · `In review` · `Done` (then re
 
 | Merged | Issue / PR | Summary |
 |---|---|---|
+| 2026-10-20 | #630 / #631 | Plus requests settle after one minute; a timed-out slice leaves later captures retryable and Home refreshes after its lock clears. Sonnet 5.5 defaults and paired evaluation tooling/results. Production already uses low effort; the separate **0.8.20-beta.2** release follows CI. [Incident](docs/research/2026-10-20-phone-sync-and-model-audit.md) · [comparison](docs/research/2026-10-20-sonnet-haiku-effort-comparison.md). |
 | 2026-09-01 | #615 / #616 | Ask `create_atom` / `continue_atom`: body is a record; links are retrieval hints. Shared field describes; inferred connections belong in `reason`. plus-service only; Fly after merge. |
 | 2026-08-30 | #611 / #612 | Home keeps its place while notes file · **0.8.19**. `render()` emptied `.atoms-home-scroll`; auto-run never set `busy`, so each vault write rebuilt the library. Position is per screen and restored after layout; vault refresh skips while a filing pass is in flight. Unit + mutation-checked; live sidebar smoke not run (motion). [The learning](docs/solutions/ui-bugs/emptying-the-scroller-dumps-the-reader-at-the-top.md). Report: `docs/qa/2026-08-30-home-scroll-during-filing-world-class-qa.md`. |
 | 2026-08-30 | #609 / #610 | Tagged `search_atoms` is browse, not a second query. Floor stays for untagged search. Payload reports `omitted_below_threshold`, `omitted_by_limit`, `tag_pool`. Plus-service; Fly after merge. |

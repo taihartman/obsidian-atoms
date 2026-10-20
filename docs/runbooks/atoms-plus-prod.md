@@ -6,6 +6,21 @@
 
 > Product domain **tryatoms.app** only. Mail: `plus@mail.tryatoms.app` (Resend verified 2026-07-28). No `mail.taihartman.com` / `onboarding@resend.dev`. Cutover: `docs/runbooks/tryatoms-domain-cutover.md`.
 
+## Database quota outage
+
+If HTTPS connects but `/health` never returns, check `fly logs -a atoms-plus --no-tail` and
+`fly checks list -a atoms-plus` before blaming mobile Sync. Postgres **53000** with
+**account or project has exceeded the quota** means the database refuses startup.
+`createStore()` is awaited before `server.listen`, so both machines can restart repeatedly
+without a working health route. Restarting them does not replenish database quota.
+
+Inspect the Neon project's current consumption period and compute usage through its
+read-only project API. Free compute exhaustion suspends service until the next period
+or an approved plan upgrade. Plan/billing changes require owner approval. Never switch
+production to an empty memory/SQLite store or recreate the database to work around this.
+See the [2026-10-20 investigation](../research/2026-10-20-phone-sync-and-model-audit.md)
+for the measured outage, quota, source links and restoration verification.
+
 ## Prerequisites
 
 - Stripe account (staging = **test** mode; **live** keys only on the public host when ready for real money)

@@ -1,0 +1,1376 @@
+{
+  "date": "2026-10-20",
+  "scope": "Read-only paired classifier evaluation; aggregate metrics only. Gold fixture agreement is not complete human link precision. No production vault writes or live configuration changes from this benchmark.",
+  "datasets": {
+    "syntheticCaptures": 300,
+    "privateCaptures": 20,
+    "privateSource": "Owner-authorized partial desktop production snapshot; no private excerpts retained in this artifact."
+  },
+  "counts": {
+    "records": 1900,
+    "requests": 1900,
+    "errors": 5,
+    "truncated": 5,
+    "rawBodyFields": 0
+  },
+  "budget": {
+    "capUsd": 15,
+    "spentUsd": 10.966847304999986,
+    "unsettledRequests": 0
+  },
+  "provenance": {
+    "base": {
+      "createdAt": "2026-10-20",
+      "head": "32b3545b1a65aec8348c7280641c55061c7dd635",
+      "sourceHashes": {
+        "scripts/model-effort-bakeoff.mjs": "a93ec919f68ba9d3613f9b5b552c48f9b66f484f83866d9a7f35c8d323c0cded",
+        "scripts/lib/effort-eval.mjs": "b4544bbea7e37fcae103f4af4fe5664b287d99799b2e025a5048d6b010dc9d07",
+        "scripts/lib/pipeline.mjs": "b1dd2c2ffa3b9edc2732e28b5e1d247ccf035980fddfe157a7eaa2aefa6eb8d2",
+        "node_modules/.cache/atoms-measure/pipeline.mjs": "c5978a568c204e2c79abb6dd208c8dd06cd23c231e63f7b7408ee2d9aea1094c"
+      },
+      "apiDestination": "https://api.anthropic.com/v1/messages",
+      "maxBudgetUsd": 15,
+      "privateDataSource": "Read-only partial desktop production vault snapshot; raw data excluded from repository"
+    },
+    "plus": {
+      "createdAt": "2026-10-20T20:14:06.380Z",
+      "baseManifest": "run-manifest.json",
+      "sourceHashes": {
+        "scripts/model-effort-bakeoff.mjs": "92a56c62f9f5aed073dbcdbe0fd7f7528630e0585b76d67013b2e63c8390bb85",
+        "scripts/lib/effort-eval.mjs": "b4544bbea7e37fcae103f4af4fe5664b287d99799b2e025a5048d6b010dc9d07",
+        "scripts/lib/pipeline.mjs": "b1dd2c2ffa3b9edc2732e28b5e1d247ccf035980fddfe157a7eaa2aefa6eb8d2",
+        "node_modules/.cache/atoms-measure/pipeline.mjs": "c5978a568c204e2c79abb6dd208c8dd06cd23c231e63f7b7408ee2d9aea1094c",
+        "plus-service/src/anthropic.mjs": "b4228d2aff5cc46b9edcad76c0cedf5027b57f30cfa7d7651793a707ae1ee573",
+        "plus-service/src/classifyTemplate.mjs": "6ca9d50d4993062800a301567513d34bac0153bf53510be0eb3309fee27ea18b"
+      },
+      "maxTokens": 2048,
+      "concurrency": 4,
+      "budgetSharedWithBaseRun": true,
+      "liveObserved": {
+        "machine": "857622da517258",
+        "model": "claude-sonnet-5-5",
+        "effort": "low",
+        "maxTokens": 2048,
+        "promptSha256": "159646a0a33ef6d1ad69779cc9771a70a0083c63863010225fac644f9a5812f0"
+      }
+    },
+    "xhighRetry": {
+      "createdAt": "2026-10-20T20:25:14.666Z",
+      "sourceHashes": {
+        "scripts/model-effort-bakeoff.mjs": "f7997a0186c76fe4d7c547828d5b2289a84a2319c1e752a45d4e5c9488fdaae8",
+        "scripts/lib/effort-eval.mjs": "b4544bbea7e37fcae103f4af4fe5664b287d99799b2e025a5048d6b010dc9d07",
+        "plus-service/src/anthropic.mjs": "b4228d2aff5cc46b9edcad76c0cedf5027b57f30cfa7d7651793a707ae1ee573",
+        "plus-service/src/classifyTemplate.mjs": "6ca9d50d4993062800a301567513d34bac0153bf53510be0eb3309fee27ea18b"
+      },
+      "payloadMode": "plus",
+      "maxTokens": 8192,
+      "effort": "xhigh",
+      "model": "claude-haiku-5-5",
+      "concurrency": 4,
+      "budgetShared": true,
+      "ownerRequestedRetry": true
+    },
+    "liveBuilderVerification": {
+      "verifiedAt": "2026-10-20T20:36:49.416Z",
+      "machine": "857622da517258",
+      "builderSha256": "b4228d2aff5cc46b9edcad76c0cedf5027b57f30cfa7d7651793a707ae1ee573",
+      "matchesLocal": true,
+      "maxContextTitles": 400,
+      "maxLegacyContextTitles": 40,
+      "effort": "low",
+      "maxTokens": 2048
+    }
+  },
+  "phases": {
+    "pilot": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "id": "claude-sonnet-5-5-medium"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.98,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 72,
+          "trueLinks": 41,
+          "precision": 0.5694444444444444,
+          "recall": 0.44565217391304346,
+          "f1": 0.5,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.7454545454545455,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 19,
+          "atomProposed": 47,
+          "atomPrecision": 0.40425531914893614,
+          "atomRecall": 0.4318181818181818,
+          "atomF1": 0.41758241758241754,
+          "atomRecallGivenRetrieval": 0.6129032258064516,
+          "hubGold": 48,
+          "hubTrue": 22,
+          "hubRecall": 0.4583333333333333,
+          "unknownLinks": 0,
+          "medianMs": 2761,
+          "p95Ms": 6382,
+          "usd": 0.6711271999999998,
+          "inputTokens": 532098,
+          "outputTokens": 8271,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high",
+          "id": "claude-sonnet-5-5-high"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.96,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 73,
+          "trueLinks": 43,
+          "precision": 0.589041095890411,
+          "recall": 0.4673913043478261,
+          "f1": 0.5212121212121212,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.7818181818181819,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 21,
+          "atomProposed": 48,
+          "atomPrecision": 0.4375,
+          "atomRecall": 0.4772727272727273,
+          "atomF1": 0.45652173913043476,
+          "atomRecallGivenRetrieval": 0.6774193548387096,
+          "hubGold": 48,
+          "hubTrue": 22,
+          "hubRecall": 0.4583333333333333,
+          "unknownLinks": 0,
+          "medianMs": 2715,
+          "p95Ms": 6609,
+          "usd": 0.6966671999999997,
+          "inputTokens": 532098,
+          "outputTokens": 10825,
+          "thinkingTokens": 2343
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "medium",
+          "id": "claude-haiku-5-5-medium"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.88,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 40,
+          "trueLinks": 25,
+          "precision": 0.625,
+          "recall": 0.2717391304347826,
+          "f1": 0.3787878787878788,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.45454545454545453,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 6,
+          "atomProposed": 19,
+          "atomPrecision": 0.3157894736842105,
+          "atomRecall": 0.13636363636363635,
+          "atomF1": 0.19047619047619047,
+          "atomRecallGivenRetrieval": 0.1935483870967742,
+          "hubGold": 48,
+          "hubTrue": 19,
+          "hubRecall": 0.3958333333333333,
+          "unknownLinks": 1,
+          "medianMs": 1968,
+          "p95Ms": 4708,
+          "usd": 0.03715367,
+          "inputTokens": 532098,
+          "outputTokens": 12948,
+          "thinkingTokens": 6749
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-high"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.92,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 53,
+          "trueLinks": 35,
+          "precision": 0.660377358490566,
+          "recall": 0.3804347826086957,
+          "f1": 0.48275862068965514,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.6363636363636364,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 14,
+          "atomProposed": 29,
+          "atomPrecision": 0.4827586206896552,
+          "atomRecall": 0.3181818181818182,
+          "atomF1": 0.3835616438356164,
+          "atomRecallGivenRetrieval": 0.45161290322580644,
+          "hubGold": 48,
+          "hubTrue": 21,
+          "hubRecall": 0.4375,
+          "unknownLinks": 1,
+          "medianMs": 4877,
+          "p95Ms": 6794,
+          "usd": 0.04958867000000001,
+          "inputTokens": 532098,
+          "outputTokens": 37818,
+          "thinkingTokens": 30724
+        }
+      }
+    ],
+    "full": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high",
+          "id": "claude-sonnet-5-5-high"
+        },
+        "score": {
+          "captures": 300,
+          "labeled": 300,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.9333333333333333,
+          "goldLinks": 535,
+          "retrievedGoldLinks": 319,
+          "proposedLinks": 439,
+          "trueLinks": 218,
+          "precision": 0.49658314350797267,
+          "recall": 0.4074766355140187,
+          "f1": 0.4476386036960986,
+          "retrievalRecall": 0.5962616822429907,
+          "recallGivenRetrieval": 0.6833855799373041,
+          "atomGold": 269,
+          "atomRetrieved": 191,
+          "atomTrue": 102,
+          "atomProposed": 307,
+          "atomPrecision": 0.3322475570032573,
+          "atomRecall": 0.379182156133829,
+          "atomF1": 0.35416666666666663,
+          "atomRecallGivenRetrieval": 0.5340314136125655,
+          "hubGold": 266,
+          "hubTrue": 116,
+          "hubRecall": 0.43609022556390975,
+          "unknownLinks": 5,
+          "medianMs": 2715,
+          "p95Ms": 5601,
+          "usd": 3.982189199999996,
+          "inputTokens": 3119609,
+          "outputTokens": 65930,
+          "thinkingTokens": 15806
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-high"
+        },
+        "score": {
+          "captures": 300,
+          "labeled": 300,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.9333333333333333,
+          "goldLinks": 535,
+          "retrievedGoldLinks": 319,
+          "proposedLinks": 302,
+          "trueLinks": 186,
+          "precision": 0.6158940397350994,
+          "recall": 0.34766355140186916,
+          "f1": 0.4444444444444445,
+          "retrievalRecall": 0.5962616822429907,
+          "recallGivenRetrieval": 0.5830721003134797,
+          "atomGold": 269,
+          "atomRetrieved": 191,
+          "atomTrue": 77,
+          "atomProposed": 182,
+          "atomPrecision": 0.4230769230769231,
+          "atomRecall": 0.2862453531598513,
+          "atomF1": 0.3414634146341463,
+          "atomRecallGivenRetrieval": 0.4031413612565445,
+          "hubGold": 266,
+          "hubTrue": 109,
+          "hubRecall": 0.40977443609022557,
+          "unknownLinks": 3,
+          "medianMs": 4385,
+          "p95Ms": 7123,
+          "usd": 0.2779902699999998,
+          "inputTokens": 3119609,
+          "outputTokens": 208329,
+          "thinkingTokens": 167096
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high",
+          "id": "claude-sonnet-5-5-high"
+        },
+        "score": {
+          "captures": 250,
+          "labeled": 250,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.928,
+          "goldLinks": 443,
+          "retrievedGoldLinks": 264,
+          "proposedLinks": 366,
+          "trueLinks": 175,
+          "precision": 0.4781420765027322,
+          "recall": 0.39503386004514673,
+          "f1": 0.4326328800988875,
+          "retrievalRecall": 0.5959367945823928,
+          "recallGivenRetrieval": 0.6628787878787878,
+          "atomGold": 225,
+          "atomRetrieved": 160,
+          "atomTrue": 81,
+          "atomProposed": 259,
+          "atomPrecision": 0.3127413127413127,
+          "atomRecall": 0.36,
+          "atomF1": 0.33471074380165294,
+          "atomRecallGivenRetrieval": 0.50625,
+          "hubGold": 218,
+          "hubTrue": 94,
+          "hubRecall": 0.43119266055045874,
+          "unknownLinks": 5,
+          "medianMs": 2682,
+          "p95Ms": 5488,
+          "usd": 3.285521999999997,
+          "inputTokens": 2587511,
+          "outputTokens": 55105,
+          "thinkingTokens": 13463
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-high"
+        },
+        "score": {
+          "captures": 250,
+          "labeled": 250,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.936,
+          "goldLinks": 443,
+          "retrievedGoldLinks": 264,
+          "proposedLinks": 249,
+          "trueLinks": 151,
+          "precision": 0.606425702811245,
+          "recall": 0.34085778781038373,
+          "f1": 0.43641618497109824,
+          "retrievalRecall": 0.5959367945823928,
+          "recallGivenRetrieval": 0.571969696969697,
+          "atomGold": 225,
+          "atomRetrieved": 160,
+          "atomTrue": 63,
+          "atomProposed": 153,
+          "atomPrecision": 0.4117647058823529,
+          "atomRecall": 0.28,
+          "atomF1": 0.3333333333333333,
+          "atomRecallGivenRetrieval": 0.39375,
+          "hubGold": 218,
+          "hubTrue": 88,
+          "hubRecall": 0.4036697247706422,
+          "unknownLinks": 2,
+          "medianMs": 4331,
+          "p95Ms": 7193,
+          "usd": 0.22840159999999993,
+          "inputTokens": 2587511,
+          "outputTokens": 170511,
+          "thinkingTokens": 136372
+        }
+      }
+    ],
+    "private": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high",
+          "id": "claude-sonnet-5-5-high"
+        },
+        "score": {
+          "captures": 20,
+          "labeled": 0,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": null,
+          "goldLinks": 0,
+          "retrievedGoldLinks": 0,
+          "proposedLinks": 25,
+          "trueLinks": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "retrievalRecall": null,
+          "recallGivenRetrieval": null,
+          "atomGold": 0,
+          "atomRetrieved": 0,
+          "atomTrue": 0,
+          "atomProposed": 25,
+          "atomPrecision": null,
+          "atomRecall": null,
+          "atomF1": null,
+          "atomRecallGivenRetrieval": null,
+          "hubGold": 0,
+          "hubTrue": 0,
+          "hubRecall": null,
+          "unknownLinks": 0,
+          "medianMs": 1925,
+          "p95Ms": 2761,
+          "usd": 0.082702,
+          "inputTokens": 122868,
+          "outputTokens": 3221,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-high"
+        },
+        "score": {
+          "captures": 20,
+          "labeled": 0,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": null,
+          "goldLinks": 0,
+          "retrievedGoldLinks": 0,
+          "proposedLinks": 16,
+          "trueLinks": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "retrievalRecall": null,
+          "recallGivenRetrieval": null,
+          "atomGold": 0,
+          "atomRetrieved": 0,
+          "atomTrue": 0,
+          "atomProposed": 16,
+          "atomPrecision": null,
+          "atomRecall": null,
+          "atomF1": null,
+          "atomRecallGivenRetrieval": null,
+          "hubGold": 0,
+          "hubTrue": 0,
+          "hubRecall": null,
+          "unknownLinks": 0,
+          "medianMs": 4207,
+          "p95Ms": 6447,
+          "usd": 0.0102629,
+          "inputTokens": 122868,
+          "outputTokens": 14449,
+          "thinkingTokens": 11841
+        }
+      }
+    ],
+    "plus-pilot": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "low",
+          "id": "claude-sonnet-5-5-plus-low"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.98,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 60,
+          "trueLinks": 38,
+          "precision": 0.6333333333333333,
+          "recall": 0.41304347826086957,
+          "f1": 0.5,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.6909090909090909,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 16,
+          "atomProposed": 34,
+          "atomPrecision": 0.47058823529411764,
+          "atomRecall": 0.36363636363636365,
+          "atomF1": 0.41025641025641024,
+          "atomRecallGivenRetrieval": 0.5161290322580645,
+          "hubGold": 48,
+          "hubTrue": 22,
+          "hubRecall": 0.4583333333333333,
+          "unknownLinks": 0,
+          "medianMs": 2286,
+          "p95Ms": 3532,
+          "usd": 0.6579413999999998,
+          "inputTokens": 518748,
+          "outputTokens": 7150,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "id": "claude-sonnet-5-5-plus-medium"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.98,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 63,
+          "trueLinks": 40,
+          "precision": 0.6349206349206349,
+          "recall": 0.43478260869565216,
+          "f1": 0.5161290322580646,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.7272727272727273,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 18,
+          "atomProposed": 37,
+          "atomPrecision": 0.4864864864864865,
+          "atomRecall": 0.4090909090909091,
+          "atomF1": 0.44444444444444453,
+          "atomRecallGivenRetrieval": 0.5806451612903226,
+          "hubGold": 48,
+          "hubTrue": 22,
+          "hubRecall": 0.4583333333333333,
+          "unknownLinks": 0,
+          "medianMs": 2525,
+          "p95Ms": 3336,
+          "usd": 0.6608913999999999,
+          "inputTokens": 518748,
+          "outputTokens": 7445,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "high",
+          "id": "claude-sonnet-5-5-plus-high"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.96,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 73,
+          "trueLinks": 40,
+          "precision": 0.547945205479452,
+          "recall": 0.43478260869565216,
+          "f1": 0.4848484848484848,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.7272727272727273,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 18,
+          "atomProposed": 47,
+          "atomPrecision": 0.3829787234042553,
+          "atomRecall": 0.4090909090909091,
+          "atomF1": 0.39560439560439564,
+          "atomRecallGivenRetrieval": 0.5806451612903226,
+          "hubGold": 48,
+          "hubTrue": 22,
+          "hubRecall": 0.4583333333333333,
+          "unknownLinks": 0,
+          "medianMs": 2529,
+          "p95Ms": 5358,
+          "usd": 0.6809114,
+          "inputTokens": 518748,
+          "outputTokens": 9447,
+          "thinkingTokens": 1052
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "medium",
+          "id": "claude-haiku-5-5-plus-medium"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.86,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 32,
+          "trueLinks": 22,
+          "precision": 0.6875,
+          "recall": 0.2391304347826087,
+          "f1": 0.3548387096774194,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.4,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 3,
+          "atomProposed": 11,
+          "atomPrecision": 0.2727272727272727,
+          "atomRecall": 0.06818181818181818,
+          "atomF1": 0.10909090909090909,
+          "atomRecallGivenRetrieval": 0.0967741935483871,
+          "hubGold": 48,
+          "hubTrue": 19,
+          "hubRecall": 0.3958333333333333,
+          "unknownLinks": 2,
+          "medianMs": 1762,
+          "p95Ms": 3584,
+          "usd": 0.03521146500000001,
+          "inputTokens": 518748,
+          "outputTokens": 9392,
+          "thinkingTokens": 3733
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-plus-high"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.94,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 42,
+          "trueLinks": 29,
+          "precision": 0.6904761904761905,
+          "recall": 0.31521739130434784,
+          "f1": 0.43283582089552236,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.5272727272727272,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 9,
+          "atomProposed": 19,
+          "atomPrecision": 0.47368421052631576,
+          "atomRecall": 0.20454545454545456,
+          "atomF1": 0.28571428571428575,
+          "atomRecallGivenRetrieval": 0.2903225806451613,
+          "hubGold": 48,
+          "hubTrue": 20,
+          "hubRecall": 0.4166666666666667,
+          "unknownLinks": 3,
+          "medianMs": 4199,
+          "p95Ms": 6334,
+          "usd": 0.04654030000000001,
+          "inputTokens": 518748,
+          "outputTokens": 33170,
+          "thinkingTokens": 26960
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "xhigh",
+          "id": "claude-haiku-5-5-plus-xhigh"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 5,
+          "truncated": 5,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.84,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 38,
+          "trueLinks": 27,
+          "precision": 0.7105263157894737,
+          "recall": 0.29347826086956524,
+          "f1": 0.4153846153846154,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.4909090909090909,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 10,
+          "atomProposed": 18,
+          "atomPrecision": 0.5555555555555556,
+          "atomRecall": 0.22727272727272727,
+          "atomF1": 0.3225806451612903,
+          "atomRecallGivenRetrieval": 0.3225806451612903,
+          "hubGold": 48,
+          "hubTrue": 17,
+          "hubRecall": 0.3541666666666667,
+          "unknownLinks": 0,
+          "medianMs": 6395,
+          "p95Ms": 9924,
+          "usd": 0.05952580000000002,
+          "inputTokens": 518748,
+          "outputTokens": 59141,
+          "thinkingTokens": 53661
+        }
+      }
+    ],
+    "plus-full": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "id": "claude-sonnet-5-5-plus-medium"
+        },
+        "score": {
+          "captures": 300,
+          "labeled": 300,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.9566666666666667,
+          "goldLinks": 535,
+          "retrievedGoldLinks": 319,
+          "proposedLinks": 358,
+          "trueLinks": 203,
+          "precision": 0.5670391061452514,
+          "recall": 0.3794392523364486,
+          "f1": 0.45464725643896975,
+          "retrievalRecall": 0.5962616822429907,
+          "recallGivenRetrieval": 0.6363636363636364,
+          "atomGold": 269,
+          "atomRetrieved": 191,
+          "atomTrue": 86,
+          "atomProposed": 226,
+          "atomPrecision": 0.3805309734513274,
+          "atomRecall": 0.31970260223048325,
+          "atomF1": 0.34747474747474744,
+          "atomRecallGivenRetrieval": 0.450261780104712,
+          "hubGold": 266,
+          "hubTrue": 117,
+          "hubRecall": 0.4398496240601504,
+          "unknownLinks": 4,
+          "medianMs": 2188,
+          "p95Ms": 3425,
+          "usd": 3.7455984000000004,
+          "inputTokens": 3039509,
+          "outputTokens": 43136,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-plus-high"
+        },
+        "score": {
+          "captures": 300,
+          "labeled": 300,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.9466666666666667,
+          "goldLinks": 535,
+          "retrievedGoldLinks": 319,
+          "proposedLinks": 244,
+          "trueLinks": 169,
+          "precision": 0.6926229508196722,
+          "recall": 0.31588785046728973,
+          "f1": 0.4338896020539153,
+          "retrievalRecall": 0.5962616822429907,
+          "recallGivenRetrieval": 0.5297805642633229,
+          "atomGold": 269,
+          "atomRetrieved": 191,
+          "atomTrue": 64,
+          "atomProposed": 127,
+          "atomPrecision": 0.5039370078740157,
+          "atomRecall": 0.2379182156133829,
+          "atomF1": 0.3232323232323232,
+          "atomRecallGivenRetrieval": 0.33507853403141363,
+          "hubGold": 266,
+          "hubTrue": 105,
+          "hubRecall": 0.39473684210526316,
+          "unknownLinks": 7,
+          "medianMs": 3924,
+          "p95Ms": 6238,
+          "usd": 0.2653739,
+          "inputTokens": 3039509,
+          "outputTokens": 185880,
+          "thinkingTokens": 149119
+        }
+      }
+    ],
+    "plus-holdout": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "id": "claude-sonnet-5-5-plus-medium"
+        },
+        "score": {
+          "captures": 250,
+          "labeled": 250,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.952,
+          "goldLinks": 443,
+          "retrievedGoldLinks": 264,
+          "proposedLinks": 295,
+          "trueLinks": 163,
+          "precision": 0.5525423728813559,
+          "recall": 0.36794582392776526,
+          "f1": 0.4417344173441734,
+          "retrievalRecall": 0.5959367945823928,
+          "recallGivenRetrieval": 0.6174242424242424,
+          "atomGold": 225,
+          "atomRetrieved": 160,
+          "atomTrue": 68,
+          "atomProposed": 189,
+          "atomPrecision": 0.35978835978835977,
+          "atomRecall": 0.3022222222222222,
+          "atomF1": 0.3285024154589372,
+          "atomRecallGivenRetrieval": 0.425,
+          "hubGold": 218,
+          "hubTrue": 95,
+          "hubRecall": 0.43577981651376146,
+          "unknownLinks": 4,
+          "medianMs": 2153,
+          "p95Ms": 3471,
+          "usd": 3.084707,
+          "inputTokens": 2520761,
+          "outputTokens": 35691,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-plus-high"
+        },
+        "score": {
+          "captures": 250,
+          "labeled": 250,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.948,
+          "goldLinks": 443,
+          "retrievedGoldLinks": 264,
+          "proposedLinks": 202,
+          "trueLinks": 140,
+          "precision": 0.693069306930693,
+          "recall": 0.3160270880361174,
+          "f1": 0.434108527131783,
+          "retrievalRecall": 0.5959367945823928,
+          "recallGivenRetrieval": 0.5303030303030303,
+          "atomGold": 225,
+          "atomRetrieved": 160,
+          "atomTrue": 55,
+          "atomProposed": 108,
+          "atomPrecision": 0.5092592592592593,
+          "atomRecall": 0.24444444444444444,
+          "atomF1": 0.3303303303303303,
+          "atomRecallGivenRetrieval": 0.34375,
+          "hubGold": 218,
+          "hubTrue": 85,
+          "hubRecall": 0.38990825688073394,
+          "unknownLinks": 4,
+          "medianMs": 3794,
+          "p95Ms": 6233,
+          "usd": 0.2188336,
+          "inputTokens": 2520761,
+          "outputTokens": 152710,
+          "thinkingTokens": 122159
+        }
+      }
+    ],
+    "plus-private": [
+      {
+        "arm": {
+          "model": "claude-sonnet-5-5",
+          "effort": "medium",
+          "id": "claude-sonnet-5-5-plus-medium"
+        },
+        "score": {
+          "captures": 20,
+          "labeled": 0,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": null,
+          "goldLinks": 0,
+          "retrievedGoldLinks": 0,
+          "proposedLinks": 21,
+          "trueLinks": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "retrievalRecall": null,
+          "recallGivenRetrieval": null,
+          "atomGold": 0,
+          "atomRetrieved": 0,
+          "atomTrue": 0,
+          "atomProposed": 21,
+          "atomPrecision": null,
+          "atomRecall": null,
+          "atomF1": null,
+          "atomRecallGivenRetrieval": null,
+          "hubGold": 0,
+          "hubTrue": 0,
+          "hubRecall": null,
+          "unknownLinks": 1,
+          "medianMs": 1764,
+          "p95Ms": 3379,
+          "usd": 0.079376,
+          "inputTokens": 117527,
+          "outputTokens": 2942,
+          "thinkingTokens": 0
+        }
+      },
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "high",
+          "id": "claude-haiku-5-5-plus-high"
+        },
+        "score": {
+          "captures": 20,
+          "labeled": 0,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": null,
+          "goldLinks": 0,
+          "retrievedGoldLinks": 0,
+          "proposedLinks": 17,
+          "trueLinks": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "retrievalRecall": null,
+          "recallGivenRetrieval": null,
+          "atomGold": 0,
+          "atomRetrieved": 0,
+          "atomTrue": 0,
+          "atomProposed": 17,
+          "atomPrecision": null,
+          "atomRecall": null,
+          "atomF1": null,
+          "atomRecallGivenRetrieval": null,
+          "hubGold": 0,
+          "hubTrue": 0,
+          "hubRecall": null,
+          "unknownLinks": 0,
+          "medianMs": 3903,
+          "p95Ms": 5768,
+          "usd": 0.009866900000000001,
+          "inputTokens": 117527,
+          "outputTokens": 13764,
+          "thinkingTokens": 11144
+        }
+      }
+    ],
+    "plus-pilot-xhigh-8192": [
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "xhigh",
+          "id": "claude-haiku-5-5-plus-xhigh-8192"
+        },
+        "score": {
+          "captures": 50,
+          "labeled": 50,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.92,
+          "goldLinks": 92,
+          "retrievedGoldLinks": 55,
+          "proposedLinks": 49,
+          "trueLinks": 34,
+          "precision": 0.6938775510204082,
+          "recall": 0.3695652173913043,
+          "f1": 0.48226950354609927,
+          "retrievalRecall": 0.5978260869565217,
+          "recallGivenRetrieval": 0.6181818181818182,
+          "atomGold": 44,
+          "atomRetrieved": 31,
+          "atomTrue": 13,
+          "atomProposed": 25,
+          "atomPrecision": 0.52,
+          "atomRecall": 0.29545454545454547,
+          "atomF1": 0.3768115942028986,
+          "atomRecallGivenRetrieval": 0.41935483870967744,
+          "hubGold": 48,
+          "hubTrue": 21,
+          "hubRecall": 0.4375,
+          "unknownLinks": 0,
+          "medianMs": 6399,
+          "p95Ms": 11248,
+          "usd": 0.06100530000000002,
+          "inputTokens": 518748,
+          "outputTokens": 62100,
+          "thinkingTokens": 55250
+        }
+      }
+    ],
+    "plus-full-xhigh-8192": [
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "xhigh",
+          "id": "claude-haiku-5-5-plus-xhigh-8192"
+        },
+        "score": {
+          "captures": 300,
+          "labeled": 300,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.9333333333333333,
+          "goldLinks": 535,
+          "retrievedGoldLinks": 319,
+          "proposedLinks": 275,
+          "trueLinks": 181,
+          "precision": 0.6581818181818182,
+          "recall": 0.3383177570093458,
+          "f1": 0.4469135802469136,
+          "retrievalRecall": 0.5962616822429907,
+          "recallGivenRetrieval": 0.567398119122257,
+          "atomGold": 269,
+          "atomRetrieved": 191,
+          "atomTrue": 75,
+          "atomProposed": 158,
+          "atomPrecision": 0.47468354430379744,
+          "atomRecall": 0.2788104089219331,
+          "atomF1": 0.351288056206089,
+          "atomRecallGivenRetrieval": 0.39267015706806285,
+          "hubGold": 266,
+          "hubTrue": 106,
+          "hubRecall": 0.39849624060150374,
+          "unknownLinks": 4,
+          "medianMs": 6310,
+          "p95Ms": 11587,
+          "usd": 0.35715140000000023,
+          "inputTokens": 3039509,
+          "outputTokens": 369435,
+          "thinkingTokens": 331333
+        }
+      }
+    ],
+    "plus-holdout-xhigh-8192": [
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "xhigh",
+          "id": "claude-haiku-5-5-plus-xhigh-8192"
+        },
+        "score": {
+          "captures": 250,
+          "labeled": 250,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": 0.936,
+          "goldLinks": 443,
+          "retrievedGoldLinks": 264,
+          "proposedLinks": 226,
+          "trueLinks": 147,
+          "precision": 0.6504424778761062,
+          "recall": 0.33182844243792325,
+          "f1": 0.43946188340807174,
+          "retrievalRecall": 0.5959367945823928,
+          "recallGivenRetrieval": 0.5568181818181818,
+          "atomGold": 225,
+          "atomRetrieved": 160,
+          "atomTrue": 62,
+          "atomProposed": 133,
+          "atomPrecision": 0.46616541353383456,
+          "atomRecall": 0.27555555555555555,
+          "atomF1": 0.34636871508379885,
+          "atomRecallGivenRetrieval": 0.3875,
+          "hubGold": 218,
+          "hubTrue": 85,
+          "hubRecall": 0.38990825688073394,
+          "unknownLinks": 4,
+          "medianMs": 6257,
+          "p95Ms": 11646,
+          "usd": 0.2961461000000001,
+          "inputTokens": 2520761,
+          "outputTokens": 307335,
+          "thinkingTokens": 276083
+        }
+      }
+    ],
+    "plus-private-xhigh-8192": [
+      {
+        "arm": {
+          "model": "claude-haiku-5-5",
+          "effort": "xhigh",
+          "id": "claude-haiku-5-5-plus-xhigh-8192"
+        },
+        "score": {
+          "captures": 20,
+          "labeled": 0,
+          "errors": 0,
+          "truncated": 0,
+          "rawBodyFields": 0,
+          "verdictAccuracy": null,
+          "goldLinks": 0,
+          "retrievedGoldLinks": 0,
+          "proposedLinks": 17,
+          "trueLinks": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "retrievalRecall": null,
+          "recallGivenRetrieval": null,
+          "atomGold": 0,
+          "atomRetrieved": 0,
+          "atomTrue": 0,
+          "atomProposed": 17,
+          "atomPrecision": null,
+          "atomRecall": null,
+          "atomF1": null,
+          "atomRecallGivenRetrieval": null,
+          "hubGold": 0,
+          "hubTrue": 0,
+          "hubRecall": null,
+          "unknownLinks": 0,
+          "medianMs": 5251,
+          "p95Ms": 8916,
+          "usd": 0.014465400000000002,
+          "inputTokens": 117527,
+          "outputTokens": 22961,
+          "thinkingTokens": 20348
+        }
+      }
+    ]
+  },
+  "pairedBootstrap": {
+    "byok": {
+      "createdAt": "2026-10-20T20:14:07.726Z",
+      "holdoutComparisons": [
+        {
+          "first": "claude-sonnet-5-5-high",
+          "second": "claude-haiku-5-5-high",
+          "n": 250,
+          "seed": 20261020,
+          "iterations": 10000,
+          "differences": {
+            "atomRecall": {
+              "difference": 0.07999999999999996,
+              "lower95": 0.036363636363636376,
+              "upper95": 0.12552301255230128
+            },
+            "atomF1": {
+              "difference": 0.0013774104683195731,
+              "lower95": -0.0407702259612423,
+              "upper95": 0.04484498842488832
+            },
+            "verdictAccuracy": {
+              "difference": -0.008000000000000007,
+              "lower95": -0.027999999999999914,
+              "upper95": 0.0119999999999999
+            }
+          }
+        }
+      ],
+      "tokenLimits": [
+        {
+          "arm": "claude-sonnet-5-5-high",
+          "n": 320,
+          "over1024": 0,
+          "over2048": 0,
+          "p95Output": 525,
+          "maxOutput": 745
+        },
+        {
+          "arm": "claude-haiku-5-5-high",
+          "n": 320,
+          "over1024": 49,
+          "over2048": 0,
+          "p95Output": 1238,
+          "maxOutput": 1781
+        }
+      ]
+    },
+    "plus": {
+      "createdAt": "2026-10-20T20:34:04.188Z",
+      "holdoutComparisons": [
+        {
+          "first": "claude-sonnet-5-5-plus-medium",
+          "second": "claude-haiku-5-5-plus-high",
+          "n": 250,
+          "seed": 20261020,
+          "iterations": 10000,
+          "differences": {
+            "atomRecall": {
+              "difference": 0.05777777777777779,
+              "lower95": 0.01834862385321101,
+              "upper95": 0.09677419354838712
+            },
+            "atomF1": {
+              "difference": -0.0018279148713931104,
+              "lower95": -0.04652856817664469,
+              "upper95": 0.04353987239072815
+            },
+            "verdictAccuracy": {
+              "difference": 0.0040000000000000036,
+              "lower95": -0.016000000000000014,
+              "upper95": 0.02400000000000002
+            }
+          }
+        },
+        {
+          "first": "claude-sonnet-5-5-plus-medium",
+          "second": "claude-haiku-5-5-plus-xhigh-8192",
+          "n": 250,
+          "seed": 20261020,
+          "iterations": 10000,
+          "differences": {
+            "atomRecall": {
+              "difference": 0.026666666666666672,
+              "lower95": -0.01777777777777778,
+              "upper95": 0.07048458149779738
+            },
+            "atomF1": {
+              "difference": -0.017866299624861692,
+              "lower95": -0.06703972983156337,
+              "upper95": 0.030737934904601583
+            },
+            "verdictAccuracy": {
+              "difference": 0.015999999999999903,
+              "lower95": -0.008000000000000007,
+              "upper95": 0.039999999999999925
+            }
+          }
+        }
+      ],
+      "tokenLimits": [
+        {
+          "arm": "claude-sonnet-5-5-plus-medium",
+          "n": 320,
+          "over1024": 0,
+          "over2048": 0,
+          "p95Output": 265,
+          "maxOutput": 352
+        },
+        {
+          "arm": "claude-haiku-5-5-plus-high",
+          "n": 320,
+          "over1024": 36,
+          "over2048": 0,
+          "p95Output": 1156,
+          "maxOutput": 1450
+        },
+        {
+          "arm": "claude-haiku-5-5-plus-xhigh-8192",
+          "n": 320,
+          "over1024": 197,
+          "over2048": 28,
+          "p95Output": 2292,
+          "maxOutput": 2852
+        }
+      ]
+    }
+  },
+  "verdictConfusion": [
+    {
+      "arm": "claude-sonnet-5-5-plus-medium",
+      "atomCorrect": 239,
+      "atomRejected": 2,
+      "noiseKept": 11,
+      "noiseCorrect": 48
+    },
+    {
+      "arm": "claude-haiku-5-5-plus-high",
+      "atomCorrect": 241,
+      "atomRejected": 0,
+      "noiseKept": 16,
+      "noiseCorrect": 43
+    },
+    {
+      "arm": "claude-haiku-5-5-plus-xhigh-8192",
+      "atomCorrect": 241,
+      "atomRejected": 0,
+      "noiseKept": 20,
+      "noiseCorrect": 39
+    }
+  ],
+  "qualitativeBase": {
+    "reviewer": "main assistant; qualitative audit, not independent human gold",
+    "n": 20,
+    "preferences": {
+      "tie": 7,
+      "claude-sonnet-5-5-plus-medium": 8,
+      "claude-haiku-5-5-plus-high": 5
+    },
+    "limits": "Single-assistant subjective paired preference; selected already-filed atoms, not independent gold or population accuracy."
+  },
+  "qualitativeExtra": {
+    "reviewer": "Main assistant, unblinded follow-up after base blinded review",
+    "n": 20,
+    "configuration": "claude-haiku-5-5-plus-xhigh-8192",
+    "findings": [
+      "All 20 outputs were reviewed against original captures and actual bodies of proposed link targets.",
+      "Recommendation attribution improved in the observed case where high had inferred user intent.",
+      "A multi-fact capture still lost one fact in its title.",
+      "Unsupported earlier/return-visit claims persisted on historical reclassification.",
+      "Higher effort did not eliminate weak project-wide links or unsupported relationships."
+    ],
+    "limits": "Qualitative inspection, no independent gold and no quantified precision/preference claim."
+  }
+}

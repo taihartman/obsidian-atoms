@@ -75,9 +75,10 @@ export interface WritePathReport {
   /**
    * Set when the run stopped before walking its whole slice. `exhausted` means the meter
    * ran out mid-run — the remaining captures were never attempted, so the caller must not
-   * read `failed` as "these captures are broken". Markers make the resume idempotent.
+   * read `failed` as "these captures are broken". `timeout` leaves the rest for a later
+   * run instead of spending another minute waiting per capture. Markers make resume idempotent.
    */
-  stoppedReason?: "exhausted";
+  stoppedReason?: "exhausted" | "timeout";
 }
 
 export interface RunWritePathOptions {
@@ -261,6 +262,10 @@ export async function runWritePath(
             outcome.reason,
             outcome.message || outcome.reason,
           );
+          if (outcome.reason === "timeout") {
+            stoppedReason = "timeout";
+            break;
+          }
           // The meter's 402 arrives per capture, so without this every remaining capture
           // makes its own doomed round-trip and lands in `failed` indistinguishable from a
           // network or schema failure.

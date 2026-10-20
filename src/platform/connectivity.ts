@@ -1,3 +1,4 @@
+import { DEFAULT_CLASSIFY_MODEL } from "../shared/types";
 import { requestUrl, type RequestUrlParam, type RequestUrlResponse } from "obsidian";
 import {
   ANTHROPIC_MESSAGES_URL,
@@ -118,7 +119,7 @@ export async function probeAnthropicApi(
     opts.billable === false
       ? JSON.stringify({})
       : JSON.stringify({
-          model: "claude-sonnet-5",
+          model: DEFAULT_CLASSIFY_MODEL,
           max_tokens: 1,
           messages: [{ role: "user", content: "ping" }],
         });

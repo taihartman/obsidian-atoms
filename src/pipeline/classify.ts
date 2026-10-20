@@ -6,6 +6,7 @@ import {
   plusBaseMatches,
   PLUS_BASE_URL_INVALID_MESSAGE,
   plusFetchRequest,
+  PlusRequestTimeoutError,
 } from "../platform/plusClient";
 import type {
   ClassificationPerson,
@@ -912,7 +913,7 @@ export async function classifyCapture(
         .slice(0, 160);
       return {
         ok: false,
-        reason: "offline",
+        reason: err instanceof PlusRequestTimeoutError ? "timeout" : "offline",
         message: `Network error calling ${plus ? "Plus" : "Anthropic"} API (${name}: ${safe})`,
       };
     }

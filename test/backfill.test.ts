@@ -47,6 +47,14 @@ const cap = (text: string, line = 0): Capture => ({
 });
 
 describe("estimateBatchCost", () => {
+  it.each(["claude-sonnet-5", "claude-sonnet-5-5"])("prices a %s batch with current input and output rates", (model) => {
+    const estimate = estimateBatchCost({
+      captureCount: 10, inputTokensPerRequest: 1000,
+      assumedOutputTokens: 250, model,
+    });
+    expect(estimate.worstCaseUsd).toBeCloseTo(0.0225, 8);
+  });
+
   it("does not credit cross-request cache reads (worst case = full prefix × N × batch discount)", () => {
     const n = 10;
     const perIn = 1000;

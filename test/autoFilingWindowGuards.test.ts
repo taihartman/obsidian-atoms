@@ -19,6 +19,7 @@ vi.mock("obsidian", async (importOriginal) => ({
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import AtomsPlugin from "../src/plugin/main";
+import type { FilingAuth } from "../src/platform/filingAuth";
 import {
   EGRESS_ACK_VERSION,
   LS_AUTO_RUN_EGRESS_ACK,
@@ -151,7 +152,7 @@ describe("read-only surfaces resolve the bound without persisting it", () => {
       vaultIndexReady: true,
       autoRunInFlight: false,
       settings: { atomFolder: "Atoms" },
-      resolveFilingAuth: () => ({ mode: "byok", apiKey: "k" }),
+      resolveFilingAuth: (): FilingAuth => ({ mode: "byok", apiKey: "k" }),
       getAutoRunSnapshot: (
         AtomsPlugin.prototype as never as {
           getAutoRunSnapshot: (...a: unknown[]) => unknown;
@@ -213,6 +214,7 @@ describe("a refused pass claims nothing and files nothing", () => {
   afterEach(() => {
     classifyTransport.handler = null;
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   /** The smallest `this` `maybeAutoRun` touches, wired to a real vault double. */
@@ -252,7 +254,7 @@ describe("a refused pass claims nothing and files nothing", () => {
       autoRunInFlight: false,
       filingStartedAt: null as number | null,
       lastWriteReport: null as unknown,
-      resolveFilingAuth: () => ({ mode: "byok", apiKey: "k" }),
+      resolveFilingAuth: (): FilingAuth => ({ mode: "byok", apiKey: "k" }),
       saveSettings: async () => {},
       hasOpenAtomsHome: () => false,
       refreshAtomsHomeLeaves: async () => {},
@@ -339,6 +341,60 @@ describe("a refused pass claims nothing and files nothing", () => {
     expect(catchUp.ran).toBe(true);
     // And the bypass still files with the toggle off — the whole point of that path.
     expect(vault.read(`Daily/${dayBack(20)}.md`)).toContain("<!--linker-->");
+  });
+
+  it("refreshes Home after a failed filing pass has released its running flag", async () => {
+    const day = dayBack(1);
+    const { self } = filingSelf({
+      store: {
+        [LS_AUTO_RUN_ENABLED]: true,
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        [LS_AUTO_RUN_START_DAY]: day,
+      },
+      files: { [`Daily/${day}.md`]: "- a past thought about sleep\n" },
+      dailies: [{ path: `Daily/${day}.md`, date: day }],
+    });
+    classifyTransport.handler = async () => { throw new Error("network down"); };
+    const snapshots: boolean[] = [];
+    self.refreshAtomsHomeLeaves = async () => { snapshots.push(self.autoRunInFlight); };
+    await unattendedPass(self);
+    expect(self.autoRunInFlight).toBe(false);
+    expect(snapshots.at(-1)).toBe(false);
+  });
+
+  it("refreshes Home after a Plus check times out before filing starts", async () => {
+    vi.useFakeTimers();
+    const day = dayBack(1);
+    const { self, vault } = filingSelf({
+      store: {
+        [LS_AUTO_RUN_ENABLED]: true,
+        [LS_AUTO_RUN_EGRESS_ACK]: EGRESS_ACK_VERSION,
+        [LS_AUTO_RUN_START_DAY]: day,
+      },
+      files: { [`Daily/${day}.md`]: "- a past thought about sleep\n" },
+      dailies: [{ path: `Daily/${day}.md`, date: day }],
+    });
+    self.resolveFilingAuth = () => ({
+      mode: "plus", sessionToken: "test-session", email: "fixture@example.test",
+      status: "active", remaining: 150,
+    });
+    Object.assign(self, { runPlusBaseGate: AtomsPlugin.prototype.runPlusBaseGate });
+    const fetch = vi.spyOn(window, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    const snapshots: boolean[] = [];
+    self.refreshAtomsHomeLeaves = async () => { snapshots.push(self.autoRunInFlight); };
+    const pending = unattendedPass(self);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(self.autoRunInFlight).toBe(true);
+    expect(self.filingStartedAt).toBeNull();
+    snapshots.push(self.autoRunInFlight); // Home opened while the issuer check is pending.
+    expect(await unattendedPass(self)).toEqual({ ran: false, reason: "in_flight" });
+    expect(snapshots).toEqual([true]);
+    await vi.advanceTimersByTimeAsync(60_001);
+    expect(await pending).toEqual({ ran: false, reason: "missing_key" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(self.autoRunInFlight).toBe(false);
+    expect(snapshots).toEqual([true, false]);
+    expect(vault.read(`Daily/${day}.md`)).toBe("- a past thought about sleep\n");
   });
 
   it("a refused pass never reports itself as filing", async () => {

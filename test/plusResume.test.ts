@@ -139,8 +139,8 @@ describe("#280 post-checkout readiness announcement", () => {
 
   it("keeps polling independently so one hung request cannot silence the rest", async () => {
     // The tempting fix for #280 is to coalesce callers onto one shared promise.
-    // `plusFetchRequest` has no timeout, so that would let a single hung
-    // request absorb every remaining poll and tell a paying user nothing. Each
+    // A request can remain pending until its deadline, so sharing it would
+    // absorb later polls and delay telling a paying user they are ready. Each
     // caller must keep issuing its own request.
     const app = fakeApp();
     app.saveLocalStorage(LS_PLUS_SESSION, serializePlusSession(pending));

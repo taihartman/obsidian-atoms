@@ -62,6 +62,7 @@ export type ClassifyFailureReason =
   | "rate_limit"
   | "server"
   | "offline"
+  | "timeout"
   | "invariant"
   | "quota"
   | "unknown";
@@ -140,7 +141,7 @@ export interface DailyNoteWithCaptures {
 export interface LinkerSettings {
   /** SecretStorage secret *id* (name), never the key value itself. */
   apiKeySecretId: string;
-  /** Anthropic model id. Default Sonnet 5 per plan. */
+  /** Anthropic model id; defaults to the current Sonnet release. */
   model: string;
   /** Flat folder for atom files (R3). */
   atomFolder: string;
@@ -200,9 +201,11 @@ export interface LinkerSettings {
   askWriteAckVersion: string;
 }
 
+export const DEFAULT_CLASSIFY_MODEL = "claude-sonnet-5-5";
+
 export const DEFAULT_SETTINGS: LinkerSettings = {
   apiKeySecretId: "",
-  model: "claude-sonnet-5",
+  model: DEFAULT_CLASSIFY_MODEL,
   atomFolder: "Atoms",
   activeVocabulary: [
     "idea",
