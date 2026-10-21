@@ -209,9 +209,13 @@ Claude Team / Enterprise: an Owner adds it first under Organization settings →
 
 **ChatGPT web:** In the current Plugins UI, go to **Settings → Security → Developer mode** and turn it on. On accounts that use Apps, go to **Settings → Apps → Advanced Settings** and turn on **Developer mode**. Then return to **Plugins / Apps → Create app**. Name it **Atoms Plus**, paste the public MCP URL as the server URL, keep OAuth, create it, then choose **Sign in with Atoms Plus**. Pro can use read/fetch this way. Full write MCP is on Business / Enterprise / Edu.
 
-A successful ChatGPT sign-in returns to `chatgpt.com`. If it lands on `127.0.0.1` or localhost instead, close that tab and restart from ChatGPT web. Loopback callbacks are for local clients, not a ChatGPT custom app, and localhost is never the MCP server URL.
+A successful ChatGPT sign-in returns to `chatgpt.com`. If it lands on `127.0.0.1` or localhost instead, close that tab and restart from ChatGPT web. Loopback callbacks are for local clients, not a ChatGPT custom app, and localhost is never the MCP server URL for Claude or ChatGPT.
 
-If authorize fails with `resource must be …` or `redirect_uri not allowed`, `PUBLIC_BASE_URL` does not match the URL the client is using, or the redirect is not on the allowlist (Claude `https://claude.ai/api/mcp/auth_callback`, ChatGPT `https://chatgpt.com/connector/oauth/…` or the legacy redirect, or loopback `/callback`).
+**OpenClaw** (on the machine that runs it): use the same **MCP connector URL** from **Copy**. Hosted Plus and a production self-host use that public `https://…/mcp` URL. A loopback MCP URL works only when it is exactly `PUBLIC_BASE_URL` plus `/mcp`. In OpenClaw, set `transport` to `streamable-http` and `auth` to `oauth`. Do not set a scope. Run `openclaw mcp login`. The sign-in page says an app on this computer is connecting, and the client name is “your AI app”. The pairing code is still created under Settings → Atoms → Ask.
+
+If the browser cannot open `127.0.0.1:8989`, copy the `code` query from the callback URL in the address bar and run `openclaw mcp login <name> --code <code>`. That code is a secret for that login. Paste it only into that local command. It expires about five minutes after Allow. OpenClaw’s default redirect is `http://127.0.0.1:8989/oauth/callback`, with no trailing slash. Leave Claude Code on loopback `/callback`. Do not point OpenClaw at `/callback`, and do not use a public Gateway callback.
+
+If authorize fails with `resource must be …` or `redirect_uri not allowed`, `PUBLIC_BASE_URL` does not match the URL the client is using, or the redirect is not on the allowlist (Claude `https://claude.ai/api/mcp/auth_callback`, ChatGPT `https://chatgpt.com/connector/oauth/…` or the legacy redirect, or loopback `/callback` and `/oauth/callback`).
 
 ---
 

@@ -314,6 +314,49 @@ describe("OAuth Ask AS", () => {
     authUrl.searchParams.set("resource", RESOURCE);
     const r = await fetch(authUrl);
     assert.equal(r.status, 400);
+    assert.equal(r.headers.get("location"), null);
+  });
+
+  it("OpenClaw loopback redirect reaches the sign-in page", async () => {
+    const { challenge } = pkce();
+    const redirect = "http://127.0.0.1:8989/oauth/callback";
+    const registered = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: [redirect],
+        client_name: "OpenClaw MCP",
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(registered.status, 201, await registered.clone().text());
+    const body = await registered.json();
+    const authUrl = new URL(`${BASE}/oauth/authorize`);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("client_id", body.client_id);
+    authUrl.searchParams.set("redirect_uri", redirect);
+    authUrl.searchParams.set("state", "st_openclaw");
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    authUrl.searchParams.set("resource", RESOURCE);
+    const r = await fetch(authUrl);
+    assert.equal(r.status, 200);
+    const html = await r.text();
+    assert.match(html, /An app on this computer is connecting/);
+    assert.match(html, /Settings → Atoms → Ask/);
+    assert.doesNotMatch(html, /Anthropic or OpenAI/);
+    const gateway = await fetch(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        redirect_uris: ["https://gateway.example/oauth/mcp/callback"],
+        client_name: "gateway",
+        token_endpoint_auth_method: "none",
+      }),
+    });
+    assert.equal(gateway.status, 400);
+    const gatewayBody = await gateway.json();
+    assert.equal(gatewayBody.error, "invalid_redirect_uri");
   });
 
   it("ChatGPT redirect_uri accepted on authorize page", async () => {

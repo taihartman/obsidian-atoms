@@ -1,5 +1,8 @@
 import { escHtml, renderPage } from "../html/shell.mjs";
-import { oauthClientDisplayName } from "./constants.mjs";
+import {
+  isComputerAppRedirect,
+  oauthClientDisplayName,
+} from "./constants.mjs";
 
 function htmlPage(title, bodyInner) {
   return renderPage({
@@ -16,9 +19,13 @@ export function authorizeEmailForm(
   redirectUri = "",
 ) {
   const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
+  const onThisComputer = isComputerAppRedirect(redirectUri)
+    ? `<p>An app on this computer is connecting to your Atoms Plus cloud atom mirror.</p>`
+    : "";
   return htmlPage(
     "Atoms Plus — Sign in",
     `<h1>Connect Atoms Plus to ${client}</h1>
+${onThisComputer}
 <p>Choose the Atoms Plus account ${client} can use for Atoms Ask. Your account emails do not need to match.</p>
 ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
 <form method="POST" action="/oauth/authorize">
@@ -53,9 +60,13 @@ export function authorizeChooserForm(
   redirectUri = "",
 ) {
   const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
+  const onThisComputer = isComputerAppRedirect(redirectUri)
+    ? `<p>An app on this computer is connecting to your Atoms Plus cloud atom mirror.</p>`
+    : "";
   return htmlPage(
     "Atoms Plus — Choose account",
     `<h1>Choose your Atoms Plus account</h1>
+${onThisComputer}
 <p>This browser is signed in as <strong>${escHtml(sessionEmail)}</strong> (Atoms Plus).</p>
 <p>Continue connecting to <strong>${client}</strong>, or choose another account.</p>
 ${error ? `<p class="error">${escHtml(error)}</p>` : ""}
@@ -91,6 +102,9 @@ export function consentForm(
   redirectUri = "",
 ) {
   const client = escHtml(oauthClientDisplayName(clientId, redirectUri));
+  const disclosure = isComputerAppRedirect(redirectUri)
+    ? "Tool results go to the app on this computer. That app may send them to its own model. Host can decrypt the mirror (not zero-knowledge)."
+    : "Tool results are sent to the AI provider (Anthropic or OpenAI) when you chat. Host can decrypt the mirror (not zero-knowledge).";
   return htmlPage(
     "Atoms Plus — Allow access",
     `<h1>Connect Atoms Plus to ${client}?</h1>
@@ -101,7 +115,7 @@ export function consentForm(
 <li><code>atoms:read</code> — search &amp; fetch your cloud atom mirror (not the whole vault)</li>
 <li><code>atoms:write</code> — queue new atoms via outbox; they land in Obsidian only after you enable <strong>Allow filing</strong> and the vault applies them. Does not rewrite existing note bodies.</li>
 </ul>
-<p class="muted">Tool results are sent to the AI provider (Anthropic or OpenAI) when you chat. Host can decrypt the mirror (not zero-knowledge).</p>
+<p class="muted">${disclosure}</p>
 <form method="POST" action="/oauth/consent" class="stack">
   <input type="hidden" name="pending_id" value="${escHtml(pendingId)}" />
   <button type="submit" name="decision" value="allow" class="btn btn--primary">Allow</button>

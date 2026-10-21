@@ -7,6 +7,13 @@ import {
   oauthClientDisplayName,
   oauthClientLabel,
 } from "../src/oauth/constants.mjs";
+import {
+  authorizeChooserForm,
+  authorizeEmailForm,
+  consentForm,
+} from "../src/oauth/html.mjs";
+
+const OPENCLAW_REDIRECT = "http://127.0.0.1:8989/oauth/callback";
 
 describe("isAllowedRedirectUri", () => {
   it("allows Claude callback", () => {
@@ -19,6 +26,82 @@ describe("isAllowedRedirectUri", () => {
       true,
     );
     assert.equal(isAllowedRedirectUri("http://localhost:9/callback"), true);
+  });
+
+  it("allows OpenClaw loopback oauth callback on any port", () => {
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/callback"),
+      true,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://localhost:8989/oauth/callback"),
+      true,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://[::1]:8989/oauth/callback"),
+      true,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:9/oauth/callback/"),
+      true,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/foo/../callback"),
+      true,
+    );
+  });
+
+  it("rejects OpenClaw callback neighbors", () => {
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/callbackevil"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/callback/extra"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/mcp/callback"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://gateway.example/oauth/callback"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("https://gateway.example/oauth/mcp/callback"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.2/oauth/callback"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "http://127.0.0.1:8989@evil.example/oauth/callback",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "http://user:pass@127.0.0.1:8989/oauth/callback",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri(
+        "http://127.0.0.1:8989/oauth/callback?next=https://evil.example",
+      ),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:8989/oauth/callback#x"),
+      false,
+    );
+    assert.equal(
+      isAllowedRedirectUri("http://127.0.0.1:9/callback?x=1"),
+      false,
+    );
   });
 
   it("allows ChatGPT legacy + connector oauth id", () => {
@@ -160,5 +243,56 @@ describe("oauthClientLabel", () => {
       oauthClientDisplayName("opaque-dcr-client", CLAUDE_CALLBACK),
       "Claude",
     );
+    assert.equal(
+      oauthClientDisplayName(
+        "https://claude.ai/api/mcp/auth_callback",
+        OPENCLAW_REDIRECT,
+      ),
+      "your AI app",
+    );
+    assert.equal(
+      oauthClientLabel(
+        "https://claude.ai/api/mcp/auth_callback",
+        OPENCLAW_REDIRECT,
+      ),
+      "AI app",
+    );
+  });
+});
+
+describe("computer-app sign-in copy", () => {
+  it("tells an OpenClaw redirect that an app on this computer is connecting", () => {
+    const email = authorizeEmailForm("p", "bad code", "cli", OPENCLAW_REDIRECT);
+    const chooser = authorizeChooserForm(
+      "p",
+      "a@atoms.test",
+      "bad code",
+      "cli",
+      OPENCLAW_REDIRECT,
+    );
+    const consent = consentForm("p", "a@atoms.test", "cli", OPENCLAW_REDIRECT);
+    for (const html of [email, chooser]) {
+      assert.match(html, /An app on this computer is connecting/);
+      assert.match(html, /Settings → Atoms → Ask/);
+      assert.doesNotMatch(html, /Connect Claude or ChatGPT/);
+    }
+    assert.match(consent, /Tool results go to the app on this computer/);
+    assert.match(consent, /Host can decrypt the mirror/);
+    assert.doesNotMatch(consent, /Anthropic or OpenAI/);
+  });
+
+  it("keeps Claude Code loopback and Claude hosted copy", () => {
+    const code = authorizeEmailForm(
+      "p",
+      "",
+      "cli",
+      "http://127.0.0.1:9/callback",
+    );
+    const claude = authorizeEmailForm("p", "", "cli", CLAUDE_CALLBACK);
+    const consent = consentForm("p", "a@atoms.test", "cli", CLAUDE_CALLBACK);
+    assert.doesNotMatch(code, /An app on this computer is connecting/);
+    assert.match(code, /Connect Atoms Plus to your AI app/);
+    assert.match(claude, /Connect Atoms Plus to Claude/);
+    assert.match(consent, /Anthropic or OpenAI/);
   });
 });

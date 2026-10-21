@@ -8,6 +8,9 @@ export const CHATGPT_LEGACY_CALLBACK =
 /** Allowed loopback path for Claude Code (port varies). */
 export const LOOPBACK_PATH = "/callback";
 
+/** Allowed loopback path for native MCP clients such as OpenClaw. */
+export const LOOPBACK_OAUTH_PATH = "/oauth/callback";
+
 /** Single path segment under /connector/oauth/{id} */
 const CHATGPT_CALLBACK_ID = /^[A-Za-z0-9_-]+$/;
 
@@ -87,7 +90,13 @@ export function isAllowedRedirectUri(uri) {
     const loopback =
       host === "127.0.0.1" || host === "localhost" || host === "[::1]";
     if (loopback) {
-      return u.pathname === LOOPBACK_PATH || u.pathname === "/callback/";
+      if (u.search || u.hash) return false;
+      return (
+        u.pathname === LOOPBACK_PATH ||
+        u.pathname === "/callback/" ||
+        u.pathname === LOOPBACK_OAUTH_PATH ||
+        u.pathname === `${LOOPBACK_OAUTH_PATH}/`
+      );
     }
     return false;
   } catch {
@@ -119,6 +128,26 @@ export function oauthClientLabel(_clientId, redirectUri = "") {
 export function oauthClientDisplayName(clientId, redirectUri = "") {
   const label = oauthClientLabel(clientId, redirectUri);
   return label === "ChatGPT" || label === "Claude" ? label : "your AI app";
+}
+
+/**
+ * Native MCP clients register this path. Claude Code keeps `/callback`.
+ * @param {string} redirectUri
+ */
+export function isComputerAppRedirect(redirectUri) {
+  try {
+    const u = new URL(String(redirectUri || ""));
+    const host = u.hostname;
+    const loopback =
+      host === "127.0.0.1" || host === "localhost" || host === "[::1]";
+    return (
+      loopback &&
+      (u.pathname === LOOPBACK_OAUTH_PATH ||
+        u.pathname === `${LOOPBACK_OAUTH_PATH}/`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
